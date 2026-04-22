@@ -32,4 +32,4 @@ def get_log_level() -> str:
 
 
 def get_chat_history_path() -> str:
-    return os.getenv("CHAT_HISTORY_PATH", "data/chat_history.json")
+    return os.getenv("CHAT_HISTORY_PATH", "chat_history.json")
