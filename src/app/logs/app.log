@@ -1,0 +1,4 @@
+2026-04-21 23:14:49,584 | INFO | my_python_project | Ollama 服务连接正常
+2026-04-21 23:14:49,588 | INFO | my_python_project | 模型存在: gemma4:e2b
+2026-04-21 23:14:54,621 | INFO | my_python_project | 开始请求模型，model=gemma4:e2b
+2026-04-21 23:15:29,032 | INFO | my_python_project | 模型调用成功，耗时 34.41 秒
