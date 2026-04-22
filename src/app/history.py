@@ -37,3 +37,7 @@ def append_history(record: dict[str, Any]) -> None:
         json.dumps(history, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+def clear_history() -> None:
+    path = _ensure_history_file()
+    path.write_text("[]", encoding="utf-8")

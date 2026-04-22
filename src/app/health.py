@@ -34,3 +34,14 @@ def check_ollama_model_exists() -> tuple[bool, str]:
         return False, f"模型不存在: {model}，当前可用模型: {names}"
     except requests.RequestException as exc:
         return False, f"检查模型失败: {exc}"
+    
+def get_available_models() -> list[str]:
+    base_url = get_ollama_base_url()
+    timeout = get_ollama_timeout()
+
+    response = requests.get(f"{base_url}/api/tags", timeout=timeout)
+    response.raise_for_status()
+    data = response.json()
+
+    models = data.get("models", [])
+    return [item.get("name", "") for item in models if item.get("name")]

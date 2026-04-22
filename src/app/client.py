@@ -3,14 +3,14 @@ import requests
 from src.app.config import (
     get_ollama_base_url,
     get_ollama_keep_alive,
-    get_ollama_model,
     get_ollama_timeout,
 )
+from src.app.runtime_config import get_selected_model
 
 
 def chat_completion(user_input: str) -> str:
     base_url = get_ollama_base_url()
-    model = get_ollama_model()
+    model = get_selected_model()
     timeout = get_ollama_timeout()
     keep_alive = get_ollama_keep_alive()
 

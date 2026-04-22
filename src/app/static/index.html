@@ -11,8 +11,19 @@
 <body>
   <div class="app">
     <header class="app-header">
-      <h1>本地 AI 聊天助手</h1>
-      <p id="health-status">正在检查服务状态...</p>
+      <div class="header-top">
+        <div>
+          <h1>本地 AI 聊天助手</h1>
+          <p id="health-status">正在检查服务状态...</p>
+        </div>
+        <div class="header-actions">
+          <select id="model-select" class="model-select"></select>
+
+          <button id="clear-history-button" class="secondary-button" type="button">
+            清空会话
+          </button>
+        </div>
+      </div>
     </header>
 
     <main class="chat-container">
