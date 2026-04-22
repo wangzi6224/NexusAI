@@ -1,0 +1,2 @@
+2026-04-22 14:01:47,125 | INFO | my_python_project | 收到聊天请求，model=gemma4:e2b
+2026-04-22 14:02:15,704 | INFO | my_python_project | 聊天请求处理完成，耗时 28.58 秒

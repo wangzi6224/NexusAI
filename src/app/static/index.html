@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Python AI App</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>本地 AI 聊天助手</h1>
+      <p id="health-status">正在检查服务状态...</p>
+    </header>
+
+    <main class="chat-container">
+      <div id="message-list" class="message-list"></div>
+
+      <form id="chat-form" class="chat-form">
+        <textarea id="message-input" class="message-input" placeholder="请输入你的问题" rows="4"></textarea>
+        <button id="send-button" class="send-button" type="submit">
+          发送
+        </button>
+      </form>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+
+</html>
