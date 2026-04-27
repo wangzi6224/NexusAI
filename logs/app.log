@@ -3012,3 +3012,7 @@ Traceback (most recent call last):
   File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
     raise HTTPError(http_error_msg, response=self)
 requests.exceptions.HTTPError: 502 Server Error: Bad Gateway for url: http://localhost:11434/api/tags
+2026-04-27 14:58:42,796 | INFO | my_python_project | 收到聊天请求，model=gemma4:e2b
+2026-04-27 14:59:16,004 | INFO | my_python_project | 聊天请求处理完成，耗时 33.21 秒
+2026-04-27 15:11:41,591 | INFO | my_python_project | 收到聊天请求，model=gemma4:e2b
+2026-04-27 15:12:12,004 | INFO | my_python_project | 聊天请求处理完成，耗时 30.41 秒

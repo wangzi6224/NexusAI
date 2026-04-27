@@ -1,14 +1,23 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, description="用户输入的问题")
+    model: str | None = Field(default=None, description="可选，指定本次请求使用的模型")
+
+
+class TokenUsage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class ChatResponse(BaseModel):
     answer: str
+    provider: str
     model: str
-    elapsed_seconds: float
+    latency_ms: int
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class HealthResponse(BaseModel):
@@ -28,6 +37,7 @@ class HistoryItem(BaseModel):
 class ClearHistoryResponse(BaseModel):
     success: bool
     message: str
+
 
 class ModelsResponse(BaseModel):
     current_model: str
