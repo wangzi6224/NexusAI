@@ -2948,3 +2948,67 @@ requests.exceptions.ConnectionError: HTTPConnectionPool(host='192.168.3.146', po
 2026-04-22 22:32:08,159 | INFO | my_python_project | 聊天请求处理完成，耗时 159.44 秒
 2026-04-22 22:35:38,481 | INFO | my_python_project | 收到聊天请求，model=gemma4:e2b
 2026-04-22 22:36:28,083 | INFO | my_python_project | 聊天请求处理完成，耗时 49.60 秒
+2026-04-27 14:06:29,938 | ERROR | my_python_project | 未处理异常: path=/models error=502 Server Error: Bad Gateway for url: http://localhost:11434/api/tags
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 56, in models
+    return get_models()
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/model_service.py", line 9, in get_models
+    available_models=get_available_models(),
+                     ~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/health.py", line 43, in get_available_models
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 502 Server Error: Bad Gateway for url: http://localhost:11434/api/tags
