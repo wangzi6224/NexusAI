@@ -34,8 +34,11 @@ def chat_completion(user_input: str) -> str:
     except requests.exceptions.Timeout as exc:
         raise RuntimeError("请求 Ollama 超时，请检查模型加载状态或机器性能") from exc
     except requests.exceptions.HTTPError as exc:
+        error_response = exc.response
+        status_code = error_response.status_code if error_response is not None else "unknown"
+        response_text = error_response.text if error_response is not None else str(exc)
         raise RuntimeError(
-            f"Ollama HTTP 请求失败，状态码: {response.status_code}，响应内容: {response.text}"
+            f"Ollama HTTP 请求失败，状态码: {status_code}，响应内容: {response_text}"
         ) from exc
     except requests.exceptions.RequestException as exc:
         raise RuntimeError(f"请求 Ollama 失败: {exc}") from exc
