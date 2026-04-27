@@ -7,3 +7,13 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
+
+## Week 1：FastAPI + Ollama 模型调用服务
+
+### 目标
+
+完成一个最小 AI Chat Backend：
+
+```text
+用户请求 -> FastAPI -> LLMProvider -> Ollama -> 返回回答
