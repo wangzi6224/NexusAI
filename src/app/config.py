@@ -1,35 +1,78 @@
-import os
-from dotenv import load_dotenv
+from functools import lru_cache
 
-load_dotenv()
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 定义一个 Pydantic 模型类 Settings，用于存储应用程序的配置项
+class Settings(BaseSettings):
+    # APP_ENV: 环境变量，默认为 "development"，可选值包括 "development"、"production" 和 "testing"
+    app_env: str = Field(default="development", alias="APP_ENV")
+
+    # APP_LOG_LEVEL: 日志级别，默认为 "INFO"，可选值包括 "DEBUG"、"INFO"、"WARNING"、"ERROR" 和 "CRITICAL"
+    app_log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
+
+    # OLLAMA_BASE_URL: Ollama API 的基础 URL，默认为 "http://localhost:11434"
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        alias="OLLAMA_BASE_URL",
+    )
+
+    # OLLAMA_MODEL: Ollama 模型名称，默认为 "gemma4:e2b"
+    ollama_model: str = Field(
+        default="gemma4:e2b",
+        alias="OLLAMA_MODEL",
+    )
+
+    # OLLAMA_TIMEOUT: Ollama API 请求的超时时间，单位为秒，默认为 1200 秒（20 分钟）
+    ollama_timeout: int = Field(
+        default=1200,
+        alias="OLLAMA_TIMEOUT",
+    )
+
+    # OLLAMA_KEEP_ALIVE: Ollama API 连接的 keep-alive 时间，默认为 "5m"（5 分钟）
+    ollama_keep_alive: str = Field(
+        default="5m",
+        alias="OLLAMA_KEEP_ALIVE",
+    )
+
+    # CHAT_HISTORY_PATH: 聊天记录文件的路径，默认为 "chat_history.json"
+    chat_history_path: str = Field(
+        default="chat_history.json",
+        alias="CHAT_HISTORY_PATH",
+    )
+
+    # 配置 Pydantic Settings 的相关选项，包括环境变量文件的路径和编码，以及额外字段的处理方式
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+# 定义一个函数 get_settings，用于获取 Settings 实例，并使用 lru_cache 装饰器进行缓存，以提高性能
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
 
 
 def get_ollama_base_url() -> str:
-    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    return get_settings().ollama_base_url.rstrip("/")
 
 
 def get_ollama_model() -> str:
-    model = os.getenv("OLLAMA_MODEL")
-    if not model:
-        raise ValueError("缺少 OLLAMA_MODEL，请检查 .env 文件")
-    return model
+    return get_settings().ollama_model
 
 
 def get_ollama_timeout() -> int:
-    value = os.getenv("OLLAMA_TIMEOUT", "120")
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise ValueError("OLLAMA_TIMEOUT 必须是整数") from exc
+    return get_settings().ollama_timeout
 
 
 def get_ollama_keep_alive() -> str:
-    return os.getenv("OLLAMA_KEEP_ALIVE", "5m")
+    return get_settings().ollama_keep_alive
 
 
 def get_log_level() -> str:
-    return os.getenv("APP_LOG_LEVEL", "INFO")
+    return get_settings().app_log_level
 
 
 def get_chat_history_path() -> str:
-    return os.getenv("CHAT_HISTORY_PATH", "chat_history.json")
+    return get_settings().chat_history_path
