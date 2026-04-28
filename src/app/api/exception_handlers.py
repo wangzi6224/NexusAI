@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from src.app.exceptions import AppError
+from src.app.exceptions import AppError, LLMProviderError
 
 from src.app.logger import get_logger
 
@@ -30,6 +30,18 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "code": "REQUEST_VALIDATION_ERROR",
                 "message": "请求参数验证失败",
                 "detail": exc.errors(),
+            },
+        )
+    
+    @app.exception_handler(LLMProviderError)
+    async def llm_provider_error_handler(request: Request, exc: LLMProviderError) -> JSONResponse:
+        logger.error("LLM提供者错误: path=%s error=%s", request.url.path, exc)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "code": exc.code,
+                "message": exc.message,
+                "detail": exc.detail,
             },
         )
 
