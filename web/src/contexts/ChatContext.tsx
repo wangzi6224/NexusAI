@@ -1,79 +1,61 @@
 import {
-  createSession as createSessionAPI,
-  getSessionDetail,
-  streamChat,
-  submitFeedback as submitFeedbackAPI,
-} from '@/services/chat';
-import { history, useModel, useParams } from '@umijs/max';
+  ChatResponse,
+  HistoryItem,
+  ModelsResponse,
+  clearHistory as apiClearHistory,
+  getHealth,
+  getHistory as apiGetHistory,
+  getModels,
+  selectModel as apiSelectModel,
+  sendChat,
+} from '@/services/api';
 import { message } from 'antd';
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
-  useMemo,
-  useRef,
   useState,
 } from 'react';
 
 export type MessageRole = 'user' | 'ai';
+
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
 
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   timestamp: number;
-  streaming?: boolean;
   loading?: boolean;
-  messageId?: number;
-  helpful?: boolean;
-  isComplete?: boolean;
+  // AI 响应元信息
+  provider?: string;
+  model?: string;
+  latency_ms?: number;
+  usage?: TokenUsage;
 }
-
-export interface Conversation {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  createdAt: number;
-  relatedQuestion?: string;
-}
-
-export type CategoryOption = {
-  label:
-    | '全部'
-    | '上交所主板'
-    | '上交所科创板'
-    | '深交所主板'
-    | '深交所创业板'
-    | '北交所';
-  value: 'all' | 'sse_main' | 'sse_star' | 'szse_main' | 'szse_star' | 'bse';
-};
-
-export const CATEGORY_OPTIONS: CategoryOption[] = [
-  { label: '全部', value: 'all' },
-  { label: '上交所主板', value: 'sse_main' },
-  { label: '上交所科创板', value: 'sse_star' },
-  { label: '深交所主板', value: 'szse_main' },
-  { label: '深交所创业板', value: 'szse_star' },
-  { label: '北交所', value: 'bse' },
-];
-
-const PENDING_Q_KEY = '_lawai_pending_q';
 
 interface ChatContextType {
-  conversations: Conversation[];
-  activeConversationId: string | null;
-  networkEnabled: boolean;
-  selectedCategory: string;
-  loadingSession: boolean;
-  setNetworkEnabled: (enabled: boolean) => void;
-  setSelectedCategory: (category: string) => void;
-  createNewConversation: () => void;
-  setActiveConversationId: (id: string | null) => void;
-  sendMessage: (content: string) => void;
-  stopStream: () => void;
-  activeConversation: Conversation | null;
-  submitFeedback: (messageId: number, helpful: boolean) => Promise<void>;
+  messages: ChatMessage[];
+  loading: boolean;
+  health: { ok: boolean; message: string } | null;
+  healthError: string | null;
+  models: ModelsResponse | null;
+  modelsError: string | null;
+  currentModel: string;
+  history: HistoryItem[];
+  historyError: string | null;
+  historyLoading: boolean;
+  sendMessage: (content: string) => Promise<void>;
+  loadHistory: () => Promise<void>;
+  doClearHistory: () => Promise<void>;
+  loadModels: () => Promise<void>;
+  handleSelectModel: (model: string) => Promise<void>;
+  clearMessages: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -87,348 +69,175 @@ export const useChatContext = (): ChatContextType => {
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { initialState, refresh } = useModel('@@initialState');
-  const params = useParams<{ sessionId?: string }>();
-  const sessionId = params.sessionId
-    ? parseInt(params.sessionId, 10) || null
-    : null;
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelsResponse | null>(null);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [currentModel, setCurrentModel] = useState<string>('');
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeMessages, setActiveMessages] = useState<ChatMessage[]>([]);
-  const [loadingSession, setLoadingSession] = useState(false);
-  const [networkEnabled, setNetworkEnabled] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-
-  const streamCleanupRef = useRef<(() => void) | null>(null);
-  const refreshTitleTimerRef = useRef<NodeJS.Timeout | null>(null);
-
+  // 页面加载时获取健康状态、模型列表和历史记录
   useEffect(() => {
-    const sessions = (initialState as any)?.sessions as
-      | Array<{ session_id: number; title: string; updated_at: number }>
-      | undefined;
-    if (sessions?.length) {
-      setConversations(
-        sessions.map((s) => ({
-          id: String(s.session_id),
-          title: s.title,
-          messages: [],
-          createdAt: s.updated_at * 1000,
-        })),
-      );
-    }
-  }, [initialState]);
-
-  useEffect(() => {
-    const savedNet = localStorage.getItem('networkEnabled');
-    const savedCat = localStorage.getItem('selectedCategory');
-    if (savedNet !== null) {
-      setNetworkEnabled(savedNet !== 'false');
-    }
-    if (savedCat) {
-      setSelectedCategory(savedCat);
-    }
-  }, []);
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (refreshTitleTimerRef.current) {
-        clearTimeout(refreshTitleTimerRef.current);
+    (async () => {
+      try {
+        const h = await getHealth();
+        setHealth(h);
+        setHealthError(null);
+      } catch {
+        setHealthError('后端服务不可用，请确认 FastAPI 服务已启动');
+        setHealth(null);
       }
-    };
+    })();
+
+    loadModels();
+    loadHistory();
   }, []);
 
-  const startStreaming = useCallback(
-    (targetSessionId: number, content: string, net: boolean, cat: string) => {
+  const loadModels = useCallback(async () => {
+    try {
+      const data = await getModels();
+      setModels(data);
+      setCurrentModel(data.current_model);
+      setModelsError(null);
+    } catch {
+      setModelsError('模型列表加载失败');
+    }
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const data = await apiGetHistory();
+      setHistory(data);
+      setHistoryError(null);
+    } catch {
+      setHistoryError('历史记录加载失败');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const doClearHistory = useCallback(async () => {
+    try {
+      const res = await apiClearHistory();
+      message.success(res.message || '聊天记录已清空');
+      setHistory([]);
+      setMessages([]);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      message.error(detail || '清空历史失败');
+    }
+  }, []);
+
+  const handleSelectModel = useCallback(async (model: string) => {
+    try {
+      const res = await apiSelectModel(model);
+      if (res.success) {
+        setCurrentModel(res.selected_model);
+        message.success(res.message || `已切换模型：${res.selected_model}`);
+        await loadModels();
+      } else {
+        message.error(res.message || '模型切换失败');
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      message.error(detail || '模型切换失败');
+    }
+  }, [loadModels]);
+
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!content.trim() || loading) return;
+
       const userMsg: ChatMessage = {
-        id: `local-user-${Date.now()}`,
+        id: `user-${Date.now()}`,
         role: 'user',
-        content,
+        content: content.trim(),
         timestamp: Date.now(),
       };
-      const aiMsgLocalId = `local-ai-${Date.now()}`;
-      const aiMsg: ChatMessage = {
-        id: aiMsgLocalId,
+      const aiMsgId = `ai-${Date.now() + 1}`;
+      const aiMsgPlaceholder: ChatMessage = {
+        id: aiMsgId,
         role: 'ai',
         content: '',
         timestamp: Date.now() + 1,
         loading: true,
-        streaming: false,
       };
 
-      setActiveMessages((prev) => [...prev, userMsg, aiMsg]);
+      setMessages((prev) => [...prev, userMsg, aiMsgPlaceholder]);
+      setLoading(true);
 
-      streamCleanupRef.current = streamChat(
-        {
-          session_id: targetSessionId,
-          question: content,
-          enable_web_search: net,
-          sector: cat,
-        },
-        {
-          onChunk: (accumulated) => {
-            setActiveMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgLocalId
-                  ? {
-                      ...m,
-                      content: accumulated,
-                      loading: false,
-                      streaming: true,
-                    }
-                  : m,
-              ),
-            );
-          },
-          onDone: (messageId) => {
-            setActiveMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgLocalId
-                  ? {
-                      ...m,
-                      loading: false,
-                      streaming: false,
-                      ...(messageId > 0 ? { messageId, isComplete: true } : {}),
-                    }
-                  : m,
-              ),
-            );
-            streamCleanupRef.current = null;
-            // 延迟刷新列表以获取后端生成的标题
-            if (refreshTitleTimerRef.current) {
-              clearTimeout(refreshTitleTimerRef.current);
-            }
-            refreshTitleTimerRef.current = setTimeout(() => {
-              refresh();
-              refreshTitleTimerRef.current = null;
-            }, 500);
-          },
-          onError: (err) => {
-            console.error('Stream error:', err);
-            setActiveMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgLocalId
-                  ? {
-                      ...m,
-                      content: '抱歉，获取回答时发生错误，请稍后重试。',
-                      loading: false,
-                      streaming: false,
-                    }
-                  : m,
-              ),
-            );
-            streamCleanupRef.current = null;
-          },
-        },
-      );
-    },
-    [],
-  );
-
-  // Load session messages when sessionId changes (URL-driven)
-  useEffect(() => {
-    if (!sessionId) {
-      setActiveMessages([]);
-      return;
-    }
-
-    streamCleanupRef.current?.();
-    streamCleanupRef.current = null;
-
-    const pendingRaw = sessionStorage.getItem(PENDING_Q_KEY);
-    if (pendingRaw) {
       try {
-        const pending = JSON.parse(pendingRaw);
-        if (pending.sessionId === sessionId) {
-          sessionStorage.removeItem(PENDING_Q_KEY);
-          setConversations((prev) => {
-            if (prev.find((c) => c.id === String(sessionId))) return prev;
-            return [
-              {
-                id: String(sessionId),
-                title: '新对话',
-                messages: [],
-                createdAt: Date.now(),
-              },
-              ...prev,
-            ];
-          });
-          setActiveMessages([]);
-          startStreaming(
-            sessionId,
-            pending.content,
-            pending.networkEnabled,
-            pending.selectedCategory,
-          );
-          return;
-        }
-      } catch {
-        sessionStorage.removeItem(PENDING_Q_KEY);
-      }
-    }
+        const res: ChatResponse = await sendChat({
+          message: content.trim(),
+          model: currentModel || null,
+        });
 
-    setLoadingSession(true);
-    setActiveMessages([]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? {
+                  ...m,
+                  content: res.answer,
+                  loading: false,
+                  provider: res.provider,
+                  model: res.model,
+                  latency_ms: res.latency_ms,
+                  usage: res.usage,
+                }
+              : m,
+          ),
+        );
 
-    getSessionDetail(sessionId)
-      .then((res) => {
-        if (res.code === 0) {
-          const msgs: ChatMessage[] = res.data.messages.map((m) => ({
-            id: String(m.id),
-            role: (m.role === 'assistant' ? 'ai' : 'user') as MessageRole,
-            content: m.content,
-            timestamp: m.created_at * 1000,
-            messageId: m.id,
-            isComplete: m.is_complete,
-            helpful: m.helpful,
-          }));
-          setActiveMessages(msgs);
-          setConversations((prev) => {
-            const exists = prev.find((c) => c.id === String(sessionId));
-            if (!exists) {
-              return [
-                {
-                  id: String(sessionId),
-                  title: res.data.title,
-                  messages: [],
-                  createdAt: Date.now(),
-                },
-                ...prev,
-              ];
-            }
-            return prev.map((c) =>
-              c.id === String(sessionId) ? { ...c, title: res.data.title } : c,
-            );
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        setLoadingSession(false);
-      });
-  }, [sessionId, startStreaming]);
-
-  const activeConversationId = sessionId ? String(sessionId) : null;
-
-  const activeConversation = useMemo((): Conversation | null => {
-    if (!sessionId) return null;
-    const session = conversations.find((c) => c.id === String(sessionId));
-    return {
-      id: String(sessionId),
-      title: session?.title ?? '',
-      messages: activeMessages,
-      createdAt: session?.createdAt ?? Date.now(),
-    };
-  }, [sessionId, conversations, activeMessages]);
-
-  const createNewConversation = useCallback(() => {
-    streamCleanupRef.current?.();
-    streamCleanupRef.current = null;
-    refresh();
-    history.push('/lawai-chat');
-  }, []);
-
-  const setActiveConversationId = useCallback((id: string | null) => {
-    streamCleanupRef.current?.();
-    streamCleanupRef.current = null;
-    if (id) {
-      history.push(`/lawai-chat/${id}`);
-    } else {
-      history.push('/lawai-chat');
-    }
-  }, []);
-
-  const stopStream = useCallback(() => {
-    streamCleanupRef.current?.();
-    streamCleanupRef.current = null;
-    setActiveMessages((prev) =>
-      prev.map((m) =>
-        m.loading || m.streaming
-          ? { ...m, loading: false, streaming: false }
-          : m,
-      ),
-    );
-    // 延迟刷新列表以获取后端生成的标题
-    if (refreshTitleTimerRef.current) {
-      clearTimeout(refreshTitleTimerRef.current);
-    }
-    refreshTitleTimerRef.current = setTimeout(() => {
-      refresh();
-      refreshTitleTimerRef.current = null;
-    }, 500);
-  }, [refresh]);
-
-  const sendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim()) return;
-
-      streamCleanupRef.current?.();
-      streamCleanupRef.current = null;
-
-      if (sessionId) {
-        startStreaming(sessionId, content, networkEnabled, selectedCategory);
-      } else {
-        try {
-          const res = await createSessionAPI({
-            enable_web_search: networkEnabled,
-            sector: selectedCategory,
-          });
-
-          if (res.code !== 0) {
-            message.error(res.msg || '创建会话失败');
-            return;
-          }
-
-          const newSessionId = res.data.session_id;
-
-          sessionStorage.setItem(
-            PENDING_Q_KEY,
-            JSON.stringify({
-              sessionId: newSessionId,
-              content,
-              networkEnabled,
-              selectedCategory,
-            }),
-          );
-
-          history.push(`/lawai-chat/${newSessionId}`);
-        } catch {}
+        // 刷新历史记录
+        await loadHistory();
+      } catch (err: any) {
+        const detail = err?.response?.data?.detail;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? {
+                  ...m,
+                  content: detail || '模型调用失败，请检查后端或 Ollama 服务',
+                  loading: false,
+                }
+              : m,
+          ),
+        );
+      } finally {
+        setLoading(false);
       }
     },
-    [sessionId, networkEnabled, selectedCategory, startStreaming],
+    [loading, currentModel, loadHistory],
   );
 
-  const submitFeedback = useCallback(
-    async (messageId: number, helpful: boolean) => {
-      if (!sessionId) return;
-      await submitFeedbackAPI({
-        message_id: messageId,
-        session_id: sessionId,
-        helpful,
-      });
-      setActiveMessages((prev) =>
-        prev.map((m) => (m.messageId === messageId ? { ...m, helpful } : m)),
-      );
-    },
-    [sessionId],
-  );
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
 
   return (
     <ChatContext.Provider
       value={{
-        conversations,
-        activeConversationId,
-        networkEnabled,
-        selectedCategory,
-        loadingSession,
-        setNetworkEnabled,
-        setSelectedCategory,
-        createNewConversation,
-        setActiveConversationId,
+        messages,
+        loading,
+        health,
+        healthError,
+        models,
+        modelsError,
+        currentModel,
+        history,
+        historyError,
+        historyLoading,
         sendMessage,
-        stopStream,
-        activeConversation,
-        submitFeedback,
+        loadHistory,
+        doClearHistory,
+        loadModels,
+        handleSelectModel,
+        clearMessages,
       }}
     >
       {children}

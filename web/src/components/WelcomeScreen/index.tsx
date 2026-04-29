@@ -1,38 +1,17 @@
 import { useChatContext } from '@/contexts/ChatContext';
-import { useModel } from '@@/exports';
-import { Typography } from 'antd';
-import React, { useEffect, useState } from 'react';
-import icon1 from '../../assets/images/icon.png';
+import {
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+} from '@ant-design/icons';
+import { Badge, Typography } from 'antd';
+import React from 'react';
 import ChatSenderInput from '../ChatSenderInput';
 import styles from './index.module.less';
 
-const { Text } = Typography;
-
-const TITLE_BEFORE = 'Hi~\u00a0\u00a0我是你的';
-const TITLE_HIGHLIGHT = '专属AI合规助手';
-const FULL_TITLE_LEN = TITLE_BEFORE.length + TITLE_HIGHLIGHT.length;
+const { Text, Title } = Typography;
 
 const WelcomeScreen: React.FC = () => {
-  const { sendMessage } = useChatContext();
-  const { initialState } = useModel('@@initialState');
-  const [visibleCount, setVisibleCount] = useState(0);
-
-  useEffect(() => {
-    if (visibleCount >= FULL_TITLE_LEN) return;
-    const timer = setTimeout(() => {
-      setVisibleCount((prev) => prev + 1);
-    }, 80);
-    return () => clearTimeout(timer);
-  }, [visibleCount]);
-
-  const visibleBefore = TITLE_BEFORE.slice(
-    0,
-    Math.min(visibleCount, TITLE_BEFORE.length),
-  );
-  const visibleHighlight =
-    visibleCount > TITLE_BEFORE.length
-      ? TITLE_HIGHLIGHT.slice(0, visibleCount - TITLE_BEFORE.length)
-      : '';
+  const { health, healthError, currentModel } = useChatContext();
 
   return (
     <div className={styles.container}>
@@ -40,34 +19,43 @@ const WelcomeScreen: React.FC = () => {
 
       <div className={styles.content}>
         <div className={styles.titleWrapper}>
-          <Text className={styles.title}>
-            {visibleBefore}
-            {visibleHighlight && (
-              <span className={styles.titleHighlight}>{visibleHighlight}</span>
-            )}
-          </Text>
+          <Title level={2} className={styles.title}>
+            My Python AI App
+          </Title>
           <Text className={styles.subtitle}>
-            任何法律法规相关问题，都可以问我哦
+            基于 FastAPI 后端接口的模型对话前端
           </Text>
+
+          <div className={styles.healthStatus}>
+            {healthError ? (
+              <Badge
+                status="error"
+                text={
+                  <Text type="danger" className={styles.healthText}>
+                    <ExclamationCircleOutlined className={styles.healthIcon} />
+                    {healthError}
+                  </Text>
+                }
+              />
+            ) : health ? (
+              <Badge
+                status="success"
+                text={
+                  <Text className={styles.healthTextSuccess}>
+                    <CheckCircleOutlined className={styles.healthIcon} />
+                    后端在线
+                    {currentModel ? `，当前模型：${currentModel}` : ''}
+                  </Text>
+                }
+              />
+            ) : (
+              <Badge status="processing" text="正在连接后端…" />
+            )}
+          </div>
         </div>
 
         <div className={styles.inputWrapper}>
           <ChatSenderInput autoSize={{ minRows: 7, maxRows: 7 }} />
-        </div>
-
-        <div className={styles.promptsWrapper}>
-          {initialState?.quick_questions.map((p) => (
-            <div
-              key={p}
-              className={styles.promptCard}
-              onClick={() => sendMessage(p)}
-            >
-              <img src={icon1} alt="" className={styles.promptIcon} />
-              <Text className={styles.promptText} ellipsis>
-                {p}
-              </Text>
-            </div>
-          ))}
         </div>
       </div>
     </div>

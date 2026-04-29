@@ -8,20 +8,20 @@ import styles from './index.module.less';
 const { Text } = Typography;
 
 const ChatView: React.FC = () => {
-  const { activeConversation } = useChatContext();
+  const { messages, currentModel } = useChatContext();
 
   return (
     <div className={styles.chatView}>
       {/* Header */}
       <div className={styles.chatHeader}>
         <Text className={styles.chatTitle} ellipsis>
-          {activeConversation?.title || ''}
+          {currentModel ? `当前模型：${currentModel}` : 'My Python AI App'}
         </Text>
       </div>
 
       {/* Messages */}
       <div className={styles.messagesArea}>
-        <ChatMessageList messages={activeConversation?.messages ?? []} />
+        <ChatMessageList messages={messages} />
       </div>
 
       {/* Input */}

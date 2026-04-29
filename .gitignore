@@ -7,3 +7,33 @@ __pycache__/
 .vscode/
 .env
 logs/*.log
+
+# Frontend dependencies
+web/node_modules/
+web/.pnpm-store/
+web/.yarn/
+web/.pnp.*
+
+# Umi / Max cache and build output
+web/.umi/
+web/.umi-production/
+web/.mfsu/
+web/.cache/
+web/dist/
+web/build/
+web/.max/
+
+# Frontend logs
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/pnpm-debug.log*
+
+# Frontend env
+web/.env
+web/.env.local
+web/.env.development.local
+web/.env.production.local
+
+# Frontend misc
+web/.DS_Store

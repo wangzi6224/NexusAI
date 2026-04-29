@@ -2,9 +2,11 @@ import { ChatMessage } from '@/contexts/ChatContext';
 import type { BubbleProps } from '@ant-design/x';
 import { Bubble } from '@ant-design/x';
 import { XMarkdown } from '@ant-design/x-markdown';
+import { Typography } from 'antd';
 import React, { useMemo } from 'react';
-import FeedbackFooter from '../FeedbackFooter';
 import styles from './index.module.less';
+
+const { Text } = Typography;
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
@@ -33,13 +35,21 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages }) => {
         };
 
         if (msg.role === 'ai' && !msg.loading) {
-          // 流式和完成态都用 Markdown 渲染，实现实时推流实时展示
           item.contentRender = renderMarkdown;
-          item.streaming = msg.streaming ?? false;
 
-          if (!msg.streaming) {
+          // 显示元信息：provider/model/latency/tokens
+          const metaParts: string[] = [];
+          if (msg.model) metaParts.push(msg.model);
+          if (msg.provider) metaParts.push(msg.provider);
+          if (msg.latency_ms != null) metaParts.push(`${msg.latency_ms} ms`);
+          if (msg.usage?.total_tokens != null)
+            metaParts.push(`${msg.usage.total_tokens} tokens`);
+
+          if (metaParts.length > 0) {
             item.footer = (
-              <FeedbackFooter messageId={msg.messageId} helpful={msg.helpful} />
+              <Text type="secondary" className={styles.metaText}>
+                {metaParts.join(' · ')}
+              </Text>
             );
           }
         }

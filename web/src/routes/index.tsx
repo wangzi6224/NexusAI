@@ -13,15 +13,6 @@ export type RoutesTypes = Array<
 const routes: RoutesTypes = [
   {
     path: '/',
-    redirect: '/lawai-chat',
-  },
-  {
-    path: '/lawai-chat',
-    component: './Home',
-    layout: false,
-  },
-  {
-    path: '/lawai-chat/:sessionId',
     component: './Home',
     layout: false,
   },

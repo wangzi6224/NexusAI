@@ -6,7 +6,7 @@ import WelcomeScreen from '../WelcomeScreen';
 import styles from './index.module.less';
 
 const ChatLayout: React.FC = () => {
-  const { activeConversation } = useChatContext();
+  const { messages } = useChatContext();
 
   return (
     <div className={styles.appLayout}>
@@ -15,7 +15,7 @@ const ChatLayout: React.FC = () => {
 
       {/* Main Content */}
       <div className={styles.mainArea}>
-        {activeConversation ? <ChatView /> : <WelcomeScreen />}
+        {messages.length > 0 ? <ChatView /> : <WelcomeScreen />}
       </div>
     </div>
   );

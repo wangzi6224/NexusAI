@@ -1,85 +1,8 @@
-import { request } from '@/utils/request';
-import { getToken } from '@/utils/token';
-
-export interface Session {
-  session_id: number;
-  title: string;
-  updated_at: number;
-}
-
-export interface SessionMessage {
-  id: number;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: number;
-  is_complete?: boolean;
-  helpful?: boolean;
-}
-
-export interface SessionDetail {
-  session_id: number;
-  title: string;
-  messages: SessionMessage[];
-}
-
-export interface StreamCallbacks {
-  onChunk: (accumulated: string) => void;
-  onDone: (messageId: number) => void;
-  onError?: (err: Error) => void;
-}
-
-/** 创建新会话 */
-export function createSession(params?: {
-  enable_web_search?: boolean;
-  sector?: string;
-}) {
-  return request<typeof params, { session_id: number }>({
-    path: '/api/announce/qa/sessions',
-    method: 'POST',
-    data: params,
-  });
-}
-
-/** 获取会话列表 */
-export function getSessionList() {
-  return request<null, { items: Session[] }>({
-    path: '/api/announce/qa/sessions',
-    method: 'GET',
-  });
-}
-
-/** 获取会话详情（含消息列表） */
-export function getSessionDetail(sessionId: number) {
-  return request<null, SessionDetail>({
-    path: `/api/announce/qa/sessions/${sessionId}`,
-    method: 'GET',
-  });
-}
-
-/** 提交消息反馈 */
-export function submitFeedback(params: {
-  message_id: number;
-  session_id: number;
-  helpful: boolean;
-}) {
-  return request<typeof params, null>({
-    path: '/api/announce/qa/feedback',
-    method: 'POST',
-    data: params,
-  });
-}
-
-/** 停止流式问答 */
-export function stopChat(params: { session_id: number }) {
-  return request<typeof params, null>({
-    path: '/api/announce/qa/chat/stop',
-    method: 'POST',
-    data: params,
-  });
-}
+// 统一从 api.ts 导出所有后端接口函数和类型
+export * from './api';
 
 /** 流式问答（SSE） */
-export function streamChat(
+export function streamChat (
   params: {
     session_id: number;
     question: string;
@@ -178,6 +101,6 @@ export function streamChat(
 
   return () => {
     abortController.abort();
-    stopChat({ session_id: params.session_id }).catch(() => {});
+    stopChat({ session_id: params.session_id }).catch(() => { });
   };
 }

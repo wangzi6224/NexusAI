@@ -1,9 +1,8 @@
-import { GlobalOutlined } from '@ant-design/icons';
 import { Sender } from '@ant-design/x';
-import { Button, Flex, Select } from 'antd';
+import { Button, Flex } from 'antd';
 import classNames from 'classnames';
 import React, { useState } from 'react';
-import { CATEGORY_OPTIONS, useChatContext } from '../../contexts/ChatContext';
+import { useChatContext } from '../../contexts/ChatContext';
 import styles from './index.module.less';
 
 export interface ChatSenderInputProps {
@@ -20,18 +19,12 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
   className,
   senderClassName,
 }) => {
-  const {
-    networkEnabled,
-    setNetworkEnabled,
-    selectedCategory,
-    setSelectedCategory,
-    sendMessage,
-  } = useChatContext();
+  const { sendMessage, loading } = useChatContext();
 
   const [inputValue, setInputValue] = useState('');
 
   const handleSubmit = (val: string) => {
-    if (!val.trim()) return;
+    if (!val.trim() || loading) return;
     sendMessage(val.trim());
     setInputValue('');
   };
@@ -60,47 +53,16 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
         onSubmit={handleSubmit}
         onKeyDown={handleKeyDown}
         submitType="enter"
-        placeholder="询问任何问题前，先选择板块，回答会更精准～"
+        placeholder="请输入你的问题"
         autoSize={autoSize}
+        loading={loading}
         footer={
-          <Flex
-            align="center"
-            justify="space-between"
-            gap={8}
-            className={classNames(['w-full'])}
-          >
-            <Flex align="center" justify="space-between" gap={16}>
-              <Button
-                className={classNames(styles.networkBtn, {
-                  [styles.networkBtnActive]: networkEnabled,
-                })}
-                icon={<GlobalOutlined />}
-                size="small"
-                onClick={() => {
-                  setNetworkEnabled(!networkEnabled);
-                  localStorage.setItem(
-                    'networkEnabled',
-                    (!networkEnabled).toString(),
-                  );
-                }}
-              >
-                联网开关
-              </Button>
-              <Select
-                className={styles.categorySelect}
-                value={selectedCategory}
-                onChange={(e) => {
-                  setSelectedCategory(e);
-                  localStorage.setItem('selectedCategory', e);
-                }}
-                options={CATEGORY_OPTIONS}
-              />
-            </Flex>
+          <Flex align="center" justify="flex-end" gap={8} className="w-full">
             <Button
               type="primary"
               className={styles.sendBtn}
               onClick={() => handleSubmit(inputValue)}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || loading}
             >
               发送
             </Button>
