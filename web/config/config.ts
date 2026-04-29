@@ -4,12 +4,36 @@ import path from 'path';
 import routes from '../src/routes';
 
 const PUBLIC_PATH = '/';
+const CODE_EDITOR_BIN = process.env.CODE_EDITOR || '/usr/local/bin/code';
 
 export default defineConfig({
   chainWebpack (memo: any) {
+    // Ensure IDE is deterministic for code-inspector runtime.
+    process.env.CODE_EDITOR = process.env.CODE_EDITOR || CODE_EDITOR_BIN;
+
     memo.plugin('code-inspector-plugin').use(
       codeInspectorPlugin({
+        editor: CODE_EDITOR_BIN as any,
         bundler: 'webpack',
+        port: 6009,
+        dev: process.env.NODE_ENV === 'development',
+        hooks: {
+          afterInspectRequest (options) {
+            options.editor = (options.editor || CODE_EDITOR_BIN) as any;
+            process.env.CODE_EDITOR = process.env.CODE_EDITOR || CODE_EDITOR_BIN;
+          },
+        },
+        showSwitch: true,
+        hideConsole: false,
+        launchType: 'exec',
+        openIn: 'reuse',
+        pathType: 'absolute',
+        mappings: [
+          {
+            find: /^web\//,
+            replacement: '',
+          },
+        ],
       }),
     );
   },

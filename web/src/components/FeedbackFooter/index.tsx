@@ -1,4 +1,3 @@
-import { useChatContext } from '@/contexts/ChatContext';
 import type { ActionsFeedbackProps } from '@ant-design/x';
 import { Actions } from '@ant-design/x';
 import React from 'react';
@@ -9,12 +8,7 @@ interface FeedbackFooterProps {
   helpful?: boolean;
 }
 
-const FeedbackFooter: React.FC<FeedbackFooterProps> = ({
-  messageId,
-  helpful,
-}) => {
-  const { submitFeedback } = useChatContext();
-
+const FeedbackFooter: React.FC<FeedbackFooterProps> = ({ helpful }) => {
   const value: ActionsFeedbackProps['value'] =
     helpful === true ? 'like' : helpful === false ? 'dislike' : 'default';
 
@@ -22,14 +16,7 @@ const FeedbackFooter: React.FC<FeedbackFooterProps> = ({
     {
       key: 'feedback',
       actionRender: () => (
-        <Actions.Feedback
-          key="feedback"
-          value={value}
-          onChange={(val) => {
-            if (!messageId || val === 'default') return;
-            submitFeedback(messageId, val === 'like');
-          }}
-        />
+        <Actions.Feedback key="feedback" value={value} onChange={() => {}} />
       ),
     },
   ];

@@ -99,15 +99,10 @@ const Sidebar: React.FC = () => {
           history.map((item, idx) => (
             <div key={idx} className={styles.convItem}>
               <Text
-                ellipsis={{ tooltip: item.content }}
-                className={`${styles.convTitle} ${
-                  item.role === 'user'
-                    ? styles.convTitleUser
-                    : styles.convTitleAi
-                }`}
+                ellipsis={{ tooltip: item.user_input || item.answer }}
+                className={`${styles.convTitle} ${styles.convTitleUser}`}
               >
-                {item.role === 'user' ? '你：' : 'AI：'}
-                {item.content}
+                问：{item.user_input || item.answer}
               </Text>
             </div>
           ))
