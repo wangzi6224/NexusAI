@@ -7,6 +7,7 @@ from src.app.logger import get_logger
 from src.app.prompts import build_chat_prompt
 from src.app.schemas import ChatResponse, TokenUsage
 from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.base import LLMStreamChunk
 
 logger = get_logger()
 
@@ -55,3 +56,24 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
             total_tokens=llm_response.usage.total_tokens,
         ),
     )
+
+def handle_chat_stream(messages: str, model: str | None = None):
+    selected_model = model or get_ollama_model()
+    logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
+
+    prompt = build_chat_prompt(messages)
+
+    msg = [
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    ]
+
+    provider = OllamaProvider()
+
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+        if chunk.done:
+            yield LLMStreamChunk(delta=chunk.delta, done=True)
+            break
+        yield LLMStreamChunk(delta=chunk.delta, done=False)
