@@ -61,7 +61,6 @@ const Sidebar: React.FC = () => {
           <Text className={styles.sectionLabel}>选择模型</Text>
           <Select
             className={styles.modelSelect}
-            size="small"
             value={currentModel || undefined}
             options={modelOptions}
             onChange={handleSelectModel}
@@ -77,7 +76,6 @@ const Sidebar: React.FC = () => {
         <Text className={styles.sectionLabel}>历史记录</Text>
         <Button
           type="text"
-          size="small"
           icon={<ClearOutlined />}
           className={styles.clearBtn}
           onClick={doClearHistory}
