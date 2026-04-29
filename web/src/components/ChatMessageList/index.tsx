@@ -27,30 +27,39 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages }) => {
   const items = useMemo(
     () =>
       messages.map((msg): BubbleItem => {
+        // loading=true 且无内容：等待第一个 token，显示 spinner
+        // loading=true 且有内容：SSE 流式接收中，用 streaming prop 渲染
+        // loading=false：流式完成
+        const isWaiting = Boolean(msg.loading) && !msg.content;
+        const isStreaming = Boolean(msg.loading) && Boolean(msg.content);
+
         const item: BubbleItem = {
           key: msg.id,
           role: msg.role,
           content: msg.content,
-          loading: msg.loading,
+          loading: isWaiting,
+          streaming: isStreaming,
         };
 
-        if (msg.role === 'ai' && !msg.loading) {
+        if (msg.role === 'ai' && !isWaiting) {
           item.contentRender = renderMarkdown;
 
-          // 显示元信息：provider/model/latency/tokens
-          const metaParts: string[] = [];
-          if (msg.model) metaParts.push(msg.model);
-          if (msg.provider) metaParts.push(msg.provider);
-          if (msg.latency_ms != null) metaParts.push(`${msg.latency_ms} ms`);
-          if (msg.usage?.total_tokens != null)
-            metaParts.push(`${msg.usage.total_tokens} tokens`);
+          // 流式完成后显示元信息：provider/model/latency/tokens
+          if (!isStreaming) {
+            const metaParts: string[] = [];
+            if (msg.model) metaParts.push(msg.model);
+            if (msg.provider) metaParts.push(msg.provider);
+            if (msg.latency_ms != null) metaParts.push(`${msg.latency_ms} ms`);
+            if (msg.usage?.total_tokens != null)
+              metaParts.push(`${msg.usage.total_tokens} tokens`);
 
-          if (metaParts.length > 0) {
-            item.footer = (
-              <Text type="secondary" className={styles.metaText}>
-                {metaParts.join(' · ')}
-              </Text>
-            );
+            if (metaParts.length > 0) {
+              item.footer = (
+                <Text type="secondary" className={styles.metaText}>
+                  {metaParts.join(' · ')}
+                </Text>
+              );
+            }
           }
         }
 

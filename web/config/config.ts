@@ -54,9 +54,40 @@ export default defineConfig({
   esbuildMinifyIIFE: true,
   favicons: [`${PUBLIC_PATH}favicon.ico`],
   proxy: {
+    '/api/chat/stream': {
+      target: 'http://127.0.0.1:8000',
+      changeOrigin: true,
+      pathRewrite: { '^/api': '' },
+      timeout: 0,
+      proxyTimeout: 0,
+      // 接管响应管道，绕过 compression 中间件缓冲，逐 chunk 强制 flush
+      selfHandleResponse: true,
+      onProxyRes (proxyRes: any, _req: any, res: any) {
+        // 转发原始响应头
+        Object.keys(proxyRes.headers).forEach((key) => {
+          const val = proxyRes.headers[key];
+          if (val !== undefined) res.setHeader(key, val);
+        });
+        // 覆盖确保 SSE 所需头
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.statusCode = proxyRes.statusCode ?? 200;
+
+        proxyRes.on('data', (chunk: Buffer) => {
+          res.write(chunk);
+          // flush() 由 compression 中间件注入，调用可立即推送当前块
+          if (typeof (res as any).flush === 'function') (res as any).flush();
+        });
+        proxyRes.on('end', () => res.end());
+        proxyRes.on('error', () => res.end());
+      },
+    },
     '/api': {
       target: 'http://127.0.0.1:8000',
       changeOrigin: true,
+      pathRewrite: { '^/api': '' },
     },
   },
 });

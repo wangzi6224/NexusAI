@@ -34,6 +34,18 @@ export interface ChatResponse {
   usage: TokenUsage;
 }
 
+export interface ChatStreamChunk {
+  delta?: string;
+  done?: boolean;
+  model?: string;
+  latency_ms?: number;
+  error?: {
+    code?: string;
+    message?: string;
+    detail?: string;
+  };
+}
+
 export interface HistoryItem {
   timestamp: string;
   model: string;
@@ -69,6 +81,64 @@ export async function getHealth (): Promise<HealthResponse> {
 export async function sendChat (payload: ChatRequest): Promise<ChatResponse> {
   const { data } = await http.post<ChatResponse>('/chat', payload);
   return data;
+}
+
+export async function sendChatStream (
+  payload: ChatRequest,
+  onChunk: (chunk: ChatStreamChunk) => void,
+): Promise<void> {
+  const streamUrl = process.env.UMI_APP_STREAM_API_URL || '/api/chat/stream';
+
+  const response = await fetch(streamUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error('流式响应为空');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+
+    for (const event of events) {
+      const lines = event
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('data:'));
+
+      for (const line of lines) {
+        const data = line.slice(5).trim();
+
+        if (!data) continue;
+        if (data === '[DONE]') return;
+
+        try {
+          onChunk(JSON.parse(data) as ChatStreamChunk);
+        } catch {
+          // 忽略非 JSON 的 SSE 数据
+        }
+      }
+    }
+  }
 }
 
 export async function getHistory (): Promise<HistoryItem[]> {

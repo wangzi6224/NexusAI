@@ -3637,3 +3637,120 @@ requests.exceptions.JSONDecodeError: Extra data: line 1 column 5 (char 4)
 2026-04-29 15:57:28,381 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 16:41:39,359 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 16:42:06,507 | INFO | my_python_project | 聊天请求处理完成，耗时 27141 ms
+2026-04-29 19:06:08,878 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:06:08,882 | ERROR | my_python_project | 流式聊天请求失败: Ollama 流式 HTTP 请求失败
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 102, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/chat_service.py", line 85, in handle_chat_stream
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 136, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-04-29 19:07:49,590 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:07:49,597 | ERROR | my_python_project | 流式聊天请求失败: Ollama 流式 HTTP 请求失败
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 102, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/chat_service.py", line 85, in handle_chat_stream
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 136, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-04-29 19:10:06,005 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:10:06,012 | ERROR | my_python_project | 流式聊天请求失败: Ollama 流式 HTTP 请求失败
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 102, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/chat_service.py", line 85, in handle_chat_stream
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 136, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-04-29 19:12:18,293 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:12:18,319 | ERROR | my_python_project | 流式聊天请求失败: Ollama 流式 HTTP 请求失败
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 102, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/chat_service.py", line 85, in handle_chat_stream
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 136, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-04-29 19:13:49,931 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:14:23,984 | ERROR | my_python_project | 流式聊天请求失败: Ollama 流式 HTTP 请求失败
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 102, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/chat_service.py", line 85, in handle_chat_stream
+    for chunk in provider.stream_chat(messages=msg, model=selected_model):
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 136, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-04-29 19:15:21,367 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e4b
+2026-04-29 19:16:20,858 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 450 字符, 耗时 59464 ms
+2026-04-29 19:18:50,725 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 19:19:07,021 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 283 字符, 耗时 16292 ms
+2026-04-29 19:21:19,391 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 19:21:27,407 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 138 字符, 耗时 8009 ms
+2026-04-29 19:21:51,323 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 19:22:03,737 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 353 字符, 耗时 12411 ms
+2026-04-29 19:26:22,290 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 19:26:44,857 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 252 字符, 耗时 22563 ms
+2026-04-29 19:28:50,776 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 19:29:00,047 | INFO | my_python_project | 聊天请求处理完成，完整回答长度 133 字符, 耗时 9267 ms

@@ -33,15 +33,12 @@ class OllamaProvider(LLMProvider):
         url = f"{base_url}/api/chat"
 
         # 构建请求负载
-        payload = json.dumps(
-            {
+        payload = {
                 "model": selected_model,
                 "messages": messages,
                 "stream": False,
                 "keep_alive": keep_alive,
-            },
-            ensure_ascii=False,
-        )
+            }
 
         try:
             response = requests.post(url, json=payload, timeout=timeout)
@@ -85,15 +82,12 @@ class OllamaProvider(LLMProvider):
         timeout = config["timeout"]
         keep_alive = config["keep_alive"]
 
-        playload = json.dumps(
-            {
+        playload = {
                 "model": selected_model,
                 "messages": messages,
                 "stream": True,
                 "keep_alive": keep_alive,
-            },
-            ensure_ascii=False,
-        )
+            }
 
         url = f"{base_url}/api/chat"
 

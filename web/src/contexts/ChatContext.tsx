@@ -1,13 +1,13 @@
 import {
-  ChatResponse,
+  ChatStreamChunk,
   HistoryItem,
   ModelsResponse,
   clearHistory as apiClearHistory,
-  getHealth,
   getHistory as apiGetHistory,
-  getModels,
   selectModel as apiSelectModel,
-  sendChat,
+  getHealth,
+  getModels,
+  sendChatStream,
 } from '@/services/api';
 import { message } from 'antd';
 import React, {
@@ -71,7 +71,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(null);
+  const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  );
   const [healthError, setHealthError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
@@ -133,21 +135,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  const handleSelectModel = useCallback(async (model: string) => {
-    try {
-      const res = await apiSelectModel(model);
-      if (res.success) {
-        setCurrentModel(res.selected_model);
-        message.success(res.message || `已切换模型：${res.selected_model}`);
-        await loadModels();
-      } else {
-        message.error(res.message || '模型切换失败');
+  const handleSelectModel = useCallback(
+    async (model: string) => {
+      try {
+        const res = await apiSelectModel(model);
+        if (res.success) {
+          setCurrentModel(res.selected_model);
+          message.success(res.message || `已切换模型：${res.selected_model}`);
+          await loadModels();
+        } else {
+          message.error(res.message || '模型切换失败');
+        }
+      } catch (err: any) {
+        const detail = err?.response?.data?.detail;
+        message.error(detail || '模型切换失败');
       }
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(detail || '模型切换失败');
-    }
-  }, [loadModels]);
+    },
+    [loadModels],
+  );
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -172,22 +177,44 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
 
       try {
-        const res: ChatResponse = await sendChat({
-          message: content.trim(),
-          model: currentModel || null,
-        });
+        await sendChatStream(
+          {
+            message: content.trim(),
+            model: currentModel || null,
+          },
+          (chunk: ChatStreamChunk) => {
+            if (chunk.error) {
+              throw new Error(
+                chunk.error.detail || chunk.error.message || '流式聊天失败',
+              );
+            }
+
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== aiMsgId) return m;
+
+                const nextContent = `${m.content}${chunk.delta || ''}`;
+                const isDone = Boolean(chunk.done);
+
+                return {
+                  ...m,
+                  content: nextContent,
+                  loading: !isDone,
+                  provider: 'ollama',
+                  model: chunk.model || m.model,
+                  latency_ms: chunk.latency_ms ?? m.latency_ms,
+                };
+              }),
+            );
+          },
+        );
 
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
               ? {
                   ...m,
-                  content: res.answer,
                   loading: false,
-                  provider: res.provider,
-                  model: res.model,
-                  latency_ms: res.latency_ms,
-                  usage: res.usage,
                 }
               : m,
           ),
