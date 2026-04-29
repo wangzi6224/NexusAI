@@ -1,7 +1,7 @@
 // ChatSenderInput 公共组件样式，所有颜色通过全局 CSS 变量引用
 
 .wrapper {
-  border-radius: 12px;
+  border-radius: 16px;
   margin: 0 auto;
 }
 
@@ -9,7 +9,10 @@
   :global(.ant-sender) {
     background: var(--bg-card) !important;
     border: 1px solid var(--border-visible) !important;
-    border-radius: 12px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 34px rgba(16, 5, 14, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
 
   :global(.ant-sender-content) {
@@ -19,7 +22,7 @@
   :global(.ant-sender .ant-sender-content textarea) {
     color: var(--text-primary) !important;
     background: transparent !important;
-    font-size: 14px !important;
+    font-size: 15px !important;
     line-height: 1.7 !important;
   }
 
@@ -56,14 +59,22 @@
 
 .sendBtn {
   color: #fff !important;
-  border-radius: 6px !important;
+  border-radius: 10px !important;
   padding: 4px 20px !important;
-  height: 34px !important;
+  height: 36px !important;
   font-size: 14px !important;
+  border: none !important;
+  background: linear-gradient(120deg, #ff6fb3 0%, #ff3f91 45%, #ff267d 100%) !important;
+  box-shadow: 0 8px 18px rgba(255, 48, 136, 0.38);
+
+  &:hover {
+    filter: saturate(1.08) brightness(1.04);
+  }
 
   &:disabled {
-    background: rgba(255, 255, 255, 0.2) !important;
-    border-color: rgba(255, 255, 255, 0.2) !important;
-    color: rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+    color: rgba(255, 255, 255, 0.42) !important;
+    box-shadow: none;
   }
 }

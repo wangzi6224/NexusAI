@@ -1,30 +1,32 @@
 /* ===================== 全局 CSS 变量 ===================== */
 :root {
-  /* 主题色 / Primary Gold Color */
-  --color-primary: #e8bb66;
-  --color-primary-hover: #c4832c;
-  --color-primary-alpha-06: rgba(232, 187, 102, 6%);
-  --color-primary-alpha-08: rgba(232, 187, 102, 8%);
-  --color-primary-alpha-12: rgba(232, 187, 102, 12%);
-  --color-primary-alpha-15: rgba(232, 187, 102, 15%);
-  --color-primary-alpha-25: rgba(232, 187, 102, 25%);
+  /* 主题色 / Energetic Pink */
+  --color-primary: #ff3f91;
+  --color-primary-hover: #ff237f;
+  --color-primary-alpha-06: rgba(255, 63, 145, 0.06);
+  --color-primary-alpha-08: rgba(255, 63, 145, 0.08);
+  --color-primary-alpha-12: rgba(255, 63, 145, 0.12);
+  --color-primary-alpha-15: rgba(255, 63, 145, 0.15);
+  --color-primary-alpha-25: rgba(255, 63, 145, 0.25);
+  --color-secondary: #ff8fc5;
+  --color-accent: #ff5da2;
 
   /* 背景色 */
-  --bg-main: rgba(34, 34, 34, 100%);
-  --bg-card: rgba(22, 28, 40, 90%);
-  --bg-card-solid: #161c28;
-  --bg-elevated: #1a2030;
-  --bg-sidebar: #000;
+  --bg-main: radial-gradient(circle at 12% 12%, rgba(255, 77, 155, 0.2), transparent 45%), radial-gradient(circle at 88% 86%, rgba(255, 122, 182, 0.18), transparent 40%), linear-gradient(135deg, #120615 0%, #1a0818 35%, #130712 100%);
+  --bg-card: rgba(38, 14, 35, 0.72);
+  --bg-card-solid: #251021;
+  --bg-elevated: #2e1528;
+  --bg-sidebar: linear-gradient(180deg, #1a0a16 0%, #120713 100%);
 
   /* 边框色 */
-  --border-subtle: rgba(255, 255, 255, 6%);
-  --border-medium: rgba(255, 255, 255, 8%);
-  --border-visible: rgba(229, 230, 235, 20%);
-  --border-light: rgba(255, 255, 255, 12%);
+  --border-subtle: rgba(255, 159, 206, 0.16);
+  --border-medium: rgba(255, 159, 206, 0.24);
+  --border-visible: rgba(255, 185, 220, 0.34);
+  --border-light: rgba(255, 203, 228, 0.2);
 
   /* 文字色 */
-  --text-primary: rgba(255, 255, 255, 90%);
+  --text-primary: rgba(255, 240, 248, 0.95);
   --text-secondary: rgba(255, 255, 255);
-  --text-muted: rgba(255, 255, 255, 50%);
-  --text-dim: rgba(255, 255, 255, 30%);
+  --text-muted: rgba(255, 210, 232, 0.75);
+  --text-dim: rgba(255, 206, 228, 0.52);
 }

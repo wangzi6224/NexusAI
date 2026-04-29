@@ -3606,3 +3606,5 @@ requests.exceptions.JSONDecodeError: Extra data: line 1 column 5 (char 4)
 2026-04-28 19:08:54,109 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
 2026-04-29 10:22:36,733 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 10:23:02,631 | INFO | my_python_project | 聊天请求处理完成，耗时 25893 ms
+2026-04-29 10:30:17,220 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 10:30:36,641 | INFO | my_python_project | 聊天请求处理完成，耗时 19414 ms

@@ -3,15 +3,14 @@
 
 .metaText {
   font-size: 11px;
+  color: var(--text-dim) !important;
 }
 
 .container {
   flex: 1;
   overflow-y: auto;
   padding: 28px 0;
-  scrollbar-width: thin;
   width: 100%;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -22,7 +21,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 87, 167, 0.4);
     border-radius: 2px;
   }
 }
@@ -54,24 +53,28 @@
 
 .bubbleUser {
   :global(.ant-bubble-content) {
-    background: rgba(255, 255, 255, 0.2);
+    background: linear-gradient(120deg, rgba(255, 125, 190, 0.22) 0%, rgba(255, 76, 158, 0.22) 100%);
+    border: 1px solid rgba(255, 185, 220, 0.36);
+    border-radius: 14px;
     width: fit-content;
     min-height: 24px;
     font-weight: 400;
     font-size: 16px;
-    color: #ffffff;
+    color: #fff8fc;
     line-height: 24px;
   }
 }
 
 .bubbleAi {
   :global(.ant-bubble-content) {
-    background: transparent;
+    background: rgba(255, 157, 210, 0.06);
+    border: 1px solid rgba(255, 185, 220, 0.26);
+    border-radius: 14px;
     width: fit-content;
     min-height: 24px;
     font-weight: 400;
     font-size: 16px;
-    color: #ffffff;
+    color: #fff6fb;
     line-height: 24px;
   }
 }
@@ -168,7 +171,7 @@
 
   // 链接
   a {
-    color: #E8BB66;
+    color: #ff6cb2;
     text-decoration: underline;
     &:hover { opacity: 0.85; }
   }

@@ -3,7 +3,7 @@
  */
 .ant-select {
   .ant-select-selection-item {
-    color: #e8bb66;
+    color: var(--text-primary);
   }
 
   .ant-select-arrow {
@@ -12,22 +12,23 @@
 }
 
 .ant-select-dropdown {
-  background: #2f2f2f;
-  border: 1px solid rgba(229, 230, 235, 20%);
+  background: rgba(37, 16, 33, 0.95);
+  border: 1px solid var(--border-visible);
   border-radius: 10px;
+  backdrop-filter: blur(12px);
 
   .ant-select-item {
-    color: rgba(255, 255, 255, 80%) !important;
+    color: var(--text-muted) !important;
     margin: 2px 0;
   }
 
   .ant-select-item:hover,
   .ant-select-item-option-active {
-    background: rgba(255, 255, 255, 10%) !important;
+    background: var(--color-primary-alpha-12) !important;
   }
 
   .ant-select-item-option-selected {
-    background: rgba(255, 255, 255, 20%) !important;
-    color: #fff !important;
+    background: var(--color-primary-alpha-25) !important;
+    color: #fff7fb !important;
   }
 }

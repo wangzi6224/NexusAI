@@ -2,8 +2,8 @@
 // Sender 输入框样式已移至 ChatSenderInput 组件，此处只保留布局样式
 
 .container {
-  width: 65.8%;
-  padding: 0 0 16px;
+  width: min(920px, 74%);
+  padding: 0 0 20px;
   margin: 0 auto;
   background: transparent;
   flex-shrink: 0;
@@ -11,10 +11,23 @@
 
 .disclaimer {
   text-align: center;
-  padding-top: 8px;
+  padding-top: 10px;
 }
 
 .disclaimerText {
   color: var(--text-dim) !important;
   font-size: 12px !important;
+}
+
+@media (max-width: 1200px) {
+  .container {
+    width: min(920px, 86%);
+  }
+}
+
+@media (max-width: 960px) {
+  .container {
+    width: 94%;
+    padding-bottom: 14px;
+  }
 }
