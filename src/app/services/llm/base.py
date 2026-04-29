@@ -27,7 +27,8 @@ class LLMResponse:
 class LLMStreamChunk:
     delta: str
     done: bool = False
-
+    model: str | None = None
+    latency_ms: int | None = None
 
 class LLMProvider(ABC):
     name: str
