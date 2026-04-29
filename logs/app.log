@@ -3635,3 +3635,5 @@ requests.exceptions.JSONDecodeError: Extra data: line 1 column 5 (char 4)
 2026-04-29 15:53:16,930 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 15:56:26,547 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 15:57:28,381 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 16:41:39,359 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 16:42:06,507 | INFO | my_python_project | 聊天请求处理完成，耗时 27141 ms

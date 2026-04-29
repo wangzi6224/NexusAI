@@ -3,7 +3,7 @@
   "author": "wangzilong <wangzi6224@gmail.com>",
   "scripts": {
     "build": "max build",
-    "dev": "max dev",
+    "dev": "PORT=8001 max dev",
     "format": "prettier --cache --write .",
     "postinstall": "max setup",
     "lint": "max lint",
