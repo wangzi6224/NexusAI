@@ -1,0 +1,30 @@
+/* ===================== 全局 CSS 变量 ===================== */
+:root {
+  /* 主题色 / Primary Gold Color */
+  --color-primary: #e8bb66;
+  --color-primary-hover: #c4832c;
+  --color-primary-alpha-06: rgba(232, 187, 102, 6%);
+  --color-primary-alpha-08: rgba(232, 187, 102, 8%);
+  --color-primary-alpha-12: rgba(232, 187, 102, 12%);
+  --color-primary-alpha-15: rgba(232, 187, 102, 15%);
+  --color-primary-alpha-25: rgba(232, 187, 102, 25%);
+
+  /* 背景色 */
+  --bg-main: rgba(34, 34, 34, 100%);
+  --bg-card: rgba(22, 28, 40, 90%);
+  --bg-card-solid: #161c28;
+  --bg-elevated: #1a2030;
+  --bg-sidebar: #000;
+
+  /* 边框色 */
+  --border-subtle: rgba(255, 255, 255, 6%);
+  --border-medium: rgba(255, 255, 255, 8%);
+  --border-visible: rgba(229, 230, 235, 20%);
+  --border-light: rgba(255, 255, 255, 12%);
+
+  /* 文字色 */
+  --text-primary: rgba(255, 255, 255, 90%);
+  --text-secondary: rgba(255, 255, 255);
+  --text-muted: rgba(255, 255, 255, 50%);
+  --text-dim: rgba(255, 255, 255, 30%);
+}

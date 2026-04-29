@@ -1,0 +1,21 @@
+{
+  "extends": "./src/.umi/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@/*": [
+        "src/*"
+      ],
+      "@@/*": [
+        "src/.umi/*"
+      ],
+      "@umijs/max": [
+        "node_modules/.pnpm/umi@4.6.26_@babel+core@7.29.0_@types+node@25.2.2_@types+react@18.3.28_eslint@8.35.0_les_92560103c209fd7b0fedffbd8bc730ad/node_modules/umi"
+      ],
+      "@umijs/max/typings": [
+        "src/.umi/typings"
+      ]
+    }
+  }
+}

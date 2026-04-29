@@ -1,0 +1,69 @@
+// ChatSenderInput 公共组件样式，所有颜色通过全局 CSS 变量引用
+
+.wrapper {
+  border-radius: 12px;
+  margin: 0 auto;
+}
+
+.sender {
+  :global(.ant-sender) {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-visible) !important;
+    border-radius: 12px !important;
+  }
+
+  :global(.ant-sender-content) {
+    background: transparent !important;
+  }
+
+  :global(.ant-sender .ant-sender-content textarea) {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+    font-size: 14px !important;
+    line-height: 1.7 !important;
+  }
+
+  :global(.ant-sender .ant-sender-content textarea::placeholder) {
+    color: var(--text-dim) !important;
+  }
+
+  :global(.ant-sender-prefix) {
+    padding: 8px 0;
+  }
+}
+
+.networkBtn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--border-light) !important;
+  color: var(--text-secondary) !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap;
+}
+
+.networkBtnActive {
+  background: var(--color-primary-alpha-15) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+}
+
+.categorySelect {
+  width: 144px !important;
+}
+
+.sendBtn {
+  color: #fff !important;
+  border-radius: 6px !important;
+  padding: 4px 20px !important;
+  height: 34px !important;
+  font-size: 14px !important;
+
+  &:disabled {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    color: rgba(255, 255, 255, 0.2) !important;
+  }
+}

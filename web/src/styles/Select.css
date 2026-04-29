@@ -1,0 +1,33 @@
+/**
+ * select组件全局颜色
+ */
+.ant-select {
+  .ant-select-selection-item {
+    color: #e8bb66;
+  }
+
+  .ant-select-arrow {
+    color: var(--color-primary);
+  }
+}
+
+.ant-select-dropdown {
+  background: #2f2f2f;
+  border: 1px solid rgba(229, 230, 235, 20%);
+  border-radius: 10px;
+
+  .ant-select-item {
+    color: rgba(255, 255, 255, 80%) !important;
+    margin: 2px 0;
+  }
+
+  .ant-select-item:hover,
+  .ant-select-item-option-active {
+    background: rgba(255, 255, 255, 10%) !important;
+  }
+
+  .ant-select-item-option-selected {
+    background: rgba(255, 255, 255, 20%) !important;
+    color: #fff !important;
+  }
+}

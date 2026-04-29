@@ -1,0 +1,40 @@
+// ===================== ChatView =====================
+// 颜色通过全局 CSS 变量引用
+
+.chatView {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.chatTitle {
+  color: var(--text-primary) !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  text-align: center;
+  max-width: 600px;
+  display: block;
+}
+
+.messagesArea {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: 0 auto;
+}

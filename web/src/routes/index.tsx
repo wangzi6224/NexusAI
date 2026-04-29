@@ -1,0 +1,30 @@
+export type RoutesTypes = Array<
+  | {
+      component?: string | undefined;
+      layout?: false | undefined;
+      path?: string | undefined;
+      redirect?: string | undefined;
+      routes?: RoutesTypes;
+      wrappers?: Array<string> | undefined;
+    }
+  | { [x: string]: any }
+>;
+
+const routes: RoutesTypes = [
+  {
+    path: '/',
+    redirect: '/lawai-chat',
+  },
+  {
+    path: '/lawai-chat',
+    component: './Home',
+    layout: false,
+  },
+  {
+    path: '/lawai-chat/:sessionId',
+    component: './Home',
+    layout: false,
+  },
+];
+
+export default routes;

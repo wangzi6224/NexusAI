@@ -1,0 +1,145 @@
+// ===================== WelcomeScreen =====================
+// Sender 输入框样式已移至 ChatSenderInput 组件
+
+.container {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+
+// Circuit board grid background
+.bgPattern {
+  position: absolute;
+  inset: 0;
+  background-size: 60px 60px;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    width: 100%;
+    height: 65.83%;
+    background: url('../../assets/images/webcome_bg.png') center center
+      no-repeat;
+    background-size: cover;
+    position: absolute;
+    top: 18.51%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1000px;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+
+.titleWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.title {
+  color: rgba(255, 255, 255, 90%) !important;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  line-height: 32px !important;
+  height: 32px !important;
+  display: block;
+}
+
+.titleHighlight {
+  color: var(--color-primary);
+}
+
+.subtitle {
+  color: rgba(201, 205, 212, 100%);
+  display: block;
+  height: 28px;
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 28px;
+  text-align: left;
+}
+
+.inputWrapper {
+  width: 100%;
+  background: rgba(47, 47, 47, 100%);
+  font-size: 16px !important;
+}
+
+.promptsWrapper {
+  display: flex;
+  gap: 29px;
+  width: 100%;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.promptCard {
+  flex-shrink: 0;
+  height: 60px;
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: 298px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 10%);
+  border: 1px solid var(--border-visible);
+
+  &:hover {
+    background: rgba(255, 255, 255, 20%);
+    border: 1px solid var(--border-visible);
+    transform: translateY(-2px);
+  }
+}
+
+.promptIcon {
+  display: block;
+  width: 30px;
+  height: 30px;
+  font-size: 0;
+  flex-shrink: 0;
+}
+
+.promptText {
+  color: #fff !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  overflow: hidden;
+  display: box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+@media screen and (max-width: 1400px) {
+  .promptsWrapper {
+    justify-content: center;
+  }
+
+  .promptCard {
+    //width: 314px;
+  }
+
+  .content {
+    width: 65.8%;
+  }
+}
