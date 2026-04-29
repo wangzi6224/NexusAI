@@ -3608,3 +3608,30 @@ requests.exceptions.JSONDecodeError: Extra data: line 1 column 5 (char 4)
 2026-04-29 10:23:02,631 | INFO | my_python_project | 聊天请求处理完成，耗时 25893 ms
 2026-04-29 10:30:17,220 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
 2026-04-29 10:30:36,641 | INFO | my_python_project | 聊天请求处理完成，耗时 19414 ms
+2026-04-29 14:26:31,344 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:46:53,580 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:48:14,642 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:48:26,074 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:48:52,118 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:49:25,855 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:49:34,108 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:50:25,587 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:50:55,280 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:51:55,618 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:52:16,775 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:52:37,862 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:53:10,188 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 14:53:53,063 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:40:30,955 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:40:42,081 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:40:49,049 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:40:49,365 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:40:54,634 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:41:11,901 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:42:08,667 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:43:42,451 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:46:00,056 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:49:32,951 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:53:16,930 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:56:26,547 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
+2026-04-29 15:57:28,381 | INFO | my_python_project | 收到聊天请求，provider=ollama, model=gemma4:e2b
