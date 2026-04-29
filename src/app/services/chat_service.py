@@ -1,5 +1,6 @@
 from datetime import datetime
 from time import perf_counter
+from typing import Iterable
 
 from src.app.config import get_ollama_model
 from src.app.history import append_history
@@ -57,7 +58,7 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
         ),
     )
 
-def handle_chat_stream(messages: str, model: str | None = None):
+def handle_chat_stream(messages: str, model: str | None = None) -> Iterable[LLMStreamChunk]:
     selected_model = model or get_ollama_model()
     logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
 
@@ -72,8 +73,25 @@ def handle_chat_stream(messages: str, model: str | None = None):
 
     provider = OllamaProvider()
 
+    full_answer_parts: list[str] = []
+    start = perf_counter()
     for chunk in provider.stream_chat(messages=msg, model=selected_model):
         if chunk.done:
             yield LLMStreamChunk(delta=chunk.delta, done=True)
+            full_answer = "".join(full_answer_parts)
+            elapsed = perf_counter() - start
+            latency_ms = int(elapsed * 1000)
+            logger.info(f"聊天请求处理完成，完整回答长度 {len(full_answer)} 字符, 耗时 {latency_ms} ms")
+            append_history(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "model": selected_model,
+                    "user_input": messages,
+                    "prompt": prompt,
+                    "answer": full_answer,
+                    "elapsed_seconds": round(elapsed, 2),
+                }
+            )
             break
+        full_answer_parts.append(chunk.delta)
         yield LLMStreamChunk(delta=chunk.delta, done=False)
