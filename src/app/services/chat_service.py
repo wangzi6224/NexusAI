@@ -59,11 +59,11 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
         ),
     )
 
-def handle_chat_stream(messages: str, model: str | None = None) -> Iterable[str]:
+def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
     selected_model = model or get_ollama_model()
     logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
 
-    prompt = build_chat_prompt(messages)
+    prompt = build_chat_prompt(message)
 
     msg = [
         {
@@ -82,7 +82,7 @@ def handle_chat_stream(messages: str, model: str | None = None) -> Iterable[str]
     start = perf_counter()
 
     try:
-        for chunk in provider.stream_chat(messages=msg, model=selected_model):
+        for chunk in provider.stream_chat(message=msg, model=selected_model):
 
             # 如果当前 chunk 表示流结束（done=True），则跳出循环
             if chunk.done:
@@ -116,7 +116,7 @@ def handle_chat_stream(messages: str, model: str | None = None) -> Iterable[str]
             {
                 "timestamp": datetime.now().isoformat(),
                 "model": selected_model,
-                "user_input": messages,
+                "user_input": message,
                 "prompt": prompt,
                 "answer": full_answer,
                 "elapsed_seconds": round(elapsed, 2),

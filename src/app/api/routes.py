@@ -1,17 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from src.app.services.llm.base import LLMStreamChunk
 
 from src.app.paths import STATIC_DIR
 from src.app.schemas import (
     ChatRequest,
-    ChatResponse,
-    ClearHistoryResponse,
-    HealthResponse,
     HistoryItem,
+    ChatResponse,
+    HealthResponse,
     ModelsResponse,
     SelectModelRequest,
     SelectModelResponse,
+    ClearHistoryResponse,
 )
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
@@ -43,7 +42,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 def chat_stream(request: ChatRequest) -> StreamingResponse:
     return StreamingResponse(
         handle_chat_stream(
-            messages=request.message,
+            message=request.message,
             model=request.model,
         ),
         media_type="text/event-stream",

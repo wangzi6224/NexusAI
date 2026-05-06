@@ -39,6 +39,6 @@ class LLMProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def stream_chat(self, messages: list[dict[str, str]], model: str | None = None) -> Iterator[LLMStreamChunk]:
+    def stream_chat(self, message: list[dict[str, str]], model: str | None = None) -> Iterator[LLMStreamChunk]:
         """调用聊天模型并以流式方式返回响应。"""
         raise NotImplementedError

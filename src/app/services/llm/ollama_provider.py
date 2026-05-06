@@ -75,7 +75,7 @@ class OllamaProvider(LLMProvider):
             usage=usage,
         )
 
-    def stream_chat(self, messages: list[dict[str, str]], model: str | None = None) -> Iterator[LLMStreamChunk]:
+    def stream_chat(self, message: list[dict[str, str]], model: str | None = None) -> Iterator[LLMStreamChunk]:
         config = self._get_ollama_config()
         base_url = config["base_url"]
         selected_model = model or config["model"]
@@ -84,7 +84,7 @@ class OllamaProvider(LLMProvider):
 
         playload = {
                 "model": selected_model,
-                "messages": messages,
+                "messages": message,
                 "stream": True,
                 "keep_alive": keep_alive,
             }
