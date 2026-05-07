@@ -13,6 +13,7 @@ class AppError(Exception):
         self.status_code = status_code
         self.detail = detail
 
+
 # LLM错误
 class LLMProviderError(AppError):
     def __init__(
@@ -39,6 +40,21 @@ class ConfigError(AppError):
     ) -> None:
         super().__init__(
             code="CONFIG_ERROR",
+            message=message,
+            status_code=status_code,
+            detail=detail,
+        )
+
+
+class ConversationError(AppError):
+    def __init__(
+        self,
+        message: str = "会话处理错误",
+        detail: str | None = None,
+        status_code: int = 400,
+    ) -> None:
+        super().__init__(
+            code="CONVERSATION_ERROR",
             message=message,
             status_code=status_code,
             detail=detail,
