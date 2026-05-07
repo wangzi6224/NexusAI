@@ -1,12 +1,13 @@
 import uvicorn
-import os
 import subprocess
 from src.app.paths import WEB_DIR
+
 
 def start_web_server() -> None:
     print("正在启动前端开发服务器...")
     print(f"前端目录: {WEB_DIR}")
-    subprocess.Popen(['pnpm', 'run', 'dev'], cwd=WEB_DIR)
+    subprocess.Popen(["pnpm", "run", "dev"], cwd=WEB_DIR)
+
 
 def main() -> None:
     start_web_server()
