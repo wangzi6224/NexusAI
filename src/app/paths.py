@@ -1,7 +1,16 @@
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-LOG_DIR = Path.cwd() / "logs"
-DATA_DIR = Path.cwd() / "data"
-WEB_DIR = BASE_DIR.parent.parent / "web"
+# 根目录绝对路径
+BASE_ABS_DIR = Path(__file__).resolve().parent
+
+# 静态文件目录
+STATIC_DIR = BASE_ABS_DIR / "static"
+
+# 日志目录
+LOG_DIR = BASE_ABS_DIR / "logs"
+
+# 数据目录
+DATA_DIR = BASE_ABS_DIR / "data"
+
+# Web目录
+WEB_DIR = BASE_ABS_DIR.parents[1] / "web"
