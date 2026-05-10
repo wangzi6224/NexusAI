@@ -21,7 +21,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 87, 167, 0.4);
+    background: rgba(255, 61, 154, 0.48);
     border-radius: 2px;
   }
 }
@@ -60,29 +60,31 @@
 
 .bubbleUser {
   :global(.ant-bubble-content) {
-    background: linear-gradient(120deg, rgba(255, 125, 190, 0.22) 0%, rgba(255, 76, 158, 0.22) 100%);
-    border: 1px solid rgba(255, 185, 220, 0.36);
-    border-radius: 14px;
+    background: linear-gradient(120deg, rgba(255, 61, 154, 0.32) 0%, rgba(0, 229, 255, 0.16) 100%);
+    border: 1px solid rgba(255, 99, 177, 0.46);
+    border-radius: 8px;
     width: fit-content;
     min-height: 24px;
     font-weight: 400;
     font-size: 16px;
-    color: #fff8fc;
+    color: #ffffff;
     line-height: 24px;
+    box-shadow: 0 12px 28px rgba(255, 61, 154, 0.18);
   }
 }
 
 .bubbleAi {
   :global(.ant-bubble-content) {
-    background: rgba(255, 157, 210, 0.06);
-    border: 1px solid rgba(255, 185, 220, 0.26);
-    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(0, 229, 255, 0.035));
+    border: 1px solid rgba(0, 229, 255, 0.22);
+    border-radius: 8px;
     width: fit-content;
     min-height: 24px;
     font-weight: 400;
     font-size: 16px;
-    color: #fff6fb;
+    color: var(--text-primary);
     line-height: 24px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
   }
 }
 
@@ -112,7 +114,7 @@
   blockquote {
     margin: 0.75em 0;
     padding: 0.25em 1em;
-    border-left: 4px solid rgba(255, 255, 255, 0.3);
+    border-left: 4px solid rgba(255, 61, 154, 0.55);
     color: rgba(255, 255, 255, 0.75);
   }
 
@@ -120,7 +122,7 @@
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.875em;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(0, 229, 255, 0.12);
     padding: 0.15em 0.4em;
     border-radius: 4px;
   }
@@ -129,7 +131,8 @@
   pre {
     margin: 0.75em 0;
     padding: 1em;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(3, 7, 11, 0.78);
+    border: 1px solid rgba(0, 229, 255, 0.16);
     border-radius: 6px;
     overflow-x: auto;
     white-space: pre;
@@ -178,7 +181,7 @@
 
   // 链接
   a {
-    color: #ff6cb2;
+    color: var(--color-secondary);
     text-decoration: underline;
     &:hover { opacity: 0.85; }
   }
@@ -191,5 +194,4 @@
     border-radius: 4px;
   }
 }
-
 

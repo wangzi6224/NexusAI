@@ -12,10 +12,11 @@
 }
 
 .ant-select-dropdown {
-  background: rgba(37, 16, 33, 0.95);
+  background: rgba(15, 9, 18, 0.96);
   border: 1px solid var(--border-visible);
-  border-radius: 10px;
+  border-radius: 8px;
   backdrop-filter: blur(12px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.46);
 
   .ant-select-item {
     color: var(--text-muted) !important;
@@ -29,6 +30,6 @@
 
   .ant-select-item-option-selected {
     background: var(--color-primary-alpha-25) !important;
-    color: #fff7fb !important;
+    color: #ffffff !important;
   }
 }

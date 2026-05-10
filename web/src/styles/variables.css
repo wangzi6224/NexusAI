@@ -1,32 +1,33 @@
 /* ===================== 全局 CSS 变量 ===================== */
 :root {
-  /* 主题色 / Energetic Pink */
-  --color-primary: #ff3f91;
-  --color-primary-hover: #ff237f;
-  --color-primary-alpha-06: rgba(255, 63, 145, 0.06);
-  --color-primary-alpha-08: rgba(255, 63, 145, 0.08);
-  --color-primary-alpha-12: rgba(255, 63, 145, 0.12);
-  --color-primary-alpha-15: rgba(255, 63, 145, 0.15);
-  --color-primary-alpha-25: rgba(255, 63, 145, 0.25);
-  --color-secondary: #ff8fc5;
-  --color-accent: #ff5da2;
+  /* 主题色 / Neon Pink */
+  --color-primary: #ff3d9a;
+  --color-primary-hover: #ff63b1;
+  --color-primary-alpha-06: rgba(255, 61, 154, 0.06);
+  --color-primary-alpha-08: rgba(255, 61, 154, 0.08);
+  --color-primary-alpha-12: rgba(255, 61, 154, 0.12);
+  --color-primary-alpha-15: rgba(255, 61, 154, 0.15);
+  --color-primary-alpha-25: rgba(255, 61, 154, 0.25);
+  --color-secondary: #00e5ff;
+  --color-accent: #b8ff4d;
+  --color-hot: #7c4dff;
 
   /* 背景色 */
-  --bg-main: radial-gradient(circle at 12% 12%, rgba(255, 77, 155, 0.2), transparent 45%), radial-gradient(circle at 88% 86%, rgba(255, 122, 182, 0.18), transparent 40%), linear-gradient(135deg, #120615 0%, #1a0818 35%, #130712 100%);
-  --bg-card: rgba(38, 14, 35, 0.72);
-  --bg-card-solid: #251021;
-  --bg-elevated: #2e1528;
-  --bg-sidebar: linear-gradient(180deg, #1a0a16 0%, #120713 100%);
+  --bg-main: linear-gradient(135deg, rgba(255, 61, 154, 0.18) 0%, rgba(255, 61, 154, 0) 34%), linear-gradient(215deg, rgba(0, 229, 255, 0.12) 0%, rgba(0, 229, 255, 0) 38%), linear-gradient(160deg, #08050b 0%, #120814 45%, #080a10 100%);
+  --bg-card: rgba(17, 9, 18, 0.78);
+  --bg-card-solid: #150b17;
+  --bg-elevated: #1c1020;
+  --bg-sidebar: linear-gradient(180deg, #100711 0%, #0b0710 52%, #07090f 100%);
 
   /* 边框色 */
-  --border-subtle: rgba(255, 159, 206, 0.16);
-  --border-medium: rgba(255, 159, 206, 0.24);
-  --border-visible: rgba(255, 185, 220, 0.34);
-  --border-light: rgba(255, 203, 228, 0.2);
+  --border-subtle: rgba(255, 61, 154, 0.16);
+  --border-medium: rgba(0, 229, 255, 0.24);
+  --border-visible: rgba(255, 99, 177, 0.36);
+  --border-light: rgba(255, 255, 255, 0.16);
 
   /* 文字色 */
-  --text-primary: rgba(255, 240, 248, 0.95);
-  --text-secondary: rgba(255, 255, 255);
-  --text-muted: rgba(255, 210, 232, 0.75);
-  --text-dim: rgba(255, 206, 228, 0.52);
+  --text-primary: rgba(239, 252, 255, 0.96);
+  --text-secondary: rgba(255, 255, 255, 0.9);
+  --text-muted: rgba(190, 225, 232, 0.74);
+  --text-dim: rgba(151, 184, 193, 0.56);
 }

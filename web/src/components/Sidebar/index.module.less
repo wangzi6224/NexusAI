@@ -15,7 +15,7 @@
   border-right: 1px solid var(--border-subtle);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03), 8px 0 36px rgba(8, 2, 8, 0.45);
+  box-shadow: inset -1px 0 0 rgba(0, 229, 255, 0.08), 10px 0 42px rgba(0, 0, 0, 0.48);
 }
 
 .newChatWrapper {
@@ -30,12 +30,20 @@
   border-radius: 8px !important;
   font-size: 13px !important;
   font-weight: 600 !important;
+  border: none !important;
+  color: #fff !important;
+  background: linear-gradient(120deg, #ff3d9a 0%, #7c4dff 58%, #00e5ff 140%) !important;
+  box-shadow: 0 12px 28px rgba(255, 61, 154, 0.34);
+
+  &:hover {
+    filter: saturate(1.12) brightness(1.05);
+  }
 }
 
 .divider {
   width: 92%;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 177, 219, 0.35) 50%, rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 61, 154, 0.4) 42%, rgba(0, 229, 255, 0.34) 58%, rgba(255, 255, 255, 0) 100%);
   margin: 0 auto 16px;
 }
 
@@ -53,7 +61,7 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 96, 173, 0.45);
+    background: rgba(255, 61, 154, 0.48);
     border-radius: 2px;
   }
 }
@@ -67,8 +75,8 @@
 
 .appTitle {
   font-size: 20px;
-  letter-spacing: 0.5px;
-  background: linear-gradient(100deg, #ffe2f2 0%, #ff85be 55%, #ff5aa8 100%);
+  letter-spacing: 0;
+  background: linear-gradient(100deg, #ffffff 0%, #ff63b1 45%, #00e5ff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -79,12 +87,12 @@
 }
 
 .textDanger {
-  color: #ff8f9a;
+  color: #ff7d93;
   font-size: 12px;
 }
 
 .textSuccess {
-  color: #83f7b0;
+  color: #b8ff4d;
   font-size: 12px;
 }
 
@@ -112,7 +120,7 @@
   font-size: 12px;
 
   &:hover {
-    color: #ffd4ea !important;
+    color: #ffe5f2 !important;
     background: var(--color-primary-alpha-12) !important;
   }
 }
@@ -130,20 +138,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 143, 197, 0.07);
+  background: linear-gradient(120deg, rgba(255, 61, 154, 0.1), rgba(0, 229, 255, 0.045));
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 61, 154, 0.16);
 
   &:hover {
-    background: rgba(255, 107, 179, 0.17);
-    border-color: rgba(255, 159, 210, 0.45);
+    background: linear-gradient(120deg, rgba(255, 61, 154, 0.2), rgba(0, 229, 255, 0.09));
+    border-color: rgba(0, 229, 255, 0.42);
     transform: translateY(-1px);
   }
 }
 
 .convItemActive {
-  background: rgba(255, 255, 255, 20%);
-  border-color: rgba(255, 191, 226, 0.6);
+  background: linear-gradient(120deg, rgba(255, 61, 154, 0.26), rgba(0, 229, 255, 0.12));
+  border-color: rgba(255, 99, 177, 0.68);
+  box-shadow: inset 3px 0 0 var(--color-secondary), 0 10px 24px rgba(255, 61, 154, 0.18);
 
   .convTitle {
     color: #fff !important;
@@ -151,7 +160,7 @@
 }
 
 .convIcon {
-  color: var(--text-dim);
+  color: var(--color-secondary);
   font-size: 14px;
   flex-shrink: 0;
 }
@@ -174,7 +183,7 @@
 }
 
 .convTitleUser {
-  color: #fff2fa !important;
+  color: #fff4fa !important;
   font-size: 12px !important;
 }
 
@@ -187,9 +196,9 @@
   width: 100%;
 
   :global(.ant-select-selector) {
-    background: rgba(255, 129, 190, 0.08) !important;
+    background: linear-gradient(120deg, rgba(255, 61, 154, 0.1), rgba(0, 229, 255, 0.04)) !important;
     border: 1px solid var(--border-visible) !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
   }
 }
 

@@ -19,7 +19,7 @@ const HomePage: React.FC = () => {
         components: {
           Select: {
             colorBorder: COLOR_PRIMARY,
-            colorBgContainer: 'rgba(232,187,102,0.2)',
+            colorBgContainer: 'rgba(255,61,154,0.12)',
             optionSelectedColor: COLOR_PRIMARY,
           },
           Button: {},
