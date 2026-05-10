@@ -11,7 +11,7 @@ from src.app.paths import DATA_DIR
 CONVERSATIONS_FILE = DATA_DIR / "conversations.json"
 MESSAGES_FILE = DATA_DIR / "messages.json"
 
-ALLOWED_MESSAGE_ROLES = {"system", "user", "assistant", "tool"}
+ALLOWED_MESSAGE_ROLES: set[str] = {"system", "user", "assistant", "tool"}
 
 
 # TODO: 后续可以改成 SQLite 或其他轻量级数据库，目前先用 JSON 文件存储，方便查看和调试
