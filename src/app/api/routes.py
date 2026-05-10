@@ -30,6 +30,7 @@ from src.app.services.conversation_service import (
     get_conversation_list,
     get_conversation_messages,
     send_conversation_message,
+    stream_conversation_message
 )
 
 router = APIRouter()
@@ -173,4 +174,23 @@ def send_conversation_message_api(
         user_message=MessageItem(**result["user_message"]),
         assistant_message=MessageItem(**result["assistant_message"]),
     )
-    
+
+# 发送会话消息，以 Server-Sent Events 流式返回增量模型输出
+@router.post("/conversations/{conversation_id}/messages/stream")
+def stream_conversation_message_api(
+    conversation_id: str,
+    request: SendMessageRequest,
+) -> StreamingResponse:
+    return StreamingResponse(
+        stream_conversation_message(
+            conversation_id=conversation_id,
+            content=request.content,
+            model=request.model,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
