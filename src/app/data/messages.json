@@ -1,0 +1,82 @@
+[
+  {
+    "id": "0f3a9133-9325-4e13-a974-a4dcfd83901c",
+    "conversation_id": "18263dda-8436-45ca-bbc1-0e649b9e8fa4",
+    "role": "assistant",
+    "content": "您好！我已准备就绪。\n\n作为您的 AI 开发学习助手，我将以专业、耐心、严谨的态度为您提供帮助。\n\n请问您希望我协助您学习或解决哪方面的问题呢？例如：\n\n*   **某个编程语言的学习？** (如 Python, C++, Java)\n*   **机器学习或深度学习的概念？**\n*   **算法的原理与实现？**\n*   **AI 模型的架构？**\n*   **特定的代码调试或概念解释？**\n\n请告诉我您的具体需求，我会尽力为您提供最准确、最深入的指导！",
+    "metadata": {
+      "model": "gemma4:e2b",
+      "provider": "ollama",
+      "latency_ms": 27686,
+      "context_message_count": 2,
+      "is_stream": true
+    },
+    "created_at": "2026-05-10T14:02:31.752381"
+  },
+  {
+    "id": "6992fd10-1623-49ec-9c85-1f5107d03931",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "user",
+    "content": "我正在学 FastAPI，记住我刚学到异常处理。",
+    "metadata": {},
+    "created_at": "2026-05-10T14:02:56.470916"
+  },
+  {
+    "id": "9e015a31-2a4b-4a67-89c9-01f99d7036db",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "assistant",
+    "content": "快来！FastAPI 的异常处理是非常重要的一部分。\n\nFastAPI 提供了多种方式来处理异常情况，你可以使用以下方法：\n\n1. **try-except blocks**: 使用 try-catch 块来捕捉异常。\n2. **Custom exceptions**: 创建自己的异常类，用于更便捷地管理异常。\n3. **Error handlers**: FastAPI 提供了 error handler 的功能，可以在特定 URL 或 HTTP 状态码时捕捉异常。\n\n例如：\n```python\nfrom fastapi import FastAPI, HTTPException\n\napp = FastAPI()\n\n@app.get(\"/users/{user_id}\")\nasync def read_user(user_id: int):\n    try:\n        # Simulate an error\n        raise Exception(\"Something went wrong\")\n    except Exception as e:\n        return {\"error\": str(e)}\n\n# 或者使用 custom exceptions\nclass UserNotFound(Exception):\n    pass\n\n@app.get(\"/users/{user_id}\")\nasync def read_user(user_id: int):\n    if user_id == 0:\n        raise UserNotFound()\n    # ...\n```\n在这些例子中，我们定义了一个 `UserNotFound` 异常类，并且使用 try-except 块捕捉异常。我们也可以使用 error handlers 来处理异常。\n\n你有任何问题或需要更多帮助吗？",
+    "metadata": {
+      "model": "llama3.2:latest",
+      "provider": "ollama",
+      "latency_ms": 25705,
+      "context_message_count": 2,
+      "is_stream": true
+    },
+    "created_at": "2026-05-10T14:03:22.177428"
+  },
+  {
+    "id": "d586ed8c-ccad-48f0-b50c-78f26bb781e5",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "user",
+    "content": "我刚才说我在学什么？",
+    "metadata": {},
+    "created_at": "2026-05-10T14:03:24.889839"
+  },
+  {
+    "id": "7bd125ed-7b11-4f91-8275-a65c2cb0aa01",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "assistant",
+    "content": "您刚刚提到自己正在学 FastAPI，特别是关于异常处理这个部分。",
+    "metadata": {
+      "model": "llama3.2:latest",
+      "provider": "ollama",
+      "latency_ms": 1965,
+      "context_message_count": 4,
+      "is_stream": true
+    },
+    "created_at": "2026-05-10T14:03:26.855924"
+  },
+  {
+    "id": "3726def1-70c9-4373-ac63-6612f55735bc",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "user",
+    "content": "你能记住我说的？",
+    "metadata": {},
+    "created_at": "2026-05-10T14:03:55.870782"
+  },
+  {
+    "id": "b8f652ed-2a84-428a-ad23-3136f3362558",
+    "conversation_id": "cfa43880-664b-4170-a315-e958b48583ea",
+    "role": "assistant",
+    "content": "您之前提到自己正在学 FastAPI，并且刚刚学习到了异常处理的部分。",
+    "metadata": {
+      "model": "llama3.2:latest",
+      "provider": "ollama",
+      "latency_ms": 1980,
+      "context_message_count": 6,
+      "is_stream": true
+    },
+    "created_at": "2026-05-10T14:03:57.852113"
+  }
+]

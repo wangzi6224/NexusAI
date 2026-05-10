@@ -10,6 +10,7 @@ const { Text } = Typography;
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
+  loading?: boolean;
 }
 
 const renderMarkdown = (content: unknown) => (
@@ -23,7 +24,10 @@ const renderMarkdown = (content: unknown) => (
 
 type BubbleItem = BubbleProps & { key: string; role: string };
 
-const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages }) => {
+const ChatMessageList: React.FC<ChatMessageListProps> = ({
+  messages,
+  loading = false,
+}) => {
   const items = useMemo(
     () =>
       messages.map((msg): BubbleItem => {
@@ -49,8 +53,12 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages }) => {
             const metaParts: string[] = [];
             if (msg.model) metaParts.push(msg.model);
             if (msg.provider) metaParts.push(msg.provider);
-            if (msg.latency_ms != null) metaParts.push(`${msg.latency_ms} ms`);
-            if (msg.usage?.total_tokens != null)
+            if (msg.latency_ms !== null && msg.latency_ms !== undefined)
+              metaParts.push(`${msg.latency_ms} ms`);
+            if (
+              msg.usage?.total_tokens !== null &&
+              msg.usage?.total_tokens !== undefined
+            )
               metaParts.push(`${msg.usage.total_tokens} tokens`);
 
             if (metaParts.length > 0) {
@@ -70,6 +78,9 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({ messages }) => {
 
   return (
     <div className={styles.container}>
+      {loading && messages.length === 0 ? (
+        <div className={styles.loadingTip}>正在加载会话消息…</div>
+      ) : null}
       <Bubble.List
         className={styles.bubbleList}
         items={items}

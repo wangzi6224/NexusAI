@@ -1,5 +1,5 @@
 import { useChatContext } from '@/contexts/ChatContext';
-import { ClearOutlined } from '@ant-design/icons';
+import { MessageOutlined, PlusOutlined } from '@ant-design/icons';
 import { Badge, Button, Select, Typography } from 'antd';
 import React from 'react';
 import styles from './index.module.less';
@@ -12,9 +12,13 @@ const Sidebar: React.FC = () => {
     healthError,
     models,
     currentModel,
-    history,
-    historyLoading,
-    doClearHistory,
+    conversations,
+    activeConversationId,
+    conversationsLoading,
+    conversationsError,
+    createConversation,
+    selectConversation,
+    startNewConversation,
     handleSelectModel,
   } = useChatContext();
 
@@ -31,6 +35,18 @@ const Sidebar: React.FC = () => {
         <Text strong className={styles.appTitle}>
           My Python AI App
         </Text>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          className={styles.newChatBtn}
+          block
+          onClick={() => {
+            startNewConversation();
+            createConversation();
+          }}
+        >
+          新建会话
+        </Button>
       </div>
 
       <div className={styles.divider} />
@@ -71,37 +87,41 @@ const Sidebar: React.FC = () => {
 
       <div className={styles.divider} />
 
-      {/* 历史记录标题 + 清空按钮 */}
+      {/* 会话列表 */}
       <div className={styles.historyHeader}>
-        <Text className={styles.sectionLabel}>历史记录</Text>
-        <Button
-          type="text"
-          icon={<ClearOutlined />}
-          className={styles.clearBtn}
-          onClick={doClearHistory}
-        >
-          清空
-        </Button>
+        <Text className={styles.sectionLabel}>会话</Text>
       </div>
 
       <div className={styles.conversationList}>
-        {historyLoading ? (
+        {conversationsLoading ? (
           <div className={styles.emptyTip}>
             <Text className={styles.emptyText}>加载中…</Text>
           </div>
-        ) : history.length === 0 ? (
+        ) : conversationsError ? (
           <div className={styles.emptyTip}>
-            <Text className={styles.emptyText}>暂无历史记录</Text>
+            <Text className={styles.emptyText}>{conversationsError}</Text>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className={styles.emptyTip}>
+            <Text className={styles.emptyText}>暂无会话</Text>
           </div>
         ) : (
-          history.map((item, idx) => (
-            <div key={idx} className={styles.convItem}>
+          conversations.map((item) => (
+            <div
+              key={item.id}
+              className={`${styles.convItem} ${
+                item.id === activeConversationId ? styles.convItemActive : ''
+              }`}
+              onClick={() => selectConversation(item.id)}
+            >
+              <MessageOutlined className={styles.convIcon} />
               <Text
-                ellipsis={{ tooltip: item.user_input || item.answer }}
-                className={`${styles.convTitle} ${styles.convTitleUser}`}
+                ellipsis={{ tooltip: item.title }}
+                className={styles.convTitle}
               >
-                问：{item.user_input || item.answer}
+                {item.title}
               </Text>
+              <Text className={styles.convMeta}>{item.message_count}</Text>
             </div>
           ))
         )}

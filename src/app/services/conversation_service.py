@@ -227,7 +227,7 @@ def stream_conversation_message(
         start = perf_counter()
 
         for chunk in provider.stream_chat(
-            messages=llm_messages,
+            message=llm_messages,
             model=selected_model,
         ):
             if chunk.done:

@@ -1,13 +1,15 @@
 import {
-  ChatStreamChunk,
-  HistoryItem,
+  ConversationItem,
+  ConversationStreamChunk,
+  MessageItem,
   ModelsResponse,
-  clearHistory as apiClearHistory,
-  getHistory as apiGetHistory,
-  selectModel as apiSelectModel,
+  createConversation as apiCreateConversation,
+  getConversationMessages,
+  getConversations,
   getHealth,
   getModels,
-  sendChatStream,
+  selectModel as apiSelectModel,
+  sendConversationMessageStream,
 } from '@/services/api';
 import { message } from 'antd';
 import React, {
@@ -32,7 +34,6 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   loading?: boolean;
-  // AI 响应元信息
   provider?: string;
   model?: string;
   latency_ms?: number;
@@ -47,12 +48,17 @@ interface ChatContextType {
   models: ModelsResponse | null;
   modelsError: string | null;
   currentModel: string;
-  history: HistoryItem[];
-  historyError: string | null;
-  historyLoading: boolean;
+  conversations: ConversationItem[];
+  activeConversationId: string | null;
+  activeConversation: ConversationItem | null;
+  conversationsLoading: boolean;
+  messagesLoading: boolean;
+  conversationsError: string | null;
   sendMessage: (content: string) => Promise<void>;
-  loadHistory: () => Promise<void>;
-  doClearHistory: () => Promise<void>;
+  loadConversations: () => Promise<void>;
+  createConversation: (title?: string) => Promise<ConversationItem | null>;
+  selectConversation: (conversationId: string) => Promise<void>;
+  startNewConversation: () => void;
   loadModels: () => Promise<void>;
   handleSelectModel: (model: string) => Promise<void>;
   clearMessages: () => void;
@@ -66,6 +72,43 @@ export const useChatContext = (): ChatContextType => {
   return ctx;
 };
 
+function getErrorMessage(err: any, fallback: string): string {
+  return (
+    err?.response?.data?.detail ||
+    err?.response?.data?.message ||
+    err?.message ||
+    fallback
+  );
+}
+
+function buildConversationTitle(content: string): string {
+  const title = content.trim().replace(/\s+/g, ' ');
+
+  if (title.length <= 24) return title;
+
+  return `${title.slice(0, 24)}...`;
+}
+
+function toChatMessage(item: MessageItem): ChatMessage | null {
+  if (item.role !== 'user' && item.role !== 'assistant') return null;
+
+  const metadata = item.metadata || {};
+
+  return {
+    id: item.id,
+    role: item.role === 'assistant' ? 'ai' : 'user',
+    content: item.content,
+    timestamp: new Date(item.created_at).getTime(),
+    provider:
+      typeof metadata.provider === 'string' ? metadata.provider : undefined,
+    model: typeof metadata.model === 'string' ? metadata.model : undefined,
+    latency_ms:
+      typeof metadata.latency_ms === 'number'
+        ? metadata.latency_ms
+        : undefined,
+  };
+}
+
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -78,11 +121,63 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string>('');
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [conversationsError, setConversationsError] = useState<string | null>(
+    null,
+  );
 
-  // 页面加载时获取健康状态、模型列表和历史记录
+  const activeConversation =
+    conversations.find((item) => item.id === activeConversationId) || null;
+
+  const loadModels = useCallback(async () => {
+    try {
+      const data = await getModels();
+      setModels(data);
+      setCurrentModel(data.current_model);
+      setModelsError(null);
+    } catch {
+      setModelsError('模型列表加载失败');
+    }
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    setConversationsLoading(true);
+    try {
+      const data = await getConversations();
+      setConversations(data.items);
+      setConversationsError(null);
+    } catch (err: any) {
+      setConversationsError(getErrorMessage(err, '会话列表加载失败'));
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, []);
+
+  const selectConversation = useCallback(async (conversationId: string) => {
+    setActiveConversationId(conversationId);
+    setMessages([]);
+    setMessagesLoading(true);
+
+    try {
+      const data = await getConversationMessages(conversationId);
+      setMessages(
+        data.items
+          .map(toChatMessage)
+          .filter((item): item is ChatMessage => Boolean(item)),
+      );
+      setConversationsError(null);
+    } catch (err: any) {
+      setConversationsError(getErrorMessage(err, '会话消息加载失败'));
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -96,44 +191,33 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     })();
 
     loadModels();
-    loadHistory();
-  }, []);
+    loadConversations();
+  }, [loadConversations, loadModels]);
 
-  const loadModels = useCallback(async () => {
-    try {
-      const data = await getModels();
-      setModels(data);
-      setCurrentModel(data.current_model);
-      setModelsError(null);
-    } catch {
-      setModelsError('模型列表加载失败');
-    }
-  }, []);
+  const createConversation = useCallback(
+    async (title = '新会话'): Promise<ConversationItem | null> => {
+      try {
+        const conversation = await apiCreateConversation({
+          title,
+          model: currentModel || null,
+        });
 
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
-    try {
-      const data = await apiGetHistory();
-      setHistory(data);
-      setHistoryError(null);
-    } catch {
-      setHistoryError('历史记录加载失败');
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
+        setConversations((prev) => [
+          conversation,
+          ...prev.filter((item) => item.id !== conversation.id),
+        ]);
+        setActiveConversationId(conversation.id);
+        setMessages([]);
+        setConversationsError(null);
 
-  const doClearHistory = useCallback(async () => {
-    try {
-      const res = await apiClearHistory();
-      message.success(res.message || '聊天记录已清空');
-      setHistory([]);
-      setMessages([]);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      message.error(detail || '清空历史失败');
-    }
-  }, []);
+        return conversation;
+      } catch (err: any) {
+        message.error(getErrorMessage(err, '创建会话失败'));
+        return null;
+      }
+    },
+    [currentModel],
+  );
 
   const handleSelectModel = useCallback(
     async (model: string) => {
@@ -147,8 +231,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
           message.error(res.message || '模型切换失败');
         }
       } catch (err: any) {
-        const detail = err?.response?.data?.detail;
-        message.error(detail || '模型切换失败');
+        message.error(getErrorMessage(err, '模型切换失败'));
       }
     },
     [loadModels],
@@ -156,12 +239,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || loading) return;
+      const trimmedContent = content.trim();
+
+      if (!trimmedContent || loading) return;
+
+      let conversationId = activeConversationId;
+
+      if (!conversationId) {
+        const conversation = await createConversation(
+          buildConversationTitle(trimmedContent),
+        );
+
+        if (!conversation) return;
+
+        conversationId = conversation.id;
+      }
 
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
-        content: content.trim(),
+        content: trimmedContent,
         timestamp: Date.now(),
       };
       const aiMsgId = `ai-${Date.now() + 1}`;
@@ -177,35 +274,69 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
 
       try {
-        await sendChatStream(
+        await sendConversationMessageStream(
+          conversationId,
           {
-            message: content.trim(),
+            content: trimmedContent,
             model: currentModel || null,
           },
-          (chunk: ChatStreamChunk) => {
-            if (chunk.error) {
+          (chunk: ConversationStreamChunk) => {
+            if (chunk.event === 'message_start' && chunk.user_message_id) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === userMsg.id
+                    ? {
+                        ...m,
+                        id: chunk.user_message_id || m.id,
+                      }
+                    : m,
+                ),
+              );
+              return;
+            }
+
+            if (chunk.event === 'error' || chunk.error) {
               throw new Error(
-                chunk.error.detail || chunk.error.message || '流式聊天失败',
+                chunk.error?.detail ||
+                  chunk.error?.message ||
+                  '流式会话消息失败',
               );
             }
 
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id !== aiMsgId) return m;
+            if (chunk.event === 'delta') {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        content: `${m.content}${chunk.delta || ''}`,
+                        loading: true,
+                        provider: activeConversation?.provider || 'ollama',
+                        model: currentModel || activeConversation?.model,
+                      }
+                    : m,
+                ),
+              );
+              return;
+            }
 
-                const nextContent = `${m.content}${chunk.delta || ''}`;
-                const isDone = Boolean(chunk.done);
-
-                return {
-                  ...m,
-                  content: nextContent,
-                  loading: !isDone,
-                  provider: 'ollama',
-                  model: chunk.model || m.model,
-                  latency_ms: chunk.latency_ms ?? m.latency_ms,
-                };
-              }),
-            );
+            if (chunk.event === 'message_end') {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        id: chunk.assistant_message_id || m.id,
+                        content: chunk.content || m.content,
+                        loading: false,
+                        latency_ms: chunk.latency_ms,
+                        provider: activeConversation?.provider || 'ollama',
+                        model: currentModel || activeConversation?.model,
+                      }
+                    : m,
+                ),
+              );
+            }
           },
         );
 
@@ -220,16 +351,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
           ),
         );
 
-        // 刷新历史记录
-        await loadHistory();
+        await loadConversations();
       } catch (err: any) {
-        const detail = err?.response?.data?.detail;
         setMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
               ? {
                   ...m,
-                  content: detail || '模型调用失败，请检查后端或 Ollama 服务',
+                  content: getErrorMessage(
+                    err,
+                    '模型调用失败，请检查后端或 Ollama 服务',
+                  ),
                   loading: false,
                 }
               : m,
@@ -239,10 +371,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         setLoading(false);
       }
     },
-    [loading, currentModel, loadHistory],
+    [
+      activeConversation,
+      activeConversationId,
+      createConversation,
+      currentModel,
+      loadConversations,
+      loading,
+    ],
   );
 
   const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  const startNewConversation = useCallback(() => {
+    setActiveConversationId(null);
     setMessages([]);
   }, []);
 
@@ -256,12 +400,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         models,
         modelsError,
         currentModel,
-        history,
-        historyError,
-        historyLoading,
+        conversations,
+        activeConversationId,
+        activeConversation,
+        conversationsLoading,
+        messagesLoading,
+        conversationsError,
         sendMessage,
-        loadHistory,
-        doClearHistory,
+        loadConversations,
+        createConversation,
+        selectConversation,
+        startNewConversation,
         loadModels,
         handleSelectModel,
         clearMessages,
