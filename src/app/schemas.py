@@ -103,3 +103,43 @@ class MessageListResponse(BaseModel):
 class SendMessageResponse(BaseModel):
     user_message: MessageItem
     assistant_message: MessageItem
+
+class ConversationItem(BaseModel):
+    id: str
+    title: str
+    summary: str | None = None
+    model: str
+    provider: str
+    status: str
+    message_count: int = 0
+    summarized_message_count: int = 0
+    summary_updated_at: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class ContextMessageItem(BaseModel):
+    role: str = Field(..., description="消息角色，例如 system/user/assistant/tool")
+    content: str = Field(..., description="消息内容")
+
+
+class ContextPreviewResponse(BaseModel):
+    conversation_id: str = Field(..., description="会话 ID")
+    summary: str | None = Field(default=None, description="当前会话摘要")
+    recent_message_count: int = Field(..., description="进入上下文的最近消息数量")
+    estimated_tokens: int = Field(..., description="粗略估算 token 数")
+    estimated_chars: int = Field(..., description="上下文总字符数")
+    max_recent_messages: int = Field(..., description="最多保留最近多少条消息")
+    max_context_chars: int = Field(..., description="上下文最大字符数限制")
+    messages: list[ContextMessageItem] = Field(
+        default_factory=list,
+        description="本次实际会传给 LLM 的 messages",
+    )
+
+
+class SummaryUpdateResponse(BaseModel):
+    conversation_id: str = Field(..., description="会话 ID")
+    summary: str = Field(..., description="更新后的会话摘要")
+    summarized_message_count: int = Field(..., description="摘要更新时会话已有的消息总数")
+    updated_at: str = Field(..., description="摘要更新时间")
+
