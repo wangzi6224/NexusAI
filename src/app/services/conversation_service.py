@@ -98,8 +98,6 @@ def send_conversation_message(
     context_builder = ContextBuilder()
     llm_messages = context_builder.build_messages(conversation_id)
 
-    _try_update_summary(conversation_id, model=selected_model)
-
     provider = OllamaProvider()
 
     start = perf_counter()
@@ -122,6 +120,8 @@ def send_conversation_message(
             "is_stream": False,
         },
     )
+
+    _try_update_summary(conversation_id, model=selected_model)
 
     update_conversation(conversation_id, {})
 
@@ -177,8 +177,6 @@ def stream_conversation_message(
         context_builder = ContextBuilder()
         llm_messages = context_builder.build_messages(conversation_id)
 
-        _try_update_summary(conversation_id, model=selected_model)
-
         yield _sse_event(
             "message_start",
             {
@@ -224,6 +222,8 @@ def stream_conversation_message(
                 "is_stream": True,
             },
         )
+
+        _try_update_summary(conversation_id, model=selected_model)
 
         update_conversation(conversation_id, {})
 
