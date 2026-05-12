@@ -1,14 +1,374 @@
-2026-04-21 23:14:49,584 | INFO | my_python_project | Ollama 服务连接正常
-2026-04-21 23:14:49,588 | INFO | my_python_project | 模型存在: gemma4:e2b
-2026-04-21 23:14:54,621 | INFO | my_python_project | 开始请求模型，model=gemma4:e2b
-2026-04-21 23:15:29,032 | INFO | my_python_project | 模型调用成功，耗时 34.41 秒
-2026-05-10 14:02:31,754 | ERROR | my_python_project | 流式会话消息失败: conversation_id=18263dda-8436-45ca-bbc1-0e649b9e8fa4 error=会话不存在
+2026-05-12 13:21:18,703 | ERROR | my_python_project | 流式会话消息失败: conversation_id=1fb7b089-0395-4ec7-b659-af34542a424a error=Ollama 流式 HTTP 请求失败
 Traceback (most recent call last):
-  File "/Users/wangzilong/Projects/my_python_project/src/app/services/conversation_service.py", line 262, in stream_conversation_message
-    update_conversation(conversation_id, {})
-    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/wangzilong/Projects/my_python_project/src/app/conversation_store.py", line 135, in update_conversation
-    raise ConversationError(
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 96, in stream_chat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/requests/models.py", line 1028, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 502 Server Error: Bad Gateway for url: http://localhost:11434/api/chat
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/conversation_service.py", line 188, in stream_conversation_message
+    for chunk in provider.stream_chat(
+                 ~~~~~~~~~~~~~~~~~~~~^
+        message=llm_messages,
+        ^^^^^^^^^^^^^^^^^^^^^
+        model=selected_model,
+        ^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/src/app/services/llm/ollama_provider.py", line 130, in stream_chat
+    raise LLMProviderError(
+    ...<2 lines>...
+    ) from exc
+src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
+2026-05-12 13:21:18,708 | ERROR | my_python_project | 未处理异常: path=/conversations error=1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     ...<3 lines>...
     )
-src.app.exceptions.ConversationError: 会话不存在
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 127, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+2026-05-12 13:21:26,368 | ERROR | my_python_project | 未处理异常: path=/conversations error=1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 127, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+2026-05-12 13:21:27,687 | ERROR | my_python_project | LLM提供者错误: path=/models error=获取模型列表失败
+2026-05-12 13:21:37,823 | ERROR | my_python_project | 未处理异常: path=/conversations error=1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 127, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+2026-05-12 13:21:39,147 | ERROR | my_python_project | LLM提供者错误: path=/models error=获取模型列表失败
+2026-05-12 13:21:43,312 | ERROR | my_python_project | 未处理异常: path=/conversations error=1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 127, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+2026-05-12 13:22:15,061 | ERROR | my_python_project | 未处理异常: path=/conversations error=2 validation errors for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='7e03...-05-12T13:22:15.042475'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.1
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 127, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='7e03...-05-12T13:22:15.042475'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.1
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type

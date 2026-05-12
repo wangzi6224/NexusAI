@@ -3,7 +3,9 @@ from typing import Any
 from src.app.conversation_store import get_conversation, list_recent_messages
 from src.app.exceptions import ConversationError
 
-DEFAULT_SYSTEM_PROMPT = "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
+DEFAULT_SYSTEM_PROMPT = (
+    "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
+)
 
 MAX_RECENT_MESSAGES = 10
 MAX_CONTEXT_CHARS = 12000
@@ -52,7 +54,16 @@ class ContextBuilder:
         return sum(len(message["content"]) for message in messages)
 
     def build_messages(self, conversation_id: str) -> list[dict[str, str]]:
-        conversation = self._ensure_conversation_exists(conversation_id)
+        """
+        核心流程：
+        1. 先放 system prompt
+        2. 如果有 summary，再放 summary system message
+        3. 读取最近 N 条 messages
+        4. 从最新消息往前尝试加入
+        5. 超过字符限制就停止
+        6. reverse 回正常时间顺序
+        """
+        conversation: dict[str, Any] = self._ensure_conversation_exists(conversation_id)
 
         base_messages: list[dict[str, str]] = [
             {

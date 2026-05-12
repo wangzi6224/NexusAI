@@ -1,22 +1,22 @@
 [
   {
-    "id": "cfa43880-664b-4170-a315-e958b48583ea",
-    "title": "新会话",
+    "id": "1fb7b089-0395-4ec7-b659-af34542a424a",
+    "title": "Hi",
     "summary": null,
-    "model": "llama3.2:latest",
+    "model": "gemma4:e2b",
     "provider": "ollama",
     "status": "active",
-    "created_at": "2026-05-10T14:02:38.460035",
-    "updated_at": "2026-05-10T14:03:57.852893"
+    "created_at": "2026-05-12T11:27:06.212240",
+    "updated_at": "2026-05-12T11:27:38.277877"
   },
   {
-    "id": "1decf4d5-30b9-49e3-ad53-5d529f79e446",
-    "title": "新会话",
+    "id": "7e03c9b4-3b51-4298-aa03-282d16f4dc06",
+    "title": "Hi",
     "summary": null,
-    "model": "llama3.2:latest",
+    "model": "gemma4:e2b",
     "provider": "ollama",
     "status": "active",
-    "created_at": "2026-05-10T14:03:43.412270",
-    "updated_at": "2026-05-10T14:03:43.412270"
+    "created_at": "2026-05-12T13:21:46.840261",
+    "updated_at": "2026-05-12T13:22:15.042475"
   }
 ]

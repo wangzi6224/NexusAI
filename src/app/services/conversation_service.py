@@ -3,6 +3,7 @@ from json import dumps
 from time import perf_counter
 from typing import Any
 
+from src.app.services.context_builder import ContextBuilder
 from src.app.config import get_ollama_model
 from src.app.conversation_store import (
     count_messages,
@@ -11,7 +12,6 @@ from src.app.conversation_store import (
     get_conversation,
     list_conversations,
     list_messages,
-    list_recent_messages,
     update_conversation,
 )
 from src.app.exceptions import ConversationError
@@ -19,9 +19,6 @@ from src.app.logger import get_logger
 from src.app.services.llm.ollama_provider import OllamaProvider
 
 logger = get_logger()
-
-DEFAULT_SYSTEM_PROMPT = "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
-DEFAULT_CONTEXT_MESSAGE_LIMIT = 10
 
 
 def _ensure_conversation_exists(conversation_id: str) -> dict[str, Any]:
@@ -75,44 +72,6 @@ def get_conversation_messages(conversation_id: str) -> list[dict[str, Any]]:
     return list_messages(conversation_id)
 
 
-def build_llm_messages(
-    conversation_id: str,
-    limit: int = DEFAULT_CONTEXT_MESSAGE_LIMIT,
-) -> list[dict[str, str]]:
-    conversation = _ensure_conversation_exists(conversation_id)
-    recent_messages = list_recent_messages(conversation_id, limit=limit)
-
-    llm_messages: list[dict[str, str]] = [
-        {
-            "role": "system",
-            "content": DEFAULT_SYSTEM_PROMPT,
-        }
-    ]
-
-    if conversation.get("summary"):
-        llm_messages.append(
-            {
-                "role": "system",
-                "content": f"当前会话摘要：{conversation['summary']}",
-            }
-        )
-
-    for message in recent_messages:
-        role = message["role"]
-
-        if role not in {"user", "assistant", "system", "tool"}:
-            continue
-
-        llm_messages.append(
-            {
-                "role": role,
-                "content": message["content"],
-            }
-        )
-
-    return llm_messages
-
-
 def send_conversation_message(
     conversation_id: str,
     content: str,
@@ -135,7 +94,7 @@ def send_conversation_message(
         metadata={},
     )
 
-    llm_messages = build_llm_messages(conversation_id)
+    llm_messages = ContextBuilder().build_messages(conversation_id)
 
     provider = OllamaProvider()
 
@@ -211,7 +170,7 @@ def stream_conversation_message(
             metadata={},
         )
 
-        llm_messages = build_llm_messages(conversation_id)
+        llm_messages = ContextBuilder().build_messages(conversation_id)
 
         yield _sse_event(
             "message_start",
