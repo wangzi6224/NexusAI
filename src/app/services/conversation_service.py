@@ -1,6 +1,5 @@
 from collections.abc import Iterable
 from json import dumps
-from math import log
 from time import perf_counter
 from typing import Any
 
@@ -297,3 +296,8 @@ def _try_update_summary(
             conversation_id,
             exc,
         )
+
+
+def get_context_preview(conversation_id: str) -> dict[str, Any]:
+    context_data = ContextBuilder().build_preview(conversation_id)
+    return context_data

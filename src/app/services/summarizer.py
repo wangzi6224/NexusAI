@@ -126,10 +126,27 @@ class Summarizer:
                 status_code=400,
             )
 
-        if len(messages) > SUMMARY_KEEP_RECENT_MESSAGES:
-            messages_to_summarize = messages[:-SUMMARY_KEEP_RECENT_MESSAGES]
-        else:
-            messages_to_summarize = messages
+        summarized_message_count = int(
+            conversation.get("summarized_message_count") or 0
+        )
+
+        recent_start_index: int = max(
+            len(messages) - SUMMARY_KEEP_RECENT_MESSAGES,
+            0,
+        )
+
+        messages_to_summarize: list[dict[str, Any]] = messages[
+            summarized_message_count:recent_start_index
+        ]
+
+        if not messages_to_summarize and conversation.get("summary"):
+            return {
+                "conversation_id": conversation_id,
+                "summary": conversation["summary"],
+                "summarized_message_count": summarized_message_count,
+                "updated_at": conversation.get("summary_updated_at")
+                or conversation["updated_at"],
+            }
 
         prompt_messages = self.build_prompt(
             messages=messages_to_summarize,

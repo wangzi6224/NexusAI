@@ -86,6 +86,8 @@ def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
         "id": str(uuid.uuid4()),
         "title": title,
         "summary": None,
+        "summarized_message_count": 0,
+        "summary_updated_at": None,
         "model": model or get_ollama_model(),
         "provider": "ollama",
         "status": "active",

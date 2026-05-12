@@ -36,9 +36,9 @@ from src.app.services.conversation_service import (
     send_conversation_message,
     stream_conversation_message,
     update_summary_manually,
+    get_context_preview,
 )
 from src.app.services.context_builder import ContextBuilder
-from src.app.services.summarizer import Summarizer
 
 router = APIRouter()
 
@@ -207,11 +207,10 @@ def stream_conversation_message_api(
     "/conversations/{conversation_id}/context-preview",
     response_model=ContextPreviewResponse,
 )
-def get_context_preview(
+def get_context_preview_api(
     conversation_id: str,
 ) -> ContextPreviewResponse:
-    context_builder = ContextBuilder()
-    preview_data = context_builder.build_preview(conversation_id)
+    preview_data: dict[str, Any] = get_context_preview(conversation_id)
     return ContextPreviewResponse(**preview_data)
 
 

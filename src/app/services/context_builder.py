@@ -105,6 +105,10 @@ class ContextBuilder:
             next_chars = current_chars + len(content)
 
             if next_chars > self.max_context_chars:
+                # 如果当前还没有选任何最近消息，说明这条大概率是当前用户消息
+                # 必须保留，否则模型看不到用户问题
+                if not selected_recent_messages:
+                    selected_recent_messages.append(normalized_message)
                 break
 
             selected_recent_messages.append(normalized_message)
