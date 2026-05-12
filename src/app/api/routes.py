@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
+from typing import Any
 
 from src.app.paths import STATIC_DIR
 from src.app.schemas import (
@@ -19,6 +20,7 @@ from src.app.schemas import (
     MessageListResponse,
     SendMessageRequest,
     SendMessageResponse,
+    ContextPreviewResponse,
 )
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
@@ -30,8 +32,9 @@ from src.app.services.conversation_service import (
     get_conversation_list,
     get_conversation_messages,
     send_conversation_message,
-    stream_conversation_message
+    stream_conversation_message,
 )
+from src.app.services.context_builder import ContextBuilder
 
 router = APIRouter()
 
@@ -89,6 +92,7 @@ def clear_history() -> ClearHistoryResponse:
         return ClearHistoryResponse(success=True, message="聊天记录已清空")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"清空聊天记录失败: {exc}") from exc
+
 
 # 列出可用模型：返回当前支持的模型信息
 @router.get("/models", response_model=ModelsResponse)
@@ -150,9 +154,7 @@ def list_conversation_messages_api(
     conversation_id: str,
 ) -> MessageListResponse:
     messages = get_conversation_messages(conversation_id)
-    return MessageListResponse(
-        items=[MessageItem(**item) for item in messages]
-    )
+    return MessageListResponse(items=[MessageItem(**item) for item in messages])
 
 
 # 发送会话消息：向指定会话发送用户消息并返回用户/助手消息对象
@@ -175,6 +177,7 @@ def send_conversation_message_api(
         assistant_message=MessageItem(**result["assistant_message"]),
     )
 
+
 # 发送会话消息，以 Server-Sent Events 流式返回增量模型输出
 @router.post("/conversations/{conversation_id}/messages/stream")
 def stream_conversation_message_api(
@@ -194,3 +197,15 @@ def stream_conversation_message_api(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get(
+    "/conversations/{conversation_id}/context-preview",
+    response_model=ContextPreviewResponse,
+)
+def get_context_preview(
+    conversation_id: str,
+) -> ContextPreviewResponse:
+    context_builder = ContextBuilder()
+    preview_data = context_builder.build_preview(conversation_id)
+    return ContextPreviewResponse(**preview_data)

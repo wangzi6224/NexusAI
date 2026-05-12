@@ -93,8 +93,8 @@ def send_conversation_message(
         content=content.strip(),
         metadata={},
     )
-
-    llm_messages = ContextBuilder().build_messages(conversation_id)
+    context_builder = ContextBuilder()
+    llm_messages = context_builder.build_messages(conversation_id)
 
     provider = OllamaProvider()
 
@@ -170,7 +170,8 @@ def stream_conversation_message(
             metadata={},
         )
 
-        llm_messages = ContextBuilder().build_messages(conversation_id)
+        context_builder = ContextBuilder()
+        llm_messages = context_builder.build_messages(conversation_id)
 
         yield _sse_event(
             "message_start",
