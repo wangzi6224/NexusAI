@@ -796,3 +796,89 @@ items.2
 items.3
   Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
     For further information visit https://errors.pydantic.dev/2.13/v/model_type
+2026-05-12 14:18:54,423 | ERROR | my_python_project | 未处理异常: path=/conversations error=4 validation errors for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='11b1...-05-12T13:30:26.649268'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.1
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='caca...-05-12T13:23:04.833565'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.2
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='7e03...-05-12T13:22:15.042475'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.3
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+Traceback (most recent call last):
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/fastapi/routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/starlette/concurrency.py", line 32, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 131, in list_conversations_api
+    return ConversationListResponse(
+        items=[ConversationItem(**item) for item in conversations]
+    )
+  File "/Users/wangzilong/Projects/my_python_project/.venv/lib/python3.14/site-packages/pydantic/main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 4 validation errors for ConversationListResponse
+items.0
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='11b1...-05-12T13:30:26.649268'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.1
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='caca...-05-12T13:23:04.833565'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.2
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='7e03...-05-12T13:22:15.042475'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
+items.3
+  Input should be a valid dictionary or instance of ConversationItem [type=model_type, input_value=ConversationItem(id='1fb7...-05-12T11:27:38.277877'), input_type=ConversationItem]
+    For further information visit https://errors.pydantic.dev/2.13/v/model_type
