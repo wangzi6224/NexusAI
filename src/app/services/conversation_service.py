@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from json import dumps
+from math import log
 from time import perf_counter
 from typing import Any
 
@@ -97,6 +98,8 @@ def send_conversation_message(
     context_builder = ContextBuilder()
     llm_messages = context_builder.build_messages(conversation_id)
 
+    _try_update_summary(conversation_id, model=selected_model)
+
     provider = OllamaProvider()
 
     start = perf_counter()
@@ -173,6 +176,8 @@ def stream_conversation_message(
 
         context_builder = ContextBuilder()
         llm_messages = context_builder.build_messages(conversation_id)
+
+        _try_update_summary(conversation_id, model=selected_model)
 
         yield _sse_event(
             "message_start",
@@ -253,3 +258,42 @@ def stream_conversation_message(
 def update_summary_manually(conversation_id: str) -> dict[str, Any]:
     summarizer = Summarizer()
     return summarizer.summarize(conversation_id)
+
+
+def _try_update_summary(
+    conversation_id: str,
+    model: str | None = None,
+) -> None:
+    summarizer = Summarizer()
+
+    try:
+        if not summarizer.should_update(conversation_id):
+            return
+
+        start_time: float = perf_counter()  # 预热 perf_counter，减少首次调用的误差
+
+        logger.info(
+            "开始更新会话摘要: conversation_id=%s",
+            conversation_id,
+        )
+
+        summarizer.summarize(
+            conversation_id=conversation_id,
+            model=model,
+        )
+
+        end_time = perf_counter()
+        elapsed_ms = int((end_time - start_time) * 1000)
+
+        logger.info(
+            "会话摘要已更新: conversation_id=%s, elapsed_ms=%s",
+            conversation_id,
+            elapsed_ms,
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "自动更新会话摘要失败: conversation_id=%s error=%s",
+            conversation_id,
+            exc,
+        )
