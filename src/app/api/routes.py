@@ -1,6 +1,7 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from typing import Any
 
 from src.app.paths import STATIC_DIR
 from src.app.schemas import (
@@ -21,6 +22,7 @@ from src.app.schemas import (
     SendMessageRequest,
     SendMessageResponse,
     ContextPreviewResponse,
+    SummaryUpdateResponse,
 )
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
@@ -33,8 +35,10 @@ from src.app.services.conversation_service import (
     get_conversation_messages,
     send_conversation_message,
     stream_conversation_message,
+    update_summary_manually,
 )
 from src.app.services.context_builder import ContextBuilder
+from src.app.services.summarizer import Summarizer
 
 router = APIRouter()
 
@@ -209,3 +213,14 @@ def get_context_preview(
     context_builder = ContextBuilder()
     preview_data = context_builder.build_preview(conversation_id)
     return ContextPreviewResponse(**preview_data)
+
+
+@router.post(
+    "/conversations/{conversation_id}/summary",
+    response_model=SummaryUpdateResponse,
+)
+def update_conversation_summary_api(
+    conversation_id: str,
+) -> SummaryUpdateResponse:
+    result: dict[str, Any] = update_summary_manually(conversation_id)
+    return SummaryUpdateResponse(**result)

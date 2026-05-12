@@ -104,6 +104,18 @@ class Summarizer:
         conversation_id: str,
         model: str | None = None,
     ) -> dict[str, Any]:
+        """生成会话摘要
+
+        Args:
+            conversation_id (str): 会话 ID
+            model (str | None, optional): 使用的模型名称. Defaults to None.
+
+        Raises:
+            ConversationError: 会话不存在或没有可摘要的消息
+
+        Returns:
+            dict[str, Any]: 包含会话摘要和相关信息的字典
+        """
         conversation = self._ensure_conversation_exists(conversation_id)
         messages = list_messages(conversation_id)
 

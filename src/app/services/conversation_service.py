@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import Any
 
 from src.app.services.context_builder import ContextBuilder
+from src.app.services.summarizer import Summarizer
 from src.app.config import get_ollama_model
 from src.app.conversation_store import (
     count_messages,
@@ -247,3 +248,8 @@ def stream_conversation_message(
             },
         )
         yield _sse_event("done", "[DONE]")
+
+
+def update_summary_manually(conversation_id: str) -> dict[str, Any]:
+    summarizer = Summarizer()
+    return summarizer.summarize(conversation_id)

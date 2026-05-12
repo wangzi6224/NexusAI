@@ -70,6 +70,8 @@ class ConversationItem(BaseModel):
     provider: str
     status: str
     message_count: int = 0
+    summarized_message_count: int = 0
+    summary_updated_at: str | None = None
     created_at: str
     updated_at: str
 
@@ -104,19 +106,6 @@ class SendMessageResponse(BaseModel):
     user_message: MessageItem
     assistant_message: MessageItem
 
-class ConversationItem(BaseModel):
-    id: str
-    title: str
-    summary: str | None = None
-    model: str
-    provider: str
-    status: str
-    message_count: int = 0
-    summarized_message_count: int = 0
-    summary_updated_at: str | None = None
-    created_at: str
-    updated_at: str
-
 
 class ContextMessageItem(BaseModel):
     role: str = Field(..., description="消息角色，例如 system/user/assistant/tool")
@@ -140,6 +129,7 @@ class ContextPreviewResponse(BaseModel):
 class SummaryUpdateResponse(BaseModel):
     conversation_id: str = Field(..., description="会话 ID")
     summary: str = Field(..., description="更新后的会话摘要")
-    summarized_message_count: int = Field(..., description="摘要更新时会话已有的消息总数")
+    summarized_message_count: int = Field(
+        ..., description="摘要更新时会话已有的消息总数"
+    )
     updated_at: str = Field(..., description="摘要更新时间")
-

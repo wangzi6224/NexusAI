@@ -9,7 +9,6 @@ from src.app.logger import get_logger
 from src.app.prompts import build_chat_prompt
 from src.app.schemas import ChatResponse, TokenUsage
 from src.app.services.llm.ollama_provider import OllamaProvider
-from src.app.services.llm.base import LLMStreamChunk
 
 logger = get_logger()
 
@@ -59,6 +58,7 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
         ),
     )
 
+
 def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
     selected_model = model or get_ollama_model()
     logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
@@ -87,7 +87,7 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
             # 如果当前 chunk 表示流结束（done=True），则跳出循环
             if chunk.done:
                 break
-            
+
             # 将增量内容添加到完整回答的列表中
             full_answer_parts.append(chunk.delta)
 
@@ -124,7 +124,9 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
         )
         yield f"data: {dumps(payload, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
-        logger.info(f"聊天请求处理完成，完整回答长度 {len(full_answer)} 字符, 耗时 {latency_ms} ms")
+        logger.info(
+            f"聊天请求处理完成，完整回答长度 {len(full_answer)} 字符, 耗时 {latency_ms} ms"
+        )
     except Exception as exc:
         logger.exception("流式聊天请求失败: %s", exc)
 
@@ -138,5 +140,3 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
 
         yield f"data: {dumps(error_payload, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
-
-        
