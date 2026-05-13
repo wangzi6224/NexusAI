@@ -2,7 +2,6 @@ from typing import Any
 
 from src.app.conversation_store import get_conversation, list_recent_messages
 from src.app.exceptions import ConversationError
-from src.app.schemas import ContextPreviewResponse
 
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
