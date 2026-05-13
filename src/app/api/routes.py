@@ -38,7 +38,6 @@ from src.app.services.conversation_service import (
     update_summary_manually,
     get_context_preview,
 )
-from src.app.services.context_builder import ContextBuilder
 
 router = APIRouter()
 

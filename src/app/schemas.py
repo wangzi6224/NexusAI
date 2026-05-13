@@ -133,3 +133,55 @@ class SummaryUpdateResponse(BaseModel):
         ..., description="摘要更新时会话已有的消息总数"
     )
     updated_at: str = Field(..., description="摘要更新时间")
+
+
+class DocumentItem(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    source_path: str
+    status: str
+    chunk_count: int
+    char_count: int
+    error_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class DocumentDetailResponse(DocumentItem):
+    content: str
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentItem]
+
+
+class UploadDocumentResponse(BaseModel):
+    document_id: str
+    filename: str
+    file_type: str
+    status: str
+    chunk_count: int
+    char_count: int
+    created_at: str
+
+
+class DocumentChunkItem(BaseModel):
+    id: str
+    document_id: str
+    chunk_index: int
+    heading: str | None = None
+    content: str
+    char_count: int
+    estimated_tokens: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+
+class DocumentChunkListResponse(BaseModel):
+    items: list[DocumentChunkItem]
+
+
+class DeleteDocumentResponse(BaseModel):
+    success: bool
+    message: str
