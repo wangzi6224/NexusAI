@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from src.app.paths import STATIC_DIR
@@ -23,6 +23,13 @@ from src.app.schemas import (
     SendMessageResponse,
     ContextPreviewResponse,
     SummaryUpdateResponse,
+    DocumentChunkItem,
+    DocumentChunkListResponse,
+    DocumentDetailResponse,
+    DocumentItem,
+    DocumentListResponse,
+    UploadDocumentResponse,
+    DeleteDocumentResponse,
 )
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
@@ -38,6 +45,7 @@ from src.app.services.conversation_service import (
     update_summary_manually,
     get_context_preview,
 )
+from src.app.services.document_service import DocumentService
 
 router = APIRouter()
 
@@ -222,3 +230,43 @@ def update_conversation_summary_api(
 ) -> SummaryUpdateResponse:
     result: dict[str, Any] = update_summary_manually(conversation_id)
     return SummaryUpdateResponse(**result)
+
+
+@router.post("/documents/upload", response_model=UploadDocumentResponse)
+async def upload_document_api(
+    file: UploadFile = File(...),
+) -> UploadDocumentResponse:
+    result = await DocumentService().upload_document(file)
+    return UploadDocumentResponse(**result)
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+def list_documents_api() -> DocumentListResponse:
+    documents = DocumentService().list_documents()
+    return DocumentListResponse(items=[DocumentItem(**item) for item in documents])
+
+
+@router.get("/documents/{document_id}", response_model=DocumentDetailResponse)
+def get_document_api(document_id: str) -> DocumentDetailResponse:
+    document = DocumentService().get_document_detail(document_id)
+    return DocumentDetailResponse(**document)
+
+
+@router.get(
+    "/documents/{document_id}/chunks",
+    response_model=DocumentChunkListResponse,
+)
+def list_document_chunks_api(document_id: str) -> DocumentChunkListResponse:
+    chunks = DocumentService().get_document_chunks(document_id)
+    return DocumentChunkListResponse(
+        items=[DocumentChunkItem(**item) for item in chunks]
+    )
+
+
+@router.delete(
+    "/documents/{document_id}",
+    response_model=DeleteDocumentResponse,
+)
+def delete_document_api(document_id: str) -> DeleteDocumentResponse:
+    result = DocumentService().delete_document(document_id)
+    return DeleteDocumentResponse(**result)

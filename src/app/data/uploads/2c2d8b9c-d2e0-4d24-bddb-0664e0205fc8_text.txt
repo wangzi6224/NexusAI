@@ -1,0 +1,3056 @@
+第五周教程：文档上传 Document Upload + Chunk 切分
+本教程基于我实际读取到的 GitHub 仓库 wangzi6224/my_python_project 当前代码状态编写，不是凭空设计。
+
+我核对到的关键现状：
+
+routes.py 当前仍是集中式路由文件，已经有 /chat、/chat/stream、会话、消息、context-preview、summary 等接口；其中 ContextBuilder 被 import 但没有被使用，建议删除。
+context_builder.py 当前已经实现 system prompt、summary、recent messages、max_context_chars、estimated_tokens、context preview；但 import 了未使用的 ContextPreviewResponse，建议删除。
+conversation_store.py 当前已经用 JSON 存储 conversations.json 和 messages.json，并且 create_conversation 已初始化 summarized_message_count 和 summary_updated_at。
+conversation_service.py 当前普通消息和流式消息都会先保存 user message，再构造上下文，再调用模型，再保存 assistant message；assistant 保存后才尝试自动 summary。
+stream_conversation_message 里 message_start 在模型流式输出前发送，自动 summary 在 assistant message 保存后才触发，因此 message_start 不会被 summary 阻塞。
+schemas.py 当前仍是集中式 Schema 文件，已有 Chat、Conversation、Message、ContextPreview、Summary 相关模型。第五周继续放这里，暂不拆分。
+paths.py 当前 DATA_DIR = BASE_ABS_DIR / "data"，也就是说实际数据目录是 src/app/data，不是仓库根目录的 data/。第五周建议沿用当前 DATA_DIR，新增 UPLOAD_DIR = DATA_DIR / "uploads"。
+pyproject.toml 当前依赖里没有 python-multipart，上传文件接口必须补这个依赖。
+你的总体学习计划里 Week 5 的主线就是“上传文档 -> 解析文本 -> 切分 chunk -> 保存 document 和 chunk”，并明确第一版只做 .md / .txt，暂不做 PDF。
+1. 当前项目状态审视
+为什么要先审视
+第五周不是重新做一个上传 Demo，而是在你已经完成的 AI Chat Backend 上继续演进。
+
+当前项目已经具备：
+
+FastAPI
+OllamaProvider
+Streaming
+Config
+Logger
+Exception Handler
+Conversation
+Message
+ContextBuilder
+Summary Memory
+JSON Store
+所以第五周不要推翻现有结构，而是新增一条独立能力链路：
+
+Document Upload
+  ↓
+Document Loader
+  ↓
+Chunk Splitter
+  ↓
+Document Store
+  ↓
+Documents API
+和现有会话链路并列：
+
+Conversation / Message / ContextBuilder / Summarizer
+第五周最重要的工程原则是：
+
+文档处理逻辑不要污染会话系统。
+也就是说：
+
+不要把 document 存储塞进 conversation_store.py
+不要把 splitter 写在 routes.py
+不要让 loader 调用 LLM
+不要让 splitter 访问 JSON 文件
+当前真实代码对 Week 5 的影响
+你的项目当前有一个明显的低重构特点：
+
+schemas.py 集中管理 Pydantic Schema
+routes.py 集中管理 API 路由
+conversation_store.py 使用 JSON 文件存储
+services/ 下按业务拆服务
+paths.py 统一管理路径
+所以 Week 5 也延续这个风格：
+
+新增 document_store.py
+新增 services/document_loader.py
+新增 services/chunk_splitter.py
+新增 services/document_service.py
+
+修改 paths.py
+修改 schemas.py
+修改 routes.py
+修改 config.py，可选
+修改 README.md
+新增或更新 docs/dev-log.md
+暂不做：
+
+src/app/schemas/document.py
+src/app/api/documents.py
+SQLAlchemy
+PostgreSQL
+pgvector
+Embedding
+RAG
+Agent
+MCP
+PDF
+2. Week 4 收尾清理
+这部分只作为开始 Week 5 前的小清理，不作为第五周主线。
+
+2.1 删除 context_builder.py 未使用 import
+当前 context_builder.py 有：
+
+from src.app.schemas import ContextPreviewResponse
+但文件里没有使用它。建议删除。
+
+为什么
+ContextBuilder 是服务层，不应该依赖 API Response Schema。
+
+它只需要返回普通 dict[str, Any]，由 routes 层包装成 ContextPreviewResponse。
+
+这和你前端经验类似：
+
+service 返回普通数据
+页面或 controller 决定如何渲染 / 包装
+2.2 删除 routes.py 未使用 import
+当前 routes.py 有：
+
+from src.app.services.context_builder import ContextBuilder
+但 routes 里没有直接使用它，真正使用的是 get_context_preview service。建议删除。
+
+2.3 自动 summary 触发点确认
+当前普通消息流程：
+
+保存 user message
+构造 llm_messages
+调用 Ollama
+保存 assistant message
+_try_update_summary
+update_conversation
+这说明自动 summary 是在 assistant message 保存后触发的。
+
+这是正确的。
+
+如果 summary 在 assistant 保存前触发，会导致本轮回答没有被纳入摘要统计。
+
+2.4 流式 message_start 不会被 summary 阻塞
+当前流式流程：
+
+保存 user message
+构造 llm_messages
+yield message_start
+模型流式输出 delta
+保存 assistant message
+_try_update_summary
+yield message_end
+yield done
+所以 message_start 在 summary 之前很早就发出。
+
+这也是正确的。
+
+2.5 ContextBuilder 不会裁掉当前用户最新问题
+当前 build_messages 是从最近消息倒序选取，如果超出 max_context_chars，并且还没有选中任何最近消息，会强制保留这条消息。
+
+这说明即使当前用户问题很长，也不会出现“模型看不到用户最新问题”的严重 bug。
+
+2.6 create_conversation 已初始化 summary 字段
+当前 create_conversation 已有：
+
+"summary": None,
+"summarized_message_count": 0,
+"summary_updated_at": None,
+无需补。
+
+3. 第五周目标
+第五周目标定义为：
+
+实现 AI 知识库的最小文档处理层：
+支持上传 .md / .txt 文档，
+保存 Document 元数据和原始文本内容，
+解析文本，
+按标题 / 段落 / 长度策略切分为 Chunk，
+并提供文档列表、文档详情、Chunk 列表和 Chunk 预览接口。
+第五周结束后，项目从：
+
+只有 Chat / Conversation / Context Window 的 AI Chat Backend
+升级为：
+
+支持知识库文档上传、文本解析、Chunk 切分、Chunk 查询和调试预览的 AI Backend
+核心链路：
+
+用户上传文档
+  ↓
+FastAPI UploadFile 接收文件
+  ↓
+校验文件类型和大小
+  ↓
+保存原始文件到 DATA_DIR/uploads/
+  ↓
+解析文本内容
+  ↓
+创建 document 记录
+  ↓
+调用 ChunkSplitter 切分文本
+  ↓
+保存 document_chunks 记录
+  ↓
+返回 document_id、chunk_count、status
+  ↓
+用户可查询 documents 和 chunks
+4. 为什么 AI 知识库必须先有 Document / Chunk 层
+4.1 Document 是知识库的一级资源
+Document 不是“上传文件记录”这么简单。
+
+它代表知识库里的一份原始资料。
+
+真实 AI 工程中，Document 解决这些问题：
+
+这份知识来自哪里？
+原始文件叫什么？
+文件保存在哪里？
+解析是否成功？
+什么时候上传？
+后续是否需要重建索引？
+失败原因是什么？
+对应字段：
+
+id
+filename
+file_type
+source_path
+content
+status
+error_message
+char_count
+chunk_count
+created_at
+updated_at
+类比前端 / Node.js：
+
+Document 类似 CMS 里的 Article / Asset / Resource
+不是临时文件，而是业务资源。
+4.2 Chunk 是 RAG 检索的最小语义单元
+Chunk 不是普通字符串切片。
+
+它是后续 Embedding 和 RAG 检索的最小单位。
+
+后面 Week 6 会做：
+
+chunk.content -> embedding vector -> pgvector
+Week 7 会做：
+
+用户问题 -> query embedding -> 检索相关 chunks -> 构造 RAG prompt
+如果 Week 5 的 chunk 切得很差，后面 RAG 会直接变差。
+
+例如：
+
+chunk 太短：信息不足，检索到了也回答不了
+chunk 太长：主题混杂，embedding 表达模糊
+chunk 不保留 heading：回答时很难解释来源
+chunk 无 metadata：后续无法过滤、溯源、调试
+4.3 Loader 是 AI 数据入口
+UploadFile 不只是上传文件。
+
+在 AI 应用里，它是：
+
+非结构化数据进入系统的入口。
+Loader 负责把外部文件变成内部可处理的文本。
+
+本周只做：
+
+.md / .txt -> utf-8 text
+不做：
+
+PDF
+OCR
+Word
+Excel
+PPT
+4.4 Splitter 是影响召回质量的核心模块
+Splitter 不是工具函数。
+
+它决定：
+
+后续 embedding 表达什么语义
+后续 vector search 能不能召回正确内容
+后续 RAG 回答有没有可靠上下文
+第五周第一版策略：
+
+Markdown：
+  优先按标题识别结构
+  每个标题下内容作为 section
+  section 太长时按段落拆
+  段落仍然太长时按字符长度兜底拆
+  chunk 保留 heading
+
+txt：
+  按段落拆
+  段落太长时按字符长度兜底拆
+  heading = None
+4.5 为什么第五周不做 PDF
+PDF 解析复杂度明显高于 .md / .txt。
+
+它会引入：
+
+版面分析
+字体编码
+坐标
+多栏阅读顺序
+页眉页脚
+表格
+图片
+OCR
+扫描件
+文本提取误差
+这会严重偏离第五周主线。
+
+第五周目标不是“做一个全格式文档解析器”，而是建立 RAG 前置管线：
+
+document -> text -> chunk
+PDF 可以后续单独做专题。
+
+5. Document、Chunk、Loader、Splitter、Service 核心概念
+模块	是什么	真实工程价值	Node / 前端类比
+Document	文档一级资源	管理来源、状态、原文、统计信息	CMS 的 Article / Asset
+DocumentChunk	文档切分后的语义片段	Embedding / RAG 检索最小单元	搜索索引里的 document segment
+DocumentLoader	文件校验、保存、文本读取	控制外部数据入口安全	Express multer upload middleware + parser
+ChunkSplitter	文本切分策略模块	决定后续召回质量	文本预处理 pipeline
+DocumentService	编排层	串起上传、解析、切分、保存	NestJS Service / Application Service
+document_store.py	JSON 存储层	学习阶段可视化存储	JSON 文件版 repository
+6. 第五周新增文件总览
+建议新增：
+
+src/app/document_store.py
+
+src/app/services/document_loader.py
+src/app/services/chunk_splitter.py
+src/app/services/document_service.py
+建议修改：
+
+src/app/paths.py
+src/app/schemas.py
+src/app/api/routes.py
+src/app/config.py
+README.md
+docs/dev-log.md
+pyproject.toml
+注意：
+
+当前 DATA_DIR 实际是：
+
+src/app/data
+所以第五周路径建议是：
+
+src/app/data/uploads/
+src/app/data/documents.json
+src/app/data/document_chunks.json
+如果你强制想用仓库根目录 data/，需要先统一修改 paths.py，但这会影响已有 conversations/messages 存储路径。第五周建议不动这个大方向。
+
+Day 1：设计 Document / Chunk Schema 和 JSON Store
+目标
+今天完成：
+
+1. 设计 Document 和 DocumentChunk 数据结构
+2. 修改 schemas.py
+3. 新增 document_store.py
+4. 新增 documents.json / document_chunks.json 的读写能力
+核心思想
+第五周先建立“数据模型”。
+
+没有数据模型，后面上传、解析、切分都会变成散乱逻辑。
+
+本日要形成两个资源：
+
+Document：文档主记录
+DocumentChunk：文档切分记录
+为什么
+当前项目已经有 conversation_store.py 管理：
+
+conversations.json
+messages.json
+第五周继续使用 JSON store，而不是直接上数据库。
+
+原因：
+
+学习阶段可直接打开 JSON 文件看结果
+和当前项目风格一致
+避免数据库迁移干扰主线
+Week 6 再进入 PostgreSQL / pgvector 更自然
+但不要把 document 存进 conversation_store.py。
+
+因为：
+
+Conversation 是聊天域
+Document 是知识库域
+Message 是对话消息
+Chunk 是知识片段
+混在一起会导致 store 文件职责不清。
+
+怎么做
+第一步：修改 paths.py
+在当前基础上新增：
+
+UPLOAD_DIR = DATA_DIR / "uploads"
+DOCUMENTS_FILE = DATA_DIR / "documents.json"
+DOCUMENT_CHUNKS_FILE = DATA_DIR / "document_chunks.json"
+当前 paths.py 已经有 DATA_DIR。
+
+第二步：修改 schemas.py
+新增：
+
+DocumentItem
+DocumentDetailResponse
+DocumentListResponse
+UploadDocumentResponse
+DocumentChunkItem
+DocumentChunkListResponse
+DeleteDocumentResponse
+第三步：新增 document_store.py
+负责：
+
+load_documents
+save_documents
+create_document
+update_document
+get_document
+list_documents
+delete_document
+
+load_document_chunks
+save_document_chunks
+create_document_chunks
+list_document_chunks
+delete_document_chunks
+你自己先写
+先不要写上传接口。
+
+先完成：
+
+paths.py
+schemas.py
+document_store.py
+然后用 Python 交互测试 store 是否能创建记录。
+
+代码骨架
+paths.py
+from pathlib import Path
+
+BASE_ABS_DIR = Path(__file__).resolve().parent
+
+STATIC_DIR = BASE_ABS_DIR / "static"
+LOG_DIR = BASE_ABS_DIR / "logs"
+DATA_DIR = BASE_ABS_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "uploads"
+
+DOCUMENTS_FILE = DATA_DIR / "documents.json"
+DOCUMENT_CHUNKS_FILE = DATA_DIR / "document_chunks.json"
+
+WEB_DIR = BASE_ABS_DIR.parents[1] / "web"
+schemas.py 骨架
+class DocumentItem(BaseModel):
+    ...
+
+
+class DocumentDetailResponse(DocumentItem):
+    ...
+
+
+class DocumentListResponse(BaseModel):
+    ...
+
+
+class UploadDocumentResponse(BaseModel):
+    ...
+
+
+class DocumentChunkItem(BaseModel):
+    ...
+
+
+class DocumentChunkListResponse(BaseModel):
+    ...
+
+
+class DeleteDocumentResponse(BaseModel):
+    ...
+document_store.py 骨架
+import json
+import uuid
+from datetime import datetime
+from typing import Any
+
+from src.app.exceptions import AppError
+from src.app.paths import DOCUMENTS_FILE, DOCUMENT_CHUNKS_FILE, DATA_DIR
+
+
+def _now_iso() -> str:
+    ...
+
+
+def _ensure_json_file(path) -> None:
+    ...
+
+
+def _load_json_list(path) -> list[dict[str, Any]]:
+    ...
+
+
+def _save_json_list(path, items: list[dict[str, Any]]) -> None:
+    ...
+
+
+def load_documents() -> list[dict[str, Any]]:
+    ...
+
+
+def save_documents(documents: list[dict[str, Any]]) -> None:
+    ...
+
+
+def create_document(...) -> dict[str, Any]:
+    ...
+
+
+def update_document(document_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    ...
+
+
+def get_document(document_id: str) -> dict[str, Any] | None:
+    ...
+
+
+def list_documents() -> list[dict[str, Any]]:
+    ...
+
+
+def delete_document(document_id: str) -> None:
+    ...
+
+
+def load_document_chunks() -> list[dict[str, Any]]:
+    ...
+
+
+def save_document_chunks(chunks: list[dict[str, Any]]) -> None:
+    ...
+
+
+def create_document_chunks(document_id: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ...
+
+
+def list_document_chunks(document_id: str) -> list[dict[str, Any]]:
+    ...
+
+
+def delete_document_chunks(document_id: str) -> None:
+    ...
+检查点
+完成后确认：
+
+1. paths.py 有 UPLOAD_DIR、DOCUMENTS_FILE、DOCUMENT_CHUNKS_FILE
+2. schemas.py 没有拆文件
+3. document_store.py 没塞进 conversation_store.py
+4. JSON 写入使用 ensure_ascii=False
+5. created_at / updated_at 使用 datetime.now().isoformat()
+6. document id 使用 uuid
+7. chunk id 使用 uuid
+8. chunk_index 由 create_document_chunks 保证连续
+参考实现：schemas.py 新增部分
+把下面代码追加到 src/app/schemas.py 末尾即可。
+
+class DocumentItem(BaseModel):
+    id: str
+    filename: str
+    file_type: str
+    source_path: str
+    status: str
+    chunk_count: int
+    char_count: int
+    error_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class DocumentDetailResponse(DocumentItem):
+    content: str
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentItem]
+
+
+class UploadDocumentResponse(BaseModel):
+    document_id: str
+    filename: str
+    file_type: str
+    status: str
+    chunk_count: int
+    char_count: int
+    created_at: str
+
+
+class DocumentChunkItem(BaseModel):
+    id: str
+    document_id: str
+    chunk_index: int
+    heading: str | None = None
+    content: str
+    char_count: int
+    estimated_tokens: int
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+
+class DocumentChunkListResponse(BaseModel):
+    items: list[DocumentChunkItem]
+
+
+class DeleteDocumentResponse(BaseModel):
+    success: bool
+    message: str
+字段逐项解释
+DocumentItem.id
+文档唯一 ID。
+
+不要用 filename 当 ID，因为：
+
+文件名可能重复
+文件名可能包含危险字符
+文件名可能被用户改动
+filename
+用户上传时的原始文件名，主要用于展示。
+
+source_path
+服务端保存后的真实路径。
+
+它和 filename 不同：
+
+filename: fastapi-guide.md
+source_path: src/app/data/uploads/uuid_fastapi-guide.md
+source_path 后续用于：
+
+排查上传文件
+重建索引
+重新解析
+删除原始文件
+file_type
+建议保存为：
+
+md
+txt
+不要只在每次使用时重新从 filename 猜。
+
+因为后续文件名可能不可信，业务处理应该依赖系统校验后的结果。
+
+status
+文档状态：
+
+pending
+processing
+completed
+failed
+真实系统中上传解析经常变成异步任务，状态字段是后续扩展基础。
+
+error_message
+失败时记录原因。
+
+例如：
+
+文件类型不支持
+文件过大
+文本解码失败
+chunk 为空
+content
+原始文本内容。
+
+只在详情接口返回，不建议列表接口返回。
+
+原因：
+
+列表接口可能很多文档
+content 可能很长
+影响响应性能
+前端列表也不需要全文
+chunk_index
+同一个 document 下的 chunk 顺序。
+
+必须稳定连续：
+
+0, 1, 2, 3...
+后续用于：
+
+调试
+上下文重组
+前端预览
+引用排序
+heading
+Markdown 标题。
+
+它能保留文档结构，让 chunk 更可解释。
+
+例如：
+
+heading = JSONResponse
+content = JSONResponse 可以自定义异常返回结构...
+比单独 content 更容易理解来源。
+
+char_count
+字符数。
+
+用于：
+
+检查 chunk 是否过长
+控制切分策略
+调试异常 chunk
+estimated_tokens
+粗略 token 估算。
+
+和第四周 ContextBuilder 的思想一致，但不要直接依赖 ContextBuilder。
+
+因为：
+
+ContextBuilder 属于会话上下文
+ChunkSplitter 属于文档处理
+两个模块职责不同
+metadata
+后续非常重要。
+
+可以保存：
+
+{
+  "split_method": "markdown_heading",
+  "file_type": "md",
+  "heading_level": 2
+}
+后续 RAG 可以用它做：
+
+过滤
+溯源
+展示
+评测
+调试
+参考实现：document_store.py
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from src.app.exceptions import AppError
+from src.app.paths import DATA_DIR, DOCUMENTS_FILE, DOCUMENT_CHUNKS_FILE
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat()
+
+
+def _ensure_json_file(path: Path) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not path.exists():
+        path.write_text("[]", encoding="utf-8")
+
+
+def _load_json_list(path: Path) -> list[dict[str, Any]]:
+    _ensure_json_file(path)
+
+    try:
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            return []
+
+        data = json.loads(content)
+
+        if not isinstance(data, list):
+            raise AppError(
+                code="DOCUMENT_STORE_ERROR",
+                message="JSON 存储格式错误",
+                detail=f"{path} 内容不是数组",
+                status_code=500,
+            )
+
+        return data
+
+    except json.JSONDecodeError as exc:
+        raise AppError(
+            code="DOCUMENT_STORE_ERROR",
+            message="读取 JSON 失败",
+            detail=f"{path}: {exc}",
+            status_code=500,
+        ) from exc
+
+
+def _save_json_list(path: Path, items: list[dict[str, Any]]) -> None:
+    _ensure_json_file(path)
+
+    try:
+        path.write_text(
+            json.dumps(items, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise AppError(
+            code="DOCUMENT_STORE_ERROR",
+            message="写入 JSON 失败",
+            detail=f"{path}: {exc}",
+            status_code=500,
+        ) from exc
+
+
+def load_documents() -> list[dict[str, Any]]:
+    return _load_json_list(DOCUMENTS_FILE)
+
+
+def save_documents(documents: list[dict[str, Any]]) -> None:
+    _save_json_list(DOCUMENTS_FILE, documents)
+
+
+def create_document(
+    filename: str,
+    file_type: str,
+    source_path: str,
+    content: str,
+    status: str = "pending",
+    error_message: str | None = None,
+) -> dict[str, Any]:
+    now = _now_iso()
+
+    document = {
+        "id": str(uuid.uuid4()),
+        "filename": filename,
+        "file_type": file_type,
+        "source_path": source_path,
+        "content": content,
+        "status": status,
+        "chunk_count": 0,
+        "char_count": len(content),
+        "error_message": error_message,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    documents = load_documents()
+    documents.append(document)
+    save_documents(documents)
+
+    return document
+
+
+def update_document(
+    document_id: str,
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    documents = load_documents()
+
+    for document in documents:
+        if document["id"] == document_id:
+            document.update(updates)
+            document["updated_at"] = _now_iso()
+            save_documents(documents)
+            return document
+
+    raise AppError(
+        code="DOCUMENT_NOT_FOUND",
+        message="文档不存在",
+        detail=f"document_id={document_id}",
+        status_code=404,
+    )
+
+
+def get_document(document_id: str) -> dict[str, Any] | None:
+    documents = load_documents()
+
+    for document in documents:
+        if document["id"] == document_id:
+            return document
+
+    return None
+
+
+def list_documents() -> list[dict[str, Any]]:
+    documents = load_documents()
+    return sorted(
+        documents,
+        key=lambda item: item.get("updated_at", ""),
+        reverse=True,
+    )
+
+
+def delete_document(document_id: str) -> None:
+    documents = load_documents()
+    next_documents = [
+        document for document in documents if document["id"] != document_id
+    ]
+
+    if len(next_documents) == len(documents):
+        raise AppError(
+            code="DOCUMENT_NOT_FOUND",
+            message="文档不存在",
+            detail=f"document_id={document_id}",
+            status_code=404,
+        )
+
+    save_documents(next_documents)
+
+
+def load_document_chunks() -> list[dict[str, Any]]:
+    return _load_json_list(DOCUMENT_CHUNKS_FILE)
+
+
+def save_document_chunks(chunks: list[dict[str, Any]]) -> None:
+    _save_json_list(DOCUMENT_CHUNKS_FILE, chunks)
+
+
+def create_document_chunks(
+    document_id: str,
+    chunks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    now = _now_iso()
+
+    records: list[dict[str, Any]] = []
+
+    for index, chunk in enumerate(chunks):
+        content = chunk.get("content", "").strip()
+        if not content:
+            continue
+
+        record = {
+            "id": str(uuid.uuid4()),
+            "document_id": document_id,
+            "chunk_index": index,
+            "heading": chunk.get("heading"),
+            "content": content,
+            "char_count": len(content),
+            "estimated_tokens": int(chunk.get("estimated_tokens") or 0),
+            "metadata": chunk.get("metadata") or {},
+            "created_at": now,
+        }
+        records.append(record)
+
+    existing_chunks = load_document_chunks()
+    existing_chunks.extend(records)
+    save_document_chunks(existing_chunks)
+
+    return records
+
+
+def list_document_chunks(document_id: str) -> list[dict[str, Any]]:
+    chunks = load_document_chunks()
+    document_chunks = [
+        chunk for chunk in chunks if chunk["document_id"] == document_id
+    ]
+
+    return sorted(
+        document_chunks,
+        key=lambda item: item.get("chunk_index", 0),
+    )
+
+
+def delete_document_chunks(document_id: str) -> None:
+    chunks = load_document_chunks()
+    next_chunks = [
+        chunk for chunk in chunks if chunk["document_id"] != document_id
+    ]
+    save_document_chunks(next_chunks)
+逐行解释
+_ensure_json_file
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+确保数据目录存在。
+
+这延续你 conversation_store.py 的风格。
+
+_load_json_list
+负责读取 JSON 数组。
+
+如果文件为空，返回空列表。
+
+如果 JSON 不是数组，抛出 AppError。
+
+_save_json_list
+json.dumps(items, ensure_ascii=False, indent=2)
+ensure_ascii=False 很重要。
+
+否则中文会变成：
+
+\u5feb\u901f\u5165\u95e8
+不利于你直接打开 JSON 调试。
+
+create_document
+创建 document 主记录。
+
+注意此时 chunk_count = 0，因为 chunk 还没有生成。
+
+update_document
+用于更新状态：
+
+pending -> processing -> completed
+pending -> processing -> failed
+create_document_chunks
+它接收 splitter 产生的 chunk 草稿，然后补齐：
+
+id
+document_id
+chunk_index
+created_at
+这说明：
+
+splitter 只负责切文本
+store 负责存储字段
+边界清晰。
+
+测试命令
+python -m compileall src/app
+解释：
+
+python -m compileall：让 Python 编译检查源码
+src/app：检查后端源码目录
+用 uv：
+
+uv run python -m compileall src/app
+常见错误
+1. ImportError: cannot import name DOCUMENTS_FILE
+说明 paths.py 还没有新增：
+
+DOCUMENTS_FILE = DATA_DIR / "documents.json"
+2. DOCUMENT_STORE_ERROR
+打开对应 JSON 文件检查是否不是数组。
+
+正确格式：
+
+[]
+错误格式：
+
+{}
+复盘问题
+1. 为什么 document_store.py 不应该和 conversation_store.py 合并？
+2. 为什么 Document 要有 status？
+3. 为什么 content 不放在列表接口里返回？
+4. 为什么 chunk_index 必须稳定连续？
+可面试表达
+我在第五周先没有直接做 RAG，而是先实现了知识库文档处理层。Document 作为一级资源保存原始文件、解析文本、处理状态和错误信息；DocumentChunk 作为后续 Embedding 和 RAG 检索的最小语义单元。当前阶段继续用 JSON Store，主要是为了保持学习路径清晰和结果可观察，后续 Week 6 再切到 PostgreSQL / pgvector。
+Day 2：实现 DocumentLoader，支持 md/txt 上传和文本读取
+目标
+今天完成：
+
+1. 新增 services/document_loader.py
+2. 校验文件后缀
+3. 校验文件大小
+4. 保存原始上传文件
+5. 读取 utf-8 文本
+6. 明确不支持 PDF
+核心思想
+DocumentLoader 是 AI 数据入口。
+
+它负责把外部上传文件变成系统内部可信的文本。
+
+为什么
+用户上传的文件是不可信的。
+
+你不能相信：
+
+filename 一定安全
+后缀一定真实
+文件一定不大
+文件一定是 utf-8
+文件一定有内容
+所以 Loader 必须做：
+
+validate
+save
+load text
+这和 Node.js 的上传处理很像：
+
+multer 接收文件
+校验 mimetype / ext / size
+保存到 uploads
+再交给 service 处理
+怎么做
+创建文件：
+
+src/app/services/document_loader.py
+设计：
+
+ALLOWED_DOCUMENT_EXTENSIONS = {".md", ".txt"}
+MAX_DOCUMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024
+
+class DocumentLoader:
+    def validate_file(self, filename: str, content: bytes) -> str:
+        ...
+
+    def save_upload_file(self, filename: str, content: bytes) -> Path:
+        ...
+
+    def load_text(self, filename: str, content: bytes) -> str:
+        ...
+你自己先写
+先实现三个函数：
+
+validate_file
+save_upload_file
+load_text
+暂时不要管 API。
+
+代码骨架
+import re
+import uuid
+from pathlib import Path
+
+from src.app.exceptions import AppError
+from src.app.paths import UPLOAD_DIR
+
+ALLOWED_DOCUMENT_EXTENSIONS = {".md", ".txt"}
+MAX_DOCUMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024
+
+
+class DocumentLoader:
+    def validate_file(self, filename: str, content: bytes) -> str:
+        ...
+
+    def save_upload_file(self, filename: str, content: bytes) -> Path:
+        ...
+
+    def load_text(self, filename: str, content: bytes) -> str:
+        ...
+
+    def _safe_filename(self, filename: str) -> str:
+        ...
+检查点
+完成后确认：
+
+1. 只允许 .md / .txt
+2. 空文件报错
+3. 超过 5MB 报错
+4. utf-8 解码失败报错
+5. 保存文件名有 uuid 前缀
+6. 不直接相信用户 filename
+7. 保存目录是 UPLOAD_DIR
+8. 返回 file_type 是 md/txt，不带点
+参考实现：document_loader.py
+import re
+import uuid
+from pathlib import Path
+
+from src.app.exceptions import AppError
+from src.app.paths import UPLOAD_DIR
+
+ALLOWED_DOCUMENT_EXTENSIONS = {".md", ".txt"}
+MAX_DOCUMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024
+
+
+class DocumentLoader:
+    def validate_file(self, filename: str, content: bytes) -> str:
+        if not filename:
+            raise AppError(
+                code="DOCUMENT_INVALID_FILE",
+                message="文件名不能为空",
+                status_code=400,
+            )
+
+        suffix = Path(filename).suffix.lower()
+
+        if suffix not in ALLOWED_DOCUMENT_EXTENSIONS:
+            raise AppError(
+                code="DOCUMENT_UNSUPPORTED_FILE_TYPE",
+                message="暂只支持 .md 和 .txt 文件",
+                detail=f"filename={filename}",
+                status_code=400,
+            )
+
+        if not content:
+            raise AppError(
+                code="DOCUMENT_EMPTY_FILE",
+                message="上传文件不能为空",
+                status_code=400,
+            )
+
+        if len(content) > MAX_DOCUMENT_FILE_SIZE_BYTES:
+            raise AppError(
+                code="DOCUMENT_FILE_TOO_LARGE",
+                message="上传文件过大",
+                detail=f"max_size_bytes={MAX_DOCUMENT_FILE_SIZE_BYTES}",
+                status_code=400,
+            )
+
+        return suffix.lstrip(".")
+
+    def save_upload_file(self, filename: str, content: bytes) -> Path:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+        safe_name = self._safe_filename(filename)
+        saved_name = f"{uuid.uuid4()}_{safe_name}"
+        saved_path = UPLOAD_DIR / saved_name
+
+        saved_path.write_bytes(content)
+
+        return saved_path
+
+    def load_text(self, filename: str, content: bytes) -> str:
+        self.validate_file(filename=filename, content=content)
+
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise AppError(
+                code="DOCUMENT_DECODE_ERROR",
+                message="文件文本解码失败，请确认文件是 UTF-8 编码",
+                detail=str(exc),
+                status_code=400,
+            ) from exc
+
+        text = text.strip()
+
+        if not text:
+            raise AppError(
+                code="DOCUMENT_EMPTY_TEXT",
+                message="文件解析后文本为空",
+                status_code=400,
+            )
+
+        return text
+
+    def _safe_filename(self, filename: str) -> str:
+        name = Path(filename).name
+        return re.sub(r"[^a-zA-Z0-9._\-\u4e00-\u9fff]", "_", name)
+逐行解释
+ALLOWED_DOCUMENT_EXTENSIONS
+{".md", ".txt"}
+第五周只支持纯文本类文件。
+
+MAX_DOCUMENT_FILE_SIZE_BYTES
+5 * 1024 * 1024
+限制 5MB。
+
+为什么要限制？
+
+防止内存占用过大
+防止恶意上传
+防止 JSON 文件膨胀
+防止同步接口阻塞太久
+validate_file
+返回：
+
+md
+txt
+而不是：
+
+.md
+.txt
+这样 API 响应更像业务字段。
+
+Path(filename).suffix.lower()
+统一处理大小写：
+
+README.MD -> .md
+note.TXT -> .txt
+save_upload_file
+saved_name = f"{uuid.uuid4()}_{safe_name}"
+为什么加 uuid？
+
+避免同名覆盖
+降低路径猜测风险
+便于追踪具体上传批次
+_safe_filename
+用户传来的 filename 可能包含：
+
+../
+空格
+特殊字符
+奇怪符号
+所以要安全化。
+
+load_text
+.md 和 .txt 本质上都是纯文本。
+
+本周不做 Markdown AST 解析，只读取文本内容。
+
+UploadFile 解释
+FastAPI 的 UploadFile 是文件上传对象。
+
+上传接口中通常这样用：
+
+async def upload(file: UploadFile = File(...)):
+    content = await file.read()
+为什么 await file.read() 返回 bytes
+因为 HTTP 上传的是二进制流。
+
+即使 .md / .txt 是文本，网络层接收时也是 bytes。
+
+你需要：
+
+content.decode("utf-8")
+才能变成 Python 字符串。
+
+为什么处理 UnicodeDecodeError
+因为用户可能上传：
+
+GBK 编码 txt
+损坏文件
+伪装成 txt 的二进制文件
+第五周先明确要求 UTF-8。
+
+测试命令
+python -m compileall src/app
+临时 Python 测试：
+
+python
+from src.app.services.document_loader import DocumentLoader
+
+loader = DocumentLoader()
+content = "# 标题\n\n这是内容".encode("utf-8")
+
+file_type = loader.validate_file("test.md", content)
+text = loader.load_text("test.md", content)
+path = loader.save_upload_file("test.md", content)
+
+print(file_type)
+print(text)
+print(path)
+预期：
+
+md
+# 标题
+
+这是内容
+src/app/data/uploads/xxx_test.md
+常见错误
+1. DOCUMENT_UNSUPPORTED_FILE_TYPE
+说明后缀不是 .md / .txt。
+
+2. DOCUMENT_DECODE_ERROR
+说明不是 UTF-8 文本。
+
+先用：
+
+file /tmp/your-file.txt
+检查编码。
+
+3. 找不到 uploads
+检查 paths.py 是否有：
+
+UPLOAD_DIR = DATA_DIR / "uploads"
+复盘问题
+1. UploadFile 为什么读出来是 bytes？
+2. filename 和 source_path 为什么不能混用？
+3. 为什么上传文件要限制大小？
+4. 为什么第五周不支持 PDF？
+可面试表达
+我把文档上传入口单独封装为 DocumentLoader。它负责校验文件后缀、大小、UTF-8 解码和原始文件保存，避免外部上传数据直接进入业务处理。第一版只支持 md/txt，因为这两个格式本质是纯文本，可以聚焦 document -> text -> chunk 的 RAG 前置管线，PDF 后续单独作为解析专题处理。
+Day 3：实现 ChunkSplitter，按标题、段落、长度切分
+目标
+今天完成第五周最核心模块：
+
+src/app/services/chunk_splitter.py
+能力：
+
+1. Markdown 标题识别
+2. Markdown section 切分
+3. txt 段落切分
+4. 超长文本按字符长度兜底切分
+5. 支持 overlap
+6. 支持 heading
+7. 支持 char_count
+8. 支持 estimated_tokens
+9. 支持 metadata
+核心思想
+Chunk 不是随便切字符串。
+
+Chunk 是：
+
+后续 Embedding 和 RAG 检索的最小语义单元。
+为什么
+后续 Week 6 会把每个 chunk 转成 embedding。
+
+如果 chunk 切分不好，会出现：
+
+召回不到正确内容
+召回内容太散
+模型回答缺少依据
+sources 不可解释
+为什么不能无脑每 500 字切一段
+例如 Markdown：
+
+# FastAPI 异常处理
+
+...
+
+## JSONResponse
+
+...
+如果固定 500 字切，可能把两个标题混在一起。
+
+更好的方式是先尊重文档结构：
+
+标题 -> section -> paragraph -> length fallback
+为什么需要 overlap
+假设有一段内容：
+
+FastAPI 的异常处理通过 exception_handler 注册。
+它可以捕获自定义业务异常 AppError。
+如果刚好从中间切开，第二个 chunk 可能丢失上下文。
+
+overlap 可以让相邻 chunk 保留一点重叠文本，降低边界信息丢失。
+
+overlap 太大的坏处
+重复内容太多
+embedding 成本增加
+检索结果冗余
+JSON 存储膨胀
+第五周建议：
+
+CHUNK_MAX_CHARS = 1000
+CHUNK_OVERLAP_CHARS = 120
+MIN_CHUNK_CHARS = 80
+怎么做
+新增：
+
+src/app/services/chunk_splitter.py
+设计：
+
+class ChunkSplitter:
+    def split(self, text: str, file_type: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_markdown(self, text: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_plain_text(self, text: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_long_text(self, text: str, heading: str | None = None) -> list[dict[str, Any]]:
+        ...
+
+    def estimate_tokens(self, text: str) -> int:
+        ...
+你自己先写
+先写 estimate_tokens 和 split_long_text。
+
+再写 txt 段落切分。
+
+最后写 Markdown 标题识别。
+
+代码骨架
+import re
+from typing import Any
+
+CHUNK_MAX_CHARS = 1000
+CHUNK_OVERLAP_CHARS = 120
+MIN_CHUNK_CHARS = 80
+
+
+class ChunkSplitter:
+    def split(self, text: str, file_type: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_markdown(self, text: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_plain_text(self, text: str) -> list[dict[str, Any]]:
+        ...
+
+    def split_long_text(self, text: str, heading: str | None = None) -> list[dict[str, Any]]:
+        ...
+
+    def estimate_tokens(self, text: str) -> int:
+        ...
+
+    def _build_chunk(...):
+        ...
+检查点
+1. splitter 不访问 JSON
+2. splitter 不调用 LLM
+3. splitter 不知道 document_id
+4. Markdown heading 能保留
+5. txt heading 为 None
+6. chunk content 不为空
+7. chunk 太长会兜底切
+8. estimated_tokens 合理
+9. metadata 标记 split_method
+10. 示例 Markdown 应生成 4 个 chunk
+参考实现：chunk_splitter.py
+import re
+from typing import Any
+
+CHUNK_MAX_CHARS = 1000
+CHUNK_OVERLAP_CHARS = 120
+MIN_CHUNK_CHARS = 80
+
+
+class ChunkSplitter:
+    def split(self, text: str, file_type: str) -> list[dict[str, Any]]:
+        normalized_text = text.strip()
+
+        if not normalized_text:
+            return []
+
+        if file_type == "md":
+            return self.split_markdown(normalized_text)
+
+        if file_type == "txt":
+            return self.split_plain_text(normalized_text)
+
+        return self.split_plain_text(normalized_text)
+
+    def split_markdown(self, text: str) -> list[dict[str, Any]]:
+        heading_pattern = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+
+        matches = list(heading_pattern.finditer(text))
+
+        if not matches:
+            return self.split_plain_text(text)
+
+        chunks: list[dict[str, Any]] = []
+
+        for index, match in enumerate(matches):
+            heading = match.group(2).strip()
+            heading_level = len(match.group(1))
+
+            section_start = match.end()
+            section_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+
+            section_content = text[section_start:section_end].strip()
+
+            if not section_content:
+                continue
+
+            section_chunks = self._split_by_paragraphs(
+                text=section_content,
+                heading=heading,
+                metadata={
+                    "split_method": "markdown_heading",
+                    "heading_level": heading_level,
+                },
+            )
+
+            chunks.extend(section_chunks)
+
+        return chunks
+
+    def split_plain_text(self, text: str) -> list[dict[str, Any]]:
+        return self._split_by_paragraphs(
+            text=text,
+            heading=None,
+            metadata={
+                "split_method": "paragraph",
+            },
+        )
+
+    def _split_by_paragraphs(
+        self,
+        text: str,
+        heading: str | None,
+        metadata: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        paragraphs = [
+            paragraph.strip()
+            for paragraph in re.split(r"\n\s*\n", text)
+            if paragraph.strip()
+        ]
+
+        chunks: list[dict[str, Any]] = []
+        buffer: list[str] = []
+        buffer_chars = 0
+
+        for paragraph in paragraphs:
+            paragraph_len = len(paragraph)
+
+            if paragraph_len > CHUNK_MAX_CHARS:
+                if buffer:
+                    chunks.append(
+                        self._build_chunk(
+                            content="\n\n".join(buffer),
+                            heading=heading,
+                            metadata=metadata,
+                        )
+                    )
+                    buffer = []
+                    buffer_chars = 0
+
+                chunks.extend(
+                    self.split_long_text(
+                        text=paragraph,
+                        heading=heading,
+                        metadata={
+                            **metadata,
+                            "split_method": "length_fallback",
+                        },
+                    )
+                )
+                continue
+
+            next_chars = buffer_chars + paragraph_len
+
+            if buffer and next_chars > CHUNK_MAX_CHARS:
+                chunks.append(
+                    self._build_chunk(
+                        content="\n\n".join(buffer),
+                        heading=heading,
+                        metadata=metadata,
+                    )
+                )
+                buffer = [paragraph]
+                buffer_chars = paragraph_len
+            else:
+                buffer.append(paragraph)
+                buffer_chars = next_chars
+
+        if buffer:
+            chunks.append(
+                self._build_chunk(
+                    content="\n\n".join(buffer),
+                    heading=heading,
+                    metadata=metadata,
+                )
+            )
+
+        return [
+            chunk
+            for chunk in chunks
+            if len(chunk["content"]) >= MIN_CHUNK_CHARS or len(chunks) == 1
+        ]
+
+    def split_long_text(
+        self,
+        text: str,
+        heading: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        chunks: list[dict[str, Any]] = []
+
+        start = 0
+        text_length = len(text)
+        step = max(1, CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS)
+
+        while start < text_length:
+            end = min(start + CHUNK_MAX_CHARS, text_length)
+            content = text[start:end].strip()
+
+            if content:
+                chunks.append(
+                    self._build_chunk(
+                        content=content,
+                        heading=heading,
+                        metadata=metadata or {"split_method": "length_fallback"},
+                    )
+                )
+
+            if end >= text_length:
+                break
+
+            start += step
+
+        return chunks
+
+    def estimate_tokens(self, text: str) -> int:
+        if not text:
+            return 0
+
+        chinese_chars = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+        other_chars = len(text) - chinese_chars
+
+        return chinese_chars + max(1, other_chars // 4)
+
+    def _build_chunk(
+        self,
+        content: str,
+        heading: str | None,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        normalized_content = content.strip()
+
+        return {
+            "heading": heading,
+            "content": normalized_content,
+            "char_count": len(normalized_content),
+            "estimated_tokens": self.estimate_tokens(normalized_content),
+            "metadata": metadata,
+        }
+逐行解释
+split
+统一入口。
+
+根据 file_type 分发：
+
+md -> split_markdown
+txt -> split_plain_text
+heading_pattern
+r"^(#{1,6})\s+(.+)$"
+匹配 Markdown 标题：
+
+# 一级标题
+## 二级标题
+### 三级标题
+match.group(2)
+取标题文字。
+
+例如：
+
+## JSONResponse
+得到：
+
+JSONResponse
+section_start / section_end
+用于截取当前标题到下一个标题之间的内容。
+
+_split_by_paragraphs
+段落比固定长度更自然。
+
+段落通常代表一个较完整语义单元。
+
+split_long_text
+兜底切分。
+
+当单个段落超过 CHUNK_MAX_CHARS，必须强制拆开，否则后续 embedding 太长。
+
+step = CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS
+例如：
+
+max = 1000
+overlap = 120
+step = 880
+第二个 chunk 会从第 880 个字符开始，和上一个 chunk 重叠 120 字符。
+
+MIN_CHUNK_CHARS
+过滤极短 chunk。
+
+但如果全文只有一个 chunk，即使小于 80 字，也保留。
+
+测试命令
+临时测试：
+
+python
+from src.app.services.chunk_splitter import ChunkSplitter
+
+text = """# FastAPI 异常处理
+
+FastAPI 可以通过 exception_handler 注册全局异常处理器。
+
+## AppError
+
+AppError 是我们自定义的业务异常基类。
+
+## JSONResponse
+
+JSONResponse 可以自定义异常返回的 JSON 结构。
+
+## RequestValidationError
+
+RequestValidationError 用来处理请求参数验证失败。
+"""
+
+splitter = ChunkSplitter()
+chunks = splitter.split(text, "md")
+
+for chunk in chunks:
+    print(chunk["heading"], chunk["content"], chunk["char_count"])
+期望：
+
+FastAPI 异常处理 ... exception_handler ...
+AppError ... 业务异常基类 ...
+JSONResponse ... JSON 结构 ...
+RequestValidationError ... 请求参数验证失败 ...
+常见错误
+1. Markdown 没切出标题
+检查正则：
+
+r"^(#{1,6})\s+(.+)$"
+必须有 re.MULTILINE。
+
+2. chunk 为空
+检查标题下面是否有正文。
+
+本策略会跳过只有标题、没有内容的 section。
+
+3. 只生成 1 个 chunk
+可能原因：
+
+文件不是 md
+标题格式没有空格
+文本太短
+正确标题：
+
+## AppError
+错误标题：
+
+##AppError
+复盘问题
+1. 为什么 chunk 不是普通字符串切片？
+2. 为什么 Markdown 标题很重要？
+3. 为什么 paragraph 比固定长度更自然？
+4. overlap 解决什么问题？
+5. splitter 为什么不能访问数据库？
+可面试表达
+ChunkSplitter 是 RAG 前置管线里的关键模块。我的第一版策略不是固定长度硬切，而是优先尊重 Markdown 标题结构，再按段落合并，最后对超长段落用字符长度兜底切分，并保留 heading、char_count、estimated_tokens 和 metadata。这能让后续 embedding 更接近语义单元，也让 RAG sources 更可解释。
+Day 4：实现 DocumentService，串起上传、解析、切分、保存
+目标
+今天完成：
+
+src/app/services/document_service.py
+它负责：
+
+1. 接收 UploadFile
+2. 调用 DocumentLoader
+3. 创建 document
+4. 调用 ChunkSplitter
+5. 保存 chunks
+6. 更新 document 状态
+7. 查询 list/detail/chunks
+8. 删除 document
+核心思想
+DocumentService 是编排层。
+
+它不亲自解析文件，不亲自切分文本，不亲自操作 JSON 细节，而是组织它们。
+
+为什么
+如果你把所有逻辑都写在一个函数里，会变成：
+
+读取 UploadFile
+校验后缀
+校验大小
+保存文件
+decode utf-8
+创建 document
+正则切 markdown
+切 paragraph
+写 chunks json
+处理错误
+返回响应
+这就是巨型函数。
+
+真实工程要拆成：
+
+DocumentLoader：外部文件 -> text
+ChunkSplitter：text -> chunks
+document_store：dict -> JSON
+DocumentService：编排业务流程
+routes.py：HTTP 参数接收和响应包装
+类比 NestJS：
+
+Controller -> Service -> Repository
+怎么做
+新增：
+
+src/app/services/document_service.py
+设计：
+
+class DocumentService:
+    async def upload_document(self, file: UploadFile) -> dict[str, Any]:
+        ...
+
+    def list_documents(self) -> list[dict[str, Any]]:
+        ...
+
+    def get_document_detail(self, document_id: str) -> dict[str, Any]:
+        ...
+
+    def get_document_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        ...
+
+    def delete_document(self, document_id: str) -> dict[str, Any]:
+        ...
+你自己先写
+先写查询函数：
+
+list_documents
+get_document_detail
+get_document_chunks
+再写上传主流程。
+
+最后写 delete。
+
+代码骨架
+from pathlib import Path
+from typing import Any
+
+from fastapi import UploadFile
+
+from src.app.document_store import ...
+from src.app.exceptions import AppError
+from src.app.services.chunk_splitter import ChunkSplitter
+from src.app.services.document_loader import DocumentLoader
+
+
+class DocumentService:
+    def __init__(self) -> None:
+        self.loader = DocumentLoader()
+        self.splitter = ChunkSplitter()
+
+    async def upload_document(self, file: UploadFile) -> dict[str, Any]:
+        ...
+
+    def list_documents(self) -> list[dict[str, Any]]:
+        ...
+
+    def get_document_detail(self, document_id: str) -> dict[str, Any]:
+        ...
+
+    def get_document_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        ...
+
+    def delete_document(self, document_id: str) -> dict[str, Any]:
+        ...
+检查点
+1. 上传函数是 async
+2. file.read 使用 await
+3. document 先创建为 processing
+4. chunks 保存成功后 document 更新为 completed
+5. 出错时 document 更新为 failed
+6. error_message 能写入
+7. chunk_count 更新正确
+8. char_count 更新正确
+9. 删除文档时删除 JSON 记录、chunks、原始文件
+参考实现：document_service.py
+from pathlib import Path
+from typing import Any
+
+from fastapi import UploadFile
+
+from src.app.document_store import (
+    create_document,
+    create_document_chunks,
+    delete_document,
+    delete_document_chunks,
+    get_document,
+    list_document_chunks,
+    list_documents,
+    update_document,
+)
+from src.app.exceptions import AppError
+from src.app.services.chunk_splitter import ChunkSplitter
+from src.app.services.document_loader import DocumentLoader
+
+
+class DocumentService:
+    def __init__(self) -> None:
+        self.loader = DocumentLoader()
+        self.splitter = ChunkSplitter()
+
+    async def upload_document(self, file: UploadFile) -> dict[str, Any]:
+        filename = file.filename or ""
+
+        document: dict[str, Any] | None = None
+
+        try:
+            content_bytes = await file.read()
+
+            file_type = self.loader.validate_file(
+                filename=filename,
+                content=content_bytes,
+            )
+
+            text = self.loader.load_text(
+                filename=filename,
+                content=content_bytes,
+            )
+
+            saved_path = self.loader.save_upload_file(
+                filename=filename,
+                content=content_bytes,
+            )
+
+            document = create_document(
+                filename=filename,
+                file_type=file_type,
+                source_path=str(saved_path),
+                content=text,
+                status="processing",
+            )
+
+            chunk_drafts = self.splitter.split(
+                text=text,
+                file_type=file_type,
+            )
+
+            if not chunk_drafts:
+                raise AppError(
+                    code="DOCUMENT_CHUNK_EMPTY",
+                    message="文档没有生成有效 Chunk",
+                    status_code=400,
+                )
+
+            chunk_records = create_document_chunks(
+                document_id=document["id"],
+                chunks=chunk_drafts,
+            )
+
+            updated_document = update_document(
+                document["id"],
+                {
+                    "status": "completed",
+                    "chunk_count": len(chunk_records),
+                    "char_count": len(text),
+                    "error_message": None,
+                },
+            )
+
+            return {
+                "document_id": updated_document["id"],
+                "filename": updated_document["filename"],
+                "file_type": updated_document["file_type"],
+                "status": updated_document["status"],
+                "chunk_count": updated_document["chunk_count"],
+                "char_count": updated_document["char_count"],
+                "created_at": updated_document["created_at"],
+            }
+
+        except Exception as exc:
+            if document is not None:
+                update_document(
+                    document["id"],
+                    {
+                        "status": "failed",
+                        "error_message": str(exc),
+                    },
+                )
+
+            raise
+
+    def list_documents(self) -> list[dict[str, Any]]:
+        documents = list_documents()
+
+        return [
+            self._without_content(document)
+            for document in documents
+        ]
+
+    def get_document_detail(self, document_id: str) -> dict[str, Any]:
+        document = get_document(document_id)
+
+        if document is None:
+            raise AppError(
+                code="DOCUMENT_NOT_FOUND",
+                message="文档不存在",
+                detail=f"document_id={document_id}",
+                status_code=404,
+            )
+
+        return document
+
+    def get_document_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        document = get_document(document_id)
+
+        if document is None:
+            raise AppError(
+                code="DOCUMENT_NOT_FOUND",
+                message="文档不存在",
+                detail=f"document_id={document_id}",
+                status_code=404,
+            )
+
+        return list_document_chunks(document_id)
+
+    def delete_document(self, document_id: str) -> dict[str, Any]:
+        document = get_document(document_id)
+
+        if document is None:
+            raise AppError(
+                code="DOCUMENT_NOT_FOUND",
+                message="文档不存在",
+                detail=f"document_id={document_id}",
+                status_code=404,
+            )
+
+        source_path = document.get("source_path")
+        if source_path:
+            path = Path(source_path)
+            if path.exists() and path.is_file():
+                path.unlink()
+
+        delete_document_chunks(document_id)
+        delete_document(document_id)
+
+        return {
+            "success": True,
+            "message": "文档已删除",
+        }
+
+    def _without_content(self, document: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in document.items()
+            if key != "content"
+        }
+逐行解释
+filename = file.filename or ""
+UploadFile.filename 可能为空。
+
+所以先兜底为空字符串，然后交给 loader 校验。
+
+content_bytes = await file.read()
+上传文件读取是异步操作。
+
+因为 FastAPI 上传文件来自 HTTP 请求流，使用 await 不会阻塞事件循环。
+
+为什么先 create_document 再切 chunk
+流程是：
+
+先创建 document
+再切 chunks
+而不是：
+
+先切 chunks
+再创建 document
+原因：
+
+真实系统中 document 是任务主记录
+即使后续解析失败，也应该知道这次上传发生过
+status/error_message 才有地方记录
+第五周当前 loader 校验失败前还没创建 document，这是可以接受的。
+
+后续如果要记录所有失败上传，可以更早创建 pending。
+
+为什么 status 是状态机
+processing -> completed
+processing -> failed
+真实系统里这里会变成异步任务：
+
+上传接口立即返回 pending
+后台 worker 解析
+完成后更新 completed
+失败后更新 failed
+第五周先同步处理，降低复杂度。
+
+_without_content
+列表接口不返回 content。
+
+防止文档多时响应过大。
+
+测试命令
+python -m compileall src/app
+常见错误
+1. NameError: list_documents
+你在类方法里导入的 store 函数和方法同名：
+
+def list_documents(self):
+    documents = list_documents()
+这在 Python 中容易混淆，但可以工作，因为方法作用域里找全局函数。
+
+更清晰写法是给 store 起别名：
+
+from src.app import document_store
+
+documents = document_store.list_documents()
+如果你觉得困惑，可以改成别名版。
+
+2. 删除文件失败
+可能是 source_path 是相对路径，或者文件不存在。
+
+本实现做了：
+
+if path.exists() and path.is_file():
+    path.unlink()
+不存在不报错。
+
+复盘问题
+1. 为什么 DocumentService 是编排层？
+2. 为什么 loader / splitter / store 要拆开？
+3. 为什么上传文档像一个状态机？
+4. 为什么真实系统会改成异步任务？
+可面试表达
+DocumentService 是文档处理的应用服务层，负责编排 UploadFile 读取、DocumentLoader 校验和文本解析、ChunkSplitter 切分、document_store 持久化，以及 document status 更新。它本身不写正则切分逻辑，也不直接处理 JSON 细节，保持了业务流程和底层实现的解耦。
+Day 5：接入 Documents API
+目标
+今天在 src/app/api/routes.py 接入：
+
+POST /documents/upload
+GET /documents
+GET /documents/{document_id}
+GET /documents/{document_id}/chunks
+DELETE /documents/{document_id}
+核心思想
+路由层只做：
+
+HTTP 参数接收
+调用 service
+response_model 包装
+不要把上传、解析、切分逻辑写到 routes.py。
+
+为什么
+当前 routes.py 已经集中管理所有接口。
+
+第五周为了低重构，继续放这里。
+
+但要保持职责边界：
+
+routes.py：HTTP 层
+document_service.py：业务编排
+document_loader.py：文件处理
+chunk_splitter.py：文本切分
+document_store.py：JSON 存储
+依赖补充：python-multipart
+FastAPI 处理 multipart/form-data 上传需要 python-multipart。
+
+你当前 pyproject.toml 里没有这个依赖。
+
+添加：
+
+uv add python-multipart
+或手动在 pyproject.toml dependencies 里加入：
+
+"python-multipart>=0.0.20",
+如果缺少它，FastAPI 通常会报：
+
+Form data requires "python-multipart" to be installed.
+怎么做
+修改 import
+routes.py 增加：
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+Schema import 增加：
+
+DocumentChunkItem,
+DocumentChunkListResponse,
+DocumentDetailResponse,
+DocumentItem,
+DocumentListResponse,
+UploadDocumentResponse,
+DeleteDocumentResponse,
+Service import 增加：
+
+from src.app.services.document_service import DocumentService
+你自己先写
+先只写上传接口。
+
+跑通后再写 list/detail/chunks/delete。
+
+代码骨架
+@router.post("/documents/upload", response_model=UploadDocumentResponse)
+async def upload_document_api(
+    file: UploadFile = File(...),
+) -> UploadDocumentResponse:
+    ...
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+def list_documents_api() -> DocumentListResponse:
+    ...
+
+
+@router.get("/documents/{document_id}", response_model=DocumentDetailResponse)
+def get_document_api(document_id: str) -> DocumentDetailResponse:
+    ...
+
+
+@router.get("/documents/{document_id}/chunks", response_model=DocumentChunkListResponse)
+def list_document_chunks_api(document_id: str) -> DocumentChunkListResponse:
+    ...
+
+
+@router.delete("/documents/{document_id}", response_model=DeleteDocumentResponse)
+def delete_document_api(document_id: str) -> DeleteDocumentResponse:
+    ...
+检查点
+1. 上传接口使用 async
+2. 上传参数使用 File(...)
+3. UploadFile 从 fastapi 导入
+4. GET 接口不需要 async
+5. routes.py 不写 splitter 逻辑
+6. response_model 正确
+7. 返回值转换成 Pydantic Response
+参考实现：routes.py 新增部分
+from fastapi import APIRouter, File, HTTPException, UploadFile
+在 schemas import 中补充：
+
+    DocumentChunkItem,
+    DocumentChunkListResponse,
+    DocumentDetailResponse,
+    DocumentItem,
+    DocumentListResponse,
+    UploadDocumentResponse,
+    DeleteDocumentResponse,
+新增 service import：
+
+from src.app.services.document_service import DocumentService
+追加路由：
+
+@router.post("/documents/upload", response_model=UploadDocumentResponse)
+async def upload_document_api(
+    file: UploadFile = File(...),
+) -> UploadDocumentResponse:
+    result = await DocumentService().upload_document(file)
+    return UploadDocumentResponse(**result)
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+def list_documents_api() -> DocumentListResponse:
+    documents = DocumentService().list_documents()
+    return DocumentListResponse(
+        items=[DocumentItem(**item) for item in documents]
+    )
+
+
+@router.get("/documents/{document_id}", response_model=DocumentDetailResponse)
+def get_document_api(document_id: str) -> DocumentDetailResponse:
+    document = DocumentService().get_document_detail(document_id)
+    return DocumentDetailResponse(**document)
+
+
+@router.get(
+    "/documents/{document_id}/chunks",
+    response_model=DocumentChunkListResponse,
+)
+def list_document_chunks_api(document_id: str) -> DocumentChunkListResponse:
+    chunks = DocumentService().get_document_chunks(document_id)
+    return DocumentChunkListResponse(
+        items=[DocumentChunkItem(**item) for item in chunks]
+    )
+
+
+@router.delete(
+    "/documents/{document_id}",
+    response_model=DeleteDocumentResponse,
+)
+def delete_document_api(document_id: str) -> DeleteDocumentResponse:
+    result = DocumentService().delete_document(document_id)
+    return DeleteDocumentResponse(**result)
+逐行解释
+File(...)
+file: UploadFile = File(...)
+告诉 FastAPI：
+
+这个参数来自 multipart/form-data 文件字段
+不是 JSON body。
+
+UploadFile
+FastAPI 的文件上传对象。
+
+它包含：
+
+filename
+content_type
+file
+read()
+为什么上传用 POST
+上传文档会创建资源：
+
+创建 document
+创建 chunks
+保存原始文件
+写 JSON
+所以用 POST。
+
+为什么是 multipart/form-data
+因为上传的是文件，不是普通 JSON。
+
+文件上传需要携带二进制内容。
+
+为什么查询用 GET
+查询不改变系统状态。
+
+GET /documents
+GET /documents/{document_id}
+GET /documents/{document_id}/chunks
+都是读取资源。
+
+为什么 chunks 按 document_id 查询
+Chunk 是 Document 的子资源。
+
+路径表达资源关系：
+
+/documents/{document_id}/chunks
+意思是：
+
+查询某个文档下的 chunks
+为什么删除用 DELETE
+删除 document 资源。
+
+第五周删除只处理：
+
+document JSON 记录
+document_chunks JSON 记录
+本地原始文件
+因为还没有向量库。
+
+测试命令
+先启动：
+
+python -m src.app.main
+如果使用 uv：
+
+uv run python -m src.app.main
+准备测试文件：
+
+cat > /tmp/fastapi-guide.md <<'EOF'
+# FastAPI 异常处理
+
+FastAPI 可以通过 exception_handler 注册全局异常处理器。
+
+## AppError
+
+AppError 是我们自定义的业务异常基类。
+
+## JSONResponse
+
+JSONResponse 可以自定义异常返回的 JSON 结构。
+
+## RequestValidationError
+
+RequestValidationError 用来处理请求参数验证失败。
+EOF
+上传：
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/fastapi-guide.md"
+查询列表：
+
+curl http://127.0.0.1:8000/documents
+查询详情：
+
+curl http://127.0.0.1:8000/documents/{document_id}
+查询 chunks：
+
+curl http://127.0.0.1:8000/documents/{document_id}/chunks
+删除：
+
+curl -X DELETE http://127.0.0.1:8000/documents/{document_id}
+curl 解释
+-X
+指定 HTTP 方法。
+
+例如：
+
+-X POST
+-X DELETE
+-F
+发送表单字段。
+
+上传文件时：
+
+-F "file=@/tmp/fastapi-guide.md"
+表示：
+
+字段名叫 file
+字段内容来自 /tmp/fastapi-guide.md 这个文件
+multipart/form-data
+浏览器上传文件时常用的请求格式。
+
+它可以同时传：
+
+文本字段
+文件字段
+二进制内容
+为什么不用 JSON
+不要这样：
+
+-H "Content-Type: application/json"
+因为文件上传不是 JSON body。
+
+常见错误
+1. python-multipart 缺失
+执行：
+
+uv add python-multipart
+2. 422 Validation Error
+检查 curl 字段名是否是：
+
+file
+必须和接口参数一致：
+
+file: UploadFile = File(...)
+3. 404 Document Not Found
+替换 {document_id} 时不要带花括号。
+
+错误：
+
+curl http://127.0.0.1:8000/documents/{document_id}
+正确：
+
+curl http://127.0.0.1:8000/documents/真实uuid
+复盘问题
+1. 为什么上传接口用 POST？
+2. 为什么 UploadFile 要配合 File(...)？
+3. 为什么路由层不写切分逻辑？
+4. 为什么 chunks 是 document 的子资源？
+可面试表达
+Documents API 采用资源化设计：POST /documents/upload 创建文档资源，GET /documents 查询文档集合，GET /documents/{id} 查询文档详情，GET /documents/{id}/chunks 查询子资源 chunks，DELETE /documents/{id} 删除文档。路由层只负责 HTTP 参数接收和 response_model 包装，真正的上传、解析、切分、保存由 DocumentService 编排。
+Day 6：完整测试、错误处理和排查
+目标
+今天完成：
+
+1. md 上传验收
+2. txt 上传验收
+3. 非法文件类型测试
+4. 空文件测试
+5. 超大文件测试
+6. chunks 结果检查
+7. JSON 文件检查
+8. uploads 文件检查
+核心思想
+第五周验收不是“接口返回 200”就结束。
+
+真正要检查：
+
+document 是否正确保存
+chunk 是否合理
+heading 是否保留
+status 是否正确
+error_message 是否正确
+source_path 是否可追踪
+为什么
+文档处理是 RAG 的前置数据工程。
+
+后面 embedding / RAG 出问题，很多时候不是模型问题，而是：
+
+原始文本没解析对
+chunk 切错
+chunk 太短
+heading 丢失
+metadata 缺失
+status 不准
+完整测试 1：上传 Markdown
+cat > /tmp/fastapi-guide.md <<'EOF'
+# FastAPI 异常处理
+
+FastAPI 可以通过 exception_handler 注册全局异常处理器。
+
+## AppError
+
+AppError 是我们自定义的业务异常基类。
+
+## JSONResponse
+
+JSONResponse 可以自定义异常返回的 JSON 结构。
+
+## RequestValidationError
+
+RequestValidationError 用来处理请求参数验证失败。
+EOF
+上传：
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/fastapi-guide.md"
+期望响应：
+
+{
+  "document_id": "uuid",
+  "filename": "fastapi-guide.md",
+  "file_type": "md",
+  "status": "completed",
+  "chunk_count": 4,
+  "char_count": 160,
+  "created_at": "..."
+}
+char_count 不一定完全等于示例值，以实际文本长度为准。
+
+完整测试 2：查询文档列表
+curl http://127.0.0.1:8000/documents
+期望：
+
+{
+  "items": [
+    {
+      "id": "uuid",
+      "filename": "fastapi-guide.md",
+      "file_type": "md",
+      "source_path": "src/app/data/uploads/uuid_fastapi-guide.md",
+      "status": "completed",
+      "chunk_count": 4,
+      "char_count": 160,
+      "error_message": null,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+列表接口不应该返回 content。
+
+完整测试 3：查询文档详情
+curl http://127.0.0.1:8000/documents/{document_id}
+期望详情包含：
+
+{
+  "id": "uuid",
+  "filename": "fastapi-guide.md",
+  "file_type": "md",
+  "source_path": "src/app/data/uploads/uuid_fastapi-guide.md",
+  "status": "completed",
+  "content": "# FastAPI 异常处理\n\n...",
+  "chunk_count": 4,
+  "char_count": 160,
+  "error_message": null,
+  "created_at": "...",
+  "updated_at": "..."
+}
+完整测试 4：查询 chunks
+curl http://127.0.0.1:8000/documents/{document_id}/chunks
+期望：
+
+chunk 0:
+heading = FastAPI 异常处理
+content 包含 FastAPI exception_handler
+
+chunk 1:
+heading = AppError
+content 包含 AppError 是业务异常基类
+
+chunk 2:
+heading = JSONResponse
+content 包含 JSONResponse 可以自定义 JSON 结构
+
+chunk 3:
+heading = RequestValidationError
+content 包含请求参数验证失败
+完整测试 5：上传 txt
+cat > /tmp/simple-note.txt <<'EOF'
+这是一个普通文本文件。
+
+第一段介绍 FastAPI。
+
+第二段介绍异常处理。
+
+第三段介绍 JSONResponse。
+EOF
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/simple-note.txt"
+期望：
+
+file_type = txt
+status = completed
+chunk_count >= 1
+heading = null
+完整测试 6：非法文件类型
+cat > /tmp/bad.pdf <<'EOF'
+fake pdf
+EOF
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/bad.pdf"
+期望：
+
+{
+  "code": "DOCUMENT_UNSUPPORTED_FILE_TYPE",
+  "message": "暂只支持 .md 和 .txt 文件",
+  "detail": "filename=bad.pdf"
+}
+你的统一异常处理会捕获 AppError 并返回结构化 JSON。当前项目已经注册了 AppError 处理器。
+
+完整测试 7：空文件
+touch /tmp/empty.md
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/empty.md"
+期望：
+
+{
+  "code": "DOCUMENT_EMPTY_FILE",
+  "message": "上传文件不能为空"
+}
+完整测试 8：超大文件
+python - <<'PY'
+from pathlib import Path
+Path("/tmp/large.md").write_text("a" * (6 * 1024 * 1024), encoding="utf-8")
+PY
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/large.md"
+期望：
+
+{
+  "code": "DOCUMENT_FILE_TOO_LARGE",
+  "message": "上传文件过大"
+}
+排查清单
+如果 chunks 不符合预期，按顺序检查：
+
+1. document 是否写入
+检查：
+
+cat src/app/data/documents.json
+如果你的 DATA_DIR 后续改成根目录，则检查：
+
+cat data/documents.json
+2. chunk 是否写入
+cat src/app/data/document_chunks.json
+3. source_path 是否正确
+检查 document：
+
+"source_path": "src/app/data/uploads/uuid_fastapi-guide.md"
+4. 上传文件是否保存
+ls -la src/app/data/uploads
+5. file_type 是否识别为 md
+检查：
+
+"file_type": "md"
+不是：
+
+"file_type": ".md"
+6. Markdown 标题正则是否正确
+必须有：
+
+re.MULTILINE
+7. splitter 是否保留 heading
+检查 chunk：
+
+"heading": "JSONResponse"
+8. chunk_index 是否连续
+应为：
+
+0, 1, 2, 3
+9. char_count 是否正确
+可以临时验证：
+
+len(chunk["content"])
+10. estimated_tokens 是否合理
+中文短句 token 估算应该接近字符数。
+
+11. document.status 是否为 completed
+"status": "completed"
+12. error_message 是否为 null
+"error_message": null
+常见错误
+1. Form data requires "python-multipart"
+安装：
+
+uv add python-multipart
+2. 上传成功但 chunk_count 是 0
+检查 splitter 是否返回空数组。
+
+可能原因：
+
+Markdown 只有标题没有正文
+MIN_CHUNK_CHARS 过滤太严格
+split_markdown 没有 fallback
+3. Markdown heading 为 null
+说明走了 txt/plain 逻辑。
+
+检查：
+
+file_type 是否是 md
+4. DOCUMENT_NOT_FOUND
+document_id 写错。
+
+先查询列表：
+
+curl http://127.0.0.1:8000/documents
+复制真实 id。
+
+复盘问题
+1. 为什么上传成功要检查 JSON 文件？
+2. 为什么 chunk_count 是核心验收指标？
+3. 为什么 heading 对 RAG sources 很重要？
+4. 为什么错误也要结构化返回？
+可面试表达
+我不仅实现了文档上传接口，还设计了可调试的验收链路。上传后可以通过 documents.json 查看文档主记录，通过 document_chunks.json 查看切分结果，通过 uploads 目录定位原始文件。每个 chunk 都有 heading、chunk_index、char_count、estimated_tokens 和 metadata，便于后续 embedding、检索、溯源和问题排查。
+Day 7：README、dev-log、复盘和面试表达
+目标
+今天完成：
+
+1. README 增加 Week 5 说明
+2. docs/dev-log.md 增加第五周日志模板
+3. 整理最终验收标准
+4. 准备面试表达
+核心思想
+项目不是“写完代码就结束”。
+
+AI 转型项目要能：
+
+跑得通
+讲得清
+查得到
+可复盘
+可展示
+README 更新内容
+在 README.md 增加：
+
+## Week 5：文档上传 + Chunk 切分
+
+### 本周目标
+
+实现 AI 知识库的最小文档处理层：
+
+```text
+上传文档
+  ↓
+保存原始文件
+  ↓
+解析文本
+  ↓
+创建 Document
+  ↓
+切分 Chunk
+  ↓
+保存 DocumentChunk
+  ↓
+提供查询和调试接口
+为什么需要 Document 层
+Document 是知识库的一级资源，用来记录原始文件、文件类型、保存路径、解析文本、状态、错误信息和统计信息。
+
+为什么第五周只做 md/txt
+md/txt 本质是纯文本，可以聚焦 RAG 前置管线：
+
+document -> text -> chunk
+为什么不做 PDF
+PDF 会引入版面分析、坐标、字体、OCR、阅读顺序等复杂问题，容易偏离本周主线。
+
+为什么需要 Chunk
+Chunk 是后续 Embedding 和 RAG 检索的最小语义单元。Chunk 切分质量会直接影响后续召回质量和回答可信度。
+
+新增文件
+src/app/document_store.py
+src/app/services/document_loader.py
+src/app/services/chunk_splitter.py
+src/app/services/document_service.py
+修改文件
+src/app/paths.py
+src/app/schemas.py
+src/app/api/routes.py
+src/app/config.py
+新增接口
+POST /documents/upload
+GET /documents
+GET /documents/{document_id}
+GET /documents/{document_id}/chunks
+DELETE /documents/{document_id}
+测试命令
+cat > /tmp/fastapi-guide.md <<'EOF'
+# FastAPI 异常处理
+
+FastAPI 可以通过 exception_handler 注册全局异常处理器。
+
+## AppError
+
+AppError 是我们自定义的业务异常基类。
+
+## JSONResponse
+
+JSONResponse 可以自定义异常返回的 JSON 结构。
+
+## RequestValidationError
+
+RequestValidationError 用来处理请求参数验证失败。
+EOF
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/fastapi-guide.md"
+
+curl http://127.0.0.1:8000/documents
+curl http://127.0.0.1:8000/documents/{document_id}
+curl http://127.0.0.1:8000/documents/{document_id}/chunks
+当前限制
+只支持 .md / .txt
+只支持 UTF-8
+同步处理上传
+JSON 文件存储
+不支持 PDF
+不支持 OCR
+不做 Embedding
+不做 RAG
+下一周计划
+Week 6：Embedding + pgvector
+
+chunk
+  ↓
+embedding model
+  ↓
+vector
+  ↓
+pgvector
+
+---
+
+## dev-log 模板
+
+如果当前没有 `docs/dev-log.md`，新建。
+
+追加：
+
+```markdown
+## Week 5 Day X
+
+日期：
+本日目标：
+核心思想：
+完成内容：
+遇到问题：
+如何解决：
+明天计划：
+可面试表达：
+建议每天一条。
+
+你的总体计划也强调每周要有 dev-log、README、可演示功能、可面试讲点。
+
+最终验收标准
+第五周结束后，必须能做到：
+
+1. python -m src.app.main 能启动
+2. POST /documents/upload 能上传 md
+3. POST /documents/upload 能上传 txt
+4. GET /documents 能查询列表
+5. GET /documents/{document_id} 能查询详情
+6. GET /documents/{document_id}/chunks 能查询 chunks
+7. data documents JSON 中能看到 document
+8. data document_chunks JSON 中能看到 chunks
+9. uploads 中能看到原始文件
+10. Markdown 标题能变成 chunk.heading
+11. chunk_index 连续
+12. char_count 正确
+13. estimated_tokens 合理
+14. document.status 正常是 completed
+15. 非法文件类型会报错
+16. 空文件会报错
+17. 超大文件会报错
+18. README 有 Week 5 说明
+19. dev-log 有第五周记录
+20. 能说明这是 RAG 前置工程，而不是 RAG 本身
+复盘问题
+1. Document 和文件有什么区别？
+2. Chunk 和普通字符串切片有什么区别？
+3. 为什么第五周不做 Embedding？
+4. 为什么第五周不做 RAG？
+5. 为什么 PDF 要单独拆专题？
+6. 为什么 JSON Store 只是阶段性方案？
+可面试表达
+第五周我实现了知识库的最小文档处理层。系统支持上传 md/txt 文档，会校验类型和大小，保存原始文件，解析 UTF-8 文本，创建 Document 主记录，并通过 ChunkSplitter 按 Markdown 标题、段落和长度兜底策略生成 DocumentChunk。每个 chunk 都保留 heading、chunk_index、char_count、estimated_tokens 和 metadata。这个阶段没有做 Embedding 和 RAG，因为它的目标是先把 RAG 的前置数据管线打稳，为下一周的向量化和 pgvector 做准备。
+常见报错排查
+1. Form data requires "python-multipart"
+原因：
+
+FastAPI 使用 File(...) 处理 multipart/form-data 时需要 python-multipart。
+解决：
+
+uv add python-multipart
+2. 422 Unprocessable Entity
+常见原因：
+
+curl 字段名不是 file
+用了 JSON 上传
+没有加 -F
+正确：
+
+curl -X POST http://127.0.0.1:8000/documents/upload \
+  -F "file=@/tmp/fastapi-guide.md"
+3. DOCUMENT_UNSUPPORTED_FILE_TYPE
+原因：
+
+后缀不是 .md / .txt
+第五周不支持 PDF。
+
+4. DOCUMENT_DECODE_ERROR
+原因：
+
+不是 UTF-8 编码
+解决：
+
+iconv -f gbk -t utf-8 old.txt > new.txt
+5. chunk_count = 0
+排查：
+
+1. text 是否为空
+2. Markdown 标题下是否有正文
+3. splitter 是否过滤了短 chunk
+4. file_type 是否是 md/txt
+5. split_markdown 是否 fallback 到 plain text
+6. heading = null
+如果上传的是 txt，这是正常的。
+
+如果上传的是 md，则检查：
+
+标题是否是 "# 标题"
+不是 "#标题"
+7. 找不到 JSON 文件
+当前项目 DATA_DIR 是：
+
+src/app/data
+不是根目录 data。
+
+检查：
+
+ls src/app/data
+本周必须掌握的概念
+1. UploadFile
+FastAPI 的文件上传对象。
+
+核心点：
+
+它来自 multipart/form-data
+await file.read() 返回 bytes
+需要 decode 成文本
+2. Document
+知识库一级资源。
+
+不是临时文件。
+
+它负责：
+
+来源
+状态
+原文
+统计
+错误
+溯源
+3. Chunk
+RAG 检索最小语义单元。
+
+它影响：
+
+embedding 表达
+检索召回
+回答质量
+sources 可解释性
+4. Loader
+外部文件进入系统的安全入口。
+
+负责：
+
+校验
+保存
+解码
+读取文本
+5. Splitter
+文本切分策略模块。
+
+不要让它：
+
+访问数据库
+调用 LLM
+处理 UploadFile
+6. metadata
+不是附加小字段。
+
+它是后续：
+
+过滤
+溯源
+调试
+引用
+评测
+的基础。
+
+7. status
+不是展示字段。
+
+它是后续异步处理、失败恢复、任务追踪的基础。
+
+第五周完成后的面试表达
+30 秒版本
+我在 AI Chat Backend 的基础上增加了知识库文档处理层。系统支持上传 md/txt 文档，校验文件类型和大小，保存原始文件，解析 UTF-8 文本，创建 Document 记录，并按 Markdown 标题、段落和长度兜底策略切分成 chunks。每个 chunk 保留 heading、chunk_index、char_count、estimated_tokens 和 metadata，为后续 Embedding、pgvector 和 RAG 检索做准备。
+1 分钟版本
+第五周我没有直接做 RAG，而是先实现 RAG 前置的数据管线。因为 RAG 的效果很大程度取决于文档解析和 chunk 切分质量。我设计了 Document、DocumentChunk、DocumentLoader、ChunkSplitter、DocumentService 和 document_store。Document 管理文件来源、状态、原文和错误；Chunk 是后续 embedding 和检索的最小语义单元；Loader 负责上传文件校验和文本读取；Splitter 负责按文档结构切分；Service 负责编排整个上传、解析、切分、保存流程。当前阶段继续用 JSON 存储，下一周再进入 Embedding 和 pgvector。
+3 分钟版本结构
+1. 为什么不能直接做 RAG
+2. 为什么要先有 Document / Chunk 层
+3. 上传文件如何校验和保存
+4. Markdown 如何按标题切分
+5. Chunk 为什么影响 embedding 和检索效果
+6. 为什么 status/error_message/metadata 很重要
+7. 为什么第五周不做 PDF、Embedding、RAG
+8. 下一步如何接 pgvector
+最后提醒：第五周不要跑偏
+第五周只做：
+
+.md / .txt 上传
+文本读取
+Document 保存
+Chunk 切分
+Chunk 查询
+调试预览
+README / dev-log
+不要做：
+
+Embedding
+pgvector
+PostgreSQL
+SQLAlchemy
+RAG
+Query Rewrite
+Agent
+MCP
+PDF
+OCR
+Word / Excel / PPT
+复杂前端页面
+第五周的核心验收指标只有一个：
+
+上传一个文档后，能稳定得到结构合理、可查询、可调试的 chunks。

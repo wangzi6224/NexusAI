@@ -328,5 +328,59 @@
       "is_stream": true
     },
     "created_at": "2026-05-14T10:23:20.205484"
+  },
+  {
+    "id": "5d98c06d-6982-4bb9-899a-4c951dcaa12f",
+    "conversation_id": "a9ae11fa-6178-44cb-a84a-7bff4d9ff832",
+    "role": "user",
+    "content": "Hi",
+    "metadata": {},
+    "created_at": "2026-05-14T10:37:17.126601"
+  },
+  {
+    "id": "08f2018a-b2ba-40e5-82fd-de0346da3efd",
+    "conversation_id": "a9ae11fa-6178-44cb-a84a-7bff4d9ff832",
+    "role": "user",
+    "content": "Hi",
+    "metadata": {},
+    "created_at": "2026-05-14T10:37:19.929915"
+  },
+  {
+    "id": "eed4a35d-9d33-4758-a46d-975e684420d8",
+    "conversation_id": "027f4a78-bf0b-4b12-852e-3d5a8a420592",
+    "role": "user",
+    "content": "Hi",
+    "metadata": {},
+    "created_at": "2026-05-14T10:37:27.717681"
+  },
+  {
+    "id": "ee23a249-2983-4d62-8f31-e5cfb598fee2",
+    "conversation_id": "027f4a78-bf0b-4b12-852e-3d5a8a420592",
+    "role": "user",
+    "content": "Hi",
+    "metadata": {},
+    "created_at": "2026-05-14T10:37:48.396214"
+  },
+  {
+    "id": "ea21c38f-1314-4233-8356-19da9f75d5ab",
+    "conversation_id": "a9ae11fa-6178-44cb-a84a-7bff4d9ff832",
+    "role": "user",
+    "content": "Hi",
+    "metadata": {},
+    "created_at": "2026-05-14T10:37:58.635295"
+  },
+  {
+    "id": "cd07567c-6af6-4273-88b7-46e80cabc02e",
+    "conversation_id": "a9ae11fa-6178-44cb-a84a-7bff4d9ff832",
+    "role": "assistant",
+    "content": "Hello! 你好！👋\n\n看来你是在跟我打招呼。我已经准备好为你提供帮助了！\n\n如果你现在没有具体的问题，我也能为你提供一些灵感。比如，我们可以聊聊：\n1. **AI 开发**：如何学习 Python、PyTorch 或调用大模型 API？\n2. **技术分析**：分析某个电子产品（比如刚才聊到的手机）的参数？\n3. **编程练习**：写一个简单的脚本来解决某个具体问题？\n4. **知识科普**：了解某个复杂的科学或技术概念？\n\n你想从哪个话题开始，或者有其他想聊的吗？😊",
+    "metadata": {
+      "model": "gemma4:31b-cloud",
+      "provider": "ollama",
+      "latency_ms": 1923,
+      "context_message_count": 12,
+      "is_stream": true
+    },
+    "created_at": "2026-05-14T10:38:00.560333"
   }
 ]

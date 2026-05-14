@@ -41,7 +41,7 @@ class DocumentService:
                 content=content_bytes,
             )
 
-            saved_path = self.loader.save_upload_file(
+            saved_path: Path = self.loader.save_upload_file(
                 filename=filename,
                 content=content_bytes,
             )

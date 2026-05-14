@@ -2,13 +2,25 @@
   {
     "id": "a9ae11fa-6178-44cb-a84a-7bff4d9ff832",
     "title": "测试一下哈",
-    "summary": "本次对话围绕用户对AI助手的测试和知识探求展开。助手表明其作为AI开发学习助手的角色，并强调其在知识、编程、算法等领域的专业支持能力。在对话过程中，助手解释了其能力局限性，例如无法实时获取天气信息。随后，助手对用户提出的“中国手机和美国手机哪个更厉害”的问题进行了深入分析，指出“厉害”的标准是主观的，并从硬件性能与创新、操作系统与生态系统、价格与性价比、市场定位与偏好四个维度进行了详细对比分析，并总结建议用户应根据个人需求（如系统稳定性和定制性、性价比等）进行选择。最后，用户提出了关于全球手机销量的具体问题。",
+    "summary": "用户在了解手机屏幕主要参数后，要求回顾之前的对话内容。",
     "model": "gemma4:e2b",
     "provider": "ollama",
     "status": "active",
     "created_at": "2026-05-12T19:57:22.046035",
-    "updated_at": "2026-05-14T10:23:20.206730",
-    "summarized_message_count": 21,
-    "summary_updated_at": "2026-05-12T20:15:38.185634"
+    "updated_at": "2026-05-14T10:38:01.708821",
+    "summarized_message_count": 34,
+    "summary_updated_at": "2026-05-14T10:38:01.707774"
+  },
+  {
+    "id": "027f4a78-bf0b-4b12-852e-3d5a8a420592",
+    "title": "新会话",
+    "summary": null,
+    "summarized_message_count": 0,
+    "summary_updated_at": null,
+    "model": "kimi-k2.6:cloud",
+    "provider": "ollama",
+    "status": "active",
+    "created_at": "2026-05-14T10:37:25.225739",
+    "updated_at": "2026-05-14T10:37:25.225739"
   }
 ]
