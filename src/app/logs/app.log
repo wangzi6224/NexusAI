@@ -106,3 +106,5 @@ src.app.exceptions.LLMProviderError: Ollama 流式 HTTP 请求失败
 2026-05-14 10:38:00,561 | INFO | my_python_project | 开始更新会话摘要: conversation_id=a9ae11fa-6178-44cb-a84a-7bff4d9ff832
 2026-05-14 10:38:01,708 | INFO | my_python_project | 会话摘要已更新: conversation_id=a9ae11fa-6178-44cb-a84a-7bff4d9ff832, elapsed_ms=1146
 2026-05-14 12:13:52,309 | ERROR | my_python_project | 应用错误: path=/documents/upload error=暂只支持 .md 和 .txt 文件
+2026-05-14 22:06:36,311 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
+2026-05-14 22:21:50,931 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表

@@ -3,6 +3,7 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 # 定义一个 Pydantic 模型类 Settings，用于存储应用程序的配置项
 class Settings(BaseSettings):
     # APP_ENV: 环境变量，默认为 "development"，可选值包括 "development"、"production" 和 "testing"
@@ -48,6 +49,25 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # PostgreSQL 配置
+    postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
+    postgres_db: str = Field(default="ai_backend", alias="POSTGRES_DB")
+    postgres_user: str = Field(default="wangzilong", alias="POSTGRES_USER")
+    postgres_password: str = Field(
+        default="ai_backend_password",
+        alias="POSTGRES_PASSWORD",
+    )
+
+    # Embedding 配置
+    embedding_model: str = Field(
+        default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        alias="EMBEDDING_MODEL",
+    )
+    embedding_batch_size: int = Field(default=16, alias="EMBEDDING_BATCH_SIZE")
+    embedding_dimension: int = Field(default=384, alias="EMBEDDING_DIMENSION")
+
+
 # 定义一个函数 get_settings，用于获取 Settings 实例，并使用 lru_cache 装饰器进行缓存，以提高性能
 @lru_cache
 def get_settings() -> Settings:
@@ -76,3 +96,15 @@ def get_log_level() -> str:
 
 def get_chat_history_path() -> str:
     return get_settings().chat_history_path
+
+
+def get_embedding_model() -> str:
+    return get_settings().embedding_model
+
+
+def get_embedding_batch_size() -> int:
+    return get_settings().embedding_batch_size
+
+
+def get_embedding_dimension() -> int:
+    return get_settings().embedding_dimension
