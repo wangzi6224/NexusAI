@@ -35,7 +35,8 @@ def check_ollama_model_exists() -> tuple[bool, str]:
         return False, f"模型不存在: {model}，当前可用模型: {names}"
     except requests.RequestException as exc:
         return False, f"检查模型失败: {exc}"
-    
+
+
 def get_available_models() -> list[str]:
     base_url = get_ollama_base_url()
     timeout = get_ollama_timeout()
@@ -50,7 +51,9 @@ def get_available_models() -> list[str]:
         ) from exc
     except requests.exceptions.HTTPError as exc:
         error_response = exc.response
-        status_code = error_response.status_code if error_response is not None else "unknown"
+        status_code = (
+            error_response.status_code if error_response is not None else "unknown"
+        )
         response_text = error_response.text if error_response is not None else str(exc)
 
         raise LLMProviderError(
