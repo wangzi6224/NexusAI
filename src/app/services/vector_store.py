@@ -71,3 +71,160 @@ class PgVectorStore:
             conn.commit()
 
         return synced_count
+
+    def list_chunks_by_document(self, document_id: str) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM document_chunks
+                    WHERE document_id = %(document_id)s
+                    ORDER BY chunk_index ASC
+                    """,
+                    {"document_id": document_id},
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def list_pending_chunks(self, limit: int = 100) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM document_chunks
+                    WHERE embedding_status = 'pending'
+                    ORDER BY created_at ASC
+                    LIMIT %(limit)s
+                    """,
+                    {"limit": limit},
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def mark_chunks_processing(self, chunk_ids: list[str]) -> None:
+        if not chunk_ids:
+            return
+
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE document_chunks
+                    SET embedding_status = 'processing',
+                        embedding_error = NULL,
+                        embedding_updated_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = ANY(%(chunk_ids)s)
+                    """,
+                    {"chunk_ids": chunk_ids},
+                )
+
+            conn.commit()
+
+    def update_chunk_embedding(
+        self,
+        chunk_id: str,
+        embedding: list[float],
+        embedding_model: str,
+    ) -> None:
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE document_chunks
+                    SET embedding = %(embedding)s,
+                        embedding_model = %(embedding_model)s,
+                        embedding_status = 'completed',
+                        embedding_error = NULL,
+                        embedding_updated_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %(chunk_id)s
+                    """,
+                    {
+                        "chunk_id": chunk_id,
+                        "embedding": embedding,
+                        "embedding_model": embedding_model,
+                    },
+                )
+
+            conn.commit()
+
+    def mark_chunk_failed(self, chunk_id: str, error_message: str) -> None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE document_chunks
+                    SET embedding_status = 'failed',
+                        embedding_error = %(error_message)s,
+                        embedding_updated_at = NOW(),
+                        updated_at = NOW()
+                    WHERE id = %(chunk_id)s
+                    """,
+                    {
+                        "chunk_id": chunk_id,
+                        "error_message": error_message,
+                    },
+                )
+
+            conn.commit()
+
+    def get_document_embedding_status(self, document_id: str) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id AS chunk_id,
+                        chunk_index,
+                        embedding_status,
+                        embedding_model,
+                        embedding_error,
+                        embedding_updated_at
+                    FROM document_chunks
+                    WHERE document_id = %(document_id)s
+                    ORDER BY chunk_index ASC
+                    """,
+                    {"document_id": document_id},
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    def search_similar_chunks(
+        self,
+        query_embedding: list[float],
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        id AS chunk_id,
+                        document_id,
+                        chunk_index,
+                        heading,
+                        content,
+                        embedding <=> %(query_embedding)s AS distance,
+                        1 - (embedding <=> %(query_embedding)s) AS score
+                    FROM document_chunks
+                    WHERE embedding IS NOT NULL
+                      AND embedding_status = 'completed'
+                    ORDER BY embedding <=> %(query_embedding)s
+                    LIMIT %(top_k)s
+                    """,
+                    {
+                        "query_embedding": query_embedding,
+                        "top_k": top_k,
+                    },
+                )
+                return [dict(row) for row in cur.fetchall()]
