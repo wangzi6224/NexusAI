@@ -1,5 +1,6 @@
 import psycopg
 from psycopg.rows import dict_row
+from typing import Any, cast
 
 from src.app.config import get_settings
 
@@ -13,5 +14,5 @@ def get_connection():
         dbname=settings.postgres_db,
         user=settings.postgres_user,
         password=settings.postgres_password,
-        row_factory=dict_row,
+        row_factory=cast(Any, dict_row),
     )
