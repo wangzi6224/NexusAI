@@ -185,3 +185,68 @@ class DocumentChunkListResponse(BaseModel):
 class DeleteDocumentResponse(BaseModel):
     success: bool
     message: str
+
+
+class EmbeddingTestRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+class EmbeddingTestResponse(BaseModel):
+    text: str
+    embedding_model: str
+    dimension: int
+    vector_preview: list[float]
+    vector_norm: float
+
+
+class EmbedDocumentResponse(BaseModel):
+    document_id: str
+    total_chunks: int
+    embedded_chunks: int
+    failed_chunks: int
+    embedding_model: str
+    status: str
+
+
+class EmbedAllDocumentsResponse(BaseModel):
+    total_chunks: int
+    embedded_chunks: int
+    failed_chunks: int
+    embedding_model: str
+    status: str
+
+
+class EmbeddingStatusItem(BaseModel):
+    chunk_id: str
+    chunk_index: int
+    embedding_status: str
+    embedding_model: str | None = None
+    embedding_error: str | None = None
+    embedding_updated_at: str | None = None
+
+
+class EmbeddingStatusResponse(BaseModel):
+    document_id: str
+    items: list[EmbeddingStatusItem]
+
+
+class SearchDebugRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class SearchDebugChunkItem(BaseModel):
+    chunk_id: str
+    document_id: str
+    chunk_index: int
+    heading: str | None = None
+    content: str
+    distance: float
+    score: float
+
+
+class SearchDebugResponse(BaseModel):
+    query: str
+    embedding_model: str
+    top_k: int
+    items: list[SearchDebugChunkItem]

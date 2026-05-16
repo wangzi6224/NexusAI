@@ -30,6 +30,13 @@ from src.app.schemas import (
     DocumentListResponse,
     UploadDocumentResponse,
     DeleteDocumentResponse,
+    EmbeddingTestRequest,
+    EmbeddingTestResponse,
+    EmbedDocumentResponse,
+    EmbedAllDocumentsResponse,
+    EmbeddingStatusResponse,
+    SearchDebugRequest,
+    SearchDebugResponse,
 )
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
@@ -46,6 +53,7 @@ from src.app.services.conversation_service import (
     get_context_preview,
 )
 from src.app.services.document_service import DocumentService
+from src.app.services.embedding_service import get_embedding_service
 
 router = APIRouter()
 
@@ -270,3 +278,29 @@ def list_document_chunks_api(document_id: str) -> DocumentChunkListResponse:
 def delete_document_api(document_id: str) -> DeleteDocumentResponse:
     result = DocumentService().delete_document(document_id)
     return DeleteDocumentResponse(**result)
+
+
+@router.post("/embeddings/test", response_model=EmbeddingTestResponse)
+def test_embedding_api(request: EmbeddingTestRequest) -> EmbeddingTestResponse:
+    result = get_embedding_service().test_embedding(request.text)
+    return EmbeddingTestResponse(**result)
+
+
+@router.post(
+    "/documents/{document_id}/embed",
+    response_model=EmbedDocumentResponse,
+)
+def embed_document_api(document_id: str) -> EmbedDocumentResponse:
+    result = get_embedding_service().embed_document(document_id)
+    return EmbedDocumentResponse(**result)
+
+
+@router.get(
+    "/documents/{document_id}/embedding-status",
+    response_model=EmbeddingStatusResponse,
+)
+def get_document_embedding_status_api(
+    document_id: str,
+) -> EmbeddingStatusResponse:
+    result = get_embedding_service().get_document_embedding_status(document_id)
+    return EmbeddingStatusResponse(**result)

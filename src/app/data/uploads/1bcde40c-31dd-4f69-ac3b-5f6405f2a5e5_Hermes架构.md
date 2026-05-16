@@ -1,0 +1,63 @@
+我做了只读扫描。这个仓库可以先按“一个消息怎么从用户走到模型、再走到工具、最后回到用户”来理解，不要一上来啃完整的 `run_agent.py`，它有一万多行。
+
+**整体分层**
+
+1. 入口层：用户从哪里进来  
+   - CLI 主入口在 [pyproject.toml](/Users/wangzilong/Projects/hermes-agent/pyproject.toml:230)，命令是 `hermes = hermes_cli.main:main`。  
+   - 经典 CLI 编排在 [cli.py](/Users/wangzilong/Projects/hermes-agent/cli.py:2278)，命令处理入口是 [process_command](/Users/wangzilong/Projects/hermes-agent/cli.py:7258)。  
+   - Slash 命令统一注册在 [hermes_cli/commands.py](/Users/wangzilong/Projects/hermes-agent/hermes_cli/commands.py:64)，所以 `/model`、`/tools`、`/help` 这类命令先看这里。
+
+2. Agent 核心层：真正的思考循环  
+   - 核心类是 [AIAgent](/Users/wangzilong/Projects/hermes-agent/run_agent.py:1028)。  
+   - 主循环在 [run_conversation](/Users/wangzilong/Projects/hermes-agent/run_agent.py:11613)：组装消息、调用模型、处理 tool calls、追加工具结果、继续下一轮。  
+   - 简单接口是 [chat](/Users/wangzilong/Projects/hermes-agent/run_agent.py:15469)。  
+   - `agent/` 目录放的是 Agent 的“器官”：模型适配器、memory、压缩、prompt 构建、计费、重试、图片路由、上下文引擎等。
+
+3. 工具层：Agent 如何调用外部能力  
+   - 工具调度入口是 [model_tools.py](/Users/wangzilong/Projects/hermes-agent/model_tools.py:697) 的 `handle_function_call()`。  
+   - 工具注册中心是 [tools/registry.py](/Users/wangzilong/Projects/hermes-agent/tools/registry.py:151)，每个 `tools/*.py` 文件通过 `registry.register(...)` 暴露能力。  
+   - 工具集定义在 [toolsets.py](/Users/wangzilong/Projects/hermes-agent/toolsets.py:31)，`_HERMES_CORE_TOOLS` 是默认核心工具列表，`TOOLSETS` 在 [toolsets.py](/Users/wangzilong/Projects/hermes-agent/toolsets.py:78)。
+
+4. 状态、配置、日志层  
+   - 会话数据库是 [hermes_state.py](/Users/wangzilong/Projects/hermes-agent/hermes_state.py:309) 的 `SessionDB`，负责历史记录、搜索、会话列表等。  
+   - 默认配置在 [hermes_cli/config.py](/Users/wangzilong/Projects/hermes-agent/hermes_cli/config.py:437)，加载逻辑在 [load_config](/Users/wangzilong/Projects/hermes-agent/hermes_cli/config.py:4083)。  
+   - Hermes 用户目录通过 [hermes_constants.py](/Users/wangzilong/Projects/hermes-agent/hermes_constants.py:14) 解析，避免硬编码 `~/.hermes`。  
+   - 日志初始化在 [hermes_logging.py](/Users/wangzilong/Projects/hermes-agent/hermes_logging.py:156)。
+
+5. 多端交互层  
+   - `gateway/` 是 Telegram、Discord、Slack、WhatsApp、Email 等消息平台入口，核心 runner 在 [gateway/run.py](/Users/wangzilong/Projects/hermes-agent/gateway/run.py:1142)。  
+   - `ui-tui/` 是 Ink + React 写的终端 UI。  
+   - `tui_gateway/` 是 Node TUI 和 Python Agent 之间的 JSON-RPC 桥。  
+   - `web/` 是 dashboard 前端；后端 API 在 [hermes_cli/web_server.py](/Users/wangzilong/Projects/hermes-agent/hermes_cli/web_server.py:537) 附近开始暴露状态、配置、模型、cron、日志等接口。
+
+6. 扩展层  
+   - `plugins/` 是插件系统，比如 memory provider、model provider、image generation、observability、Spotify、Google Meet 等。插件管理核心在 [hermes_cli/plugins.py](/Users/wangzilong/Projects/hermes-agent/hermes_cli/plugins.py:672)。  
+   - `skills/` 是默认内置技能，我扫到 530 个文件。  
+   - `optional-skills/` 是可选技能，我扫到 239 个文件。  
+   - 新手想加能力时，优先学 `skills` 和 `plugins`，不要先改核心大文件。
+
+**一条消息的主路径**
+
+`hermes` 命令启动  
+→ [hermes_cli/main.py](/Users/wangzilong/Projects/hermes-agent/hermes_cli/main.py:9275)  
+→ [cli.py](/Users/wangzilong/Projects/hermes-agent/cli.py:2278) 创建/管理 `HermesCLI`  
+→ [run_agent.py](/Users/wangzilong/Projects/hermes-agent/run_agent.py:1028) 创建 `AIAgent`  
+→ [run_conversation](/Users/wangzilong/Projects/hermes-agent/run_agent.py:11613) 调模型  
+→ 模型要调用工具时进入 [model_tools.py](/Users/wangzilong/Projects/hermes-agent/model_tools.py:697)  
+→ 从 [tools/registry.py](/Users/wangzilong/Projects/hermes-agent/tools/registry.py:151) 找 handler  
+→ 工具结果回填 messages  
+→ 模型生成最终回答  
+→ CLI/TUI/Gateway/Web 返回给用户。
+
+**建议学习顺序**
+
+1. 先读 [README.md](/Users/wangzilong/Projects/hermes-agent/README.md:1) 和 [pyproject.toml](/Users/wangzilong/Projects/hermes-agent/pyproject.toml:1)，搞清楚项目是什么、依赖是什么、入口有哪些。  
+2. 再读 [toolsets.py](/Users/wangzilong/Projects/hermes-agent/toolsets.py:31) 和 [tools/registry.py](/Users/wangzilong/Projects/hermes-agent/tools/registry.py:151)，这是最容易理解 agent “工具调用”的地方。  
+3. 然后选一个简单工具读，比如 `tools/file_tools.py`、`tools/terminal_tool.py`、`tools/web_tools.py`，看 schema、handler、返回 JSON 的模式。  
+4. 再读 [model_tools.py](/Users/wangzilong/Projects/hermes-agent/model_tools.py:697)，理解模型 tool call 怎么落到 Python 函数。  
+5. 最后再读 [run_agent.py](/Users/wangzilong/Projects/hermes-agent/run_agent.py:1028)，重点看 `AIAgent.__init__`、`run_conversation()`、`chat()`，别试图从第一行读到最后一行。  
+6. 想学产品形态，再看 CLI、TUI、gateway、web dashboard。想学扩展机制，再看 `plugins/` 和 `skills/`。
+
+**新手重点概念**
+
+Hermes 不是“一个 prompt + 一个 API call”，而是一个完整 agent runtime：它有模型适配、工具注册、工具集开关、会话存储、长期记忆、技能系统、插件系统、跨平台消息网关、定时任务和前端界面。你先把“模型循环 + 工具调用 + 状态保存”这三件事吃透，后面的 gateway、skills、plugins 就会自然接上。
