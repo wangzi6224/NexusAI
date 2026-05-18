@@ -304,3 +304,24 @@ def get_document_embedding_status_api(
 ) -> EmbeddingStatusResponse:
     result = get_embedding_service().get_document_embedding_status(document_id)
     return EmbeddingStatusResponse(**result)
+
+
+@router.post(
+    "/documents/embed-all",
+    response_model=EmbedAllDocumentsResponse,
+)
+def embed_all_documents_api() -> EmbedAllDocumentsResponse:
+    result: dict[str, Any] = get_embedding_service().embed_all_pending()
+    return EmbedAllDocumentsResponse(**result)
+
+
+@router.post(
+    "/embeddings/search-debug",
+    response_model=SearchDebugResponse,
+)
+def search_debug_api(request: SearchDebugRequest) -> SearchDebugResponse:
+    result: dict[str, Any] = get_embedding_service().search_debug(
+        query=request.query,
+        top_k=request.top_k,
+    )
+    return SearchDebugResponse(**result)

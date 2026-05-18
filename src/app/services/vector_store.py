@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from pgvector import Vector
 from pgvector.psycopg import register_vector
 
 from src.app.db import get_connection
@@ -150,7 +151,7 @@ class PgVectorStore:
                     """,
                     {
                         "chunk_id": chunk_id,
-                        "embedding": embedding,
+                        "embedding": Vector(embedding),
                         "embedding_model": embedding_model,
                     },
                 )
@@ -223,7 +224,7 @@ class PgVectorStore:
                     LIMIT %(top_k)s
                     """,
                     {
-                        "query_embedding": query_embedding,
+                        "query_embedding": Vector(query_embedding),
                         "top_k": top_k,
                     },
                 )
