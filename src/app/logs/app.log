@@ -436,3 +436,4 @@ HINT:  No operator matches the given name and argument types. You might need to 
 2026-05-18 19:22:46,403 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
 2026-05-18 19:53:54,563 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
 2026-05-18 19:54:15,619 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
+2026-05-18 22:07:46,392 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
