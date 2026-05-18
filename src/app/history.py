@@ -1,43 +1,88 @@
-import json
-from pathlib import Path
+import uuid
+from datetime import datetime
 from typing import Any
 
-from src.app.config import get_chat_history_path
-from src.app.paths import DATA_DIR
+from src.app.db import get_connection
 
 
-def _ensure_history_file() -> Path:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+def _normalize_history_row(row: dict[str, Any]) -> dict[str, Any]:
+    result = dict(row)
 
-    path = DATA_DIR / get_chat_history_path()
+    if isinstance(result.get("timestamp"), datetime):
+        result["timestamp"] = result["timestamp"].isoformat()
 
-    if not path.exists():
-        path.write_text("[]", encoding="utf-8")
-
-    return path
+    return {
+        "timestamp": result["timestamp"],
+        "model": result["model"],
+        "user_input": result["user_input"],
+        "prompt": result["prompt"],
+        "answer": result["answer"],
+        "elapsed_seconds": float(result["elapsed_seconds"]),
+    }
 
 
 def load_history() -> list[dict[str, Any]]:
-    path = _ensure_history_file()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    timestamp,
+                    model,
+                    user_input,
+                    prompt,
+                    answer,
+                    elapsed_seconds
+                FROM chat_history
+                ORDER BY created_at ASC
+                """)
+            rows = cur.fetchall()
 
-    try:
-        content = path.read_text(encoding="utf-8").strip()
-        if not content:
-            return []
-        return json.loads(content)
-    except json.JSONDecodeError:
-        return []
+    return [_normalize_history_row(row) for row in rows]
 
 
 def append_history(record: dict[str, Any]) -> None:
-    path = _ensure_history_file()
-    history = load_history()
-    history.append(record)
-    path.write_text(
-        json.dumps(history, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO chat_history (
+                    id,
+                    timestamp,
+                    model,
+                    user_input,
+                    prompt,
+                    answer,
+                    elapsed_seconds,
+                    created_at
+                )
+                VALUES (
+                    %(id)s,
+                    %(timestamp)s,
+                    %(model)s,
+                    %(user_input)s,
+                    %(prompt)s,
+                    %(answer)s,
+                    %(elapsed_seconds)s,
+                    NOW()
+                )
+                """,
+                {
+                    "id": str(uuid.uuid4()),
+                    "timestamp": record.get("timestamp") or datetime.now(),
+                    "model": record["model"],
+                    "user_input": record["user_input"],
+                    "prompt": record["prompt"],
+                    "answer": record["answer"],
+                    "elapsed_seconds": record["elapsed_seconds"],
+                },
+            )
+
+        conn.commit()
+
 
 def clear_history() -> None:
-    path = _ensure_history_file()
-    path.write_text("[]", encoding="utf-8")
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM chat_history")
+
+        conn.commit()

@@ -1,152 +1,185 @@
 import json
 import uuid
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+from psycopg import sql
 
 from src.app.config import get_ollama_model
+from src.app.db import get_connection
 from src.app.exceptions import ConversationError
-from src.app.paths import DATA_DIR
-
-CONVERSATIONS_FILE = DATA_DIR / "conversations.json"
-MESSAGES_FILE = DATA_DIR / "messages.json"
 
 ALLOWED_MESSAGE_ROLES: set[str] = {"system", "user", "assistant", "tool"}
 
-
-# TODO: 后续可以改成 SQLite 或其他轻量级数据库，目前先用 JSON 文件存储，方便查看和调试
-def _now_iso() -> str:
-    return datetime.now().isoformat()
-
-
-# 辅助函数：确保 JSON 文件存在，并且是一个数组格式
-def _ensure_json_file(path: Path) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    if not path.exists():
-        path.write_text("[]", encoding="utf-8")
+ALLOWED_CONVERSATION_UPDATE_FIELDS = {
+    "title",
+    "summary",
+    "summarized_message_count",
+    "summary_updated_at",
+    "model",
+    "provider",
+    "status",
+}
 
 
-# 辅助函数：加载 JSON 文件并返回数组数据，如果文件内容不合法则抛出异常
-def _load_json_list(path: Path) -> list[dict[str, Any]]:
-    _ensure_json_file(path)
+def _normalize_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
 
-    try:
-        content = path.read_text(encoding="utf-8").strip()
-        if not content:
-            return []
+    result = dict(row)
 
-        data = json.loads(content)
+    for key in ["created_at", "updated_at", "summary_updated_at"]:
+        if isinstance(result.get(key), datetime):
+            result[key] = result[key].isoformat()
 
-        if not isinstance(data, list):
-            raise ConversationError(
-                message="JSON 存储格式错误",
-                detail=f"{path} 内容不是数组",
-                status_code=500,
-            )
+    if result.get("metadata") is None:
+        result["metadata"] = {}
 
-        return data
-
-    except json.JSONDecodeError as exc:
-        raise ConversationError(
-            message="读取 JSON 失败",
-            detail=f"{path}: {exc}",
-            status_code=500,
-        ) from exc
-
-
-def _save_json_list(path: Path, items: list[dict[str, Any]]) -> None:
-    _ensure_json_file(path)
-
-    try:
-        path.write_text(
-            json.dumps(items, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        raise ConversationError(
-            message="写入 JSON 失败",
-            detail=f"{path}: {exc}",
-            status_code=500,
-        ) from exc
-
-
-def load_conversations() -> list[dict[str, Any]]:
-    return _load_json_list(CONVERSATIONS_FILE)
-
-
-def save_conversations(conversations: list[dict[str, Any]]) -> None:
-    _save_json_list(CONVERSATIONS_FILE, conversations)
+    return result
 
 
 def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
-    now = _now_iso()
+    conversation_id = str(uuid.uuid4())
 
-    conversation = {
-        "id": str(uuid.uuid4()),
-        "title": title,
-        "summary": None,
-        "summarized_message_count": 0,
-        "summary_updated_at": None,
-        "model": model or get_ollama_model(),
-        "provider": "ollama",
-        "status": "active",
-        "created_at": now,
-        "updated_at": now,
-    }
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO conversations (
+                    id,
+                    title,
+                    summary,
+                    summarized_message_count,
+                    summary_updated_at,
+                    model,
+                    provider,
+                    status,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    %(id)s,
+                    %(title)s,
+                    NULL,
+                    0,
+                    NULL,
+                    %(model)s,
+                    'ollama',
+                    'active',
+                    NOW(),
+                    NOW()
+                )
+                RETURNING *
+                """,
+                {
+                    "id": conversation_id,
+                    "title": title,
+                    "model": model or get_ollama_model(),
+                },
+            )
+            row = cur.fetchone()
 
-    conversations = load_conversations()
-    conversations.append(conversation)
-    save_conversations(conversations)
+        conn.commit()
+
+    conversation = _normalize_row(cast(dict[str, Any] | None, row))
+
+    if conversation is None:
+        raise ConversationError(
+            message="创建会话失败",
+            status_code=500,
+        )
 
     return conversation
 
 
 def list_conversations() -> list[dict[str, Any]]:
-    conversations = load_conversations()
-    return sorted(
-        conversations,
-        key=lambda item: item.get("updated_at", ""),
-        reverse=True,
-    )
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT *
+                FROM conversations
+                ORDER BY updated_at DESC
+                """)
+            rows = cur.fetchall()
+
+    conversations = [
+        _normalize_row(cast(dict[str, Any], row)) for row in rows if row is not None
+    ]
+    return [conversation for conversation in conversations if conversation is not None]
 
 
 def get_conversation(conversation_id: str) -> dict[str, Any] | None:
-    conversations = load_conversations()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM conversations
+                WHERE id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+            row = cur.fetchone()
 
-    for conversation in conversations:
-        if conversation["id"] == conversation_id:
-            return conversation
-
-    return None
+    return _normalize_row(cast(dict[str, Any] | None, row))
 
 
 def update_conversation(
     conversation_id: str,
     updates: dict[str, Any],
 ) -> dict[str, Any]:
-    conversations = load_conversations()
+    invalid_fields = set(updates) - ALLOWED_CONVERSATION_UPDATE_FIELDS
+    if invalid_fields:
+        raise ConversationError(
+            message="会话更新字段非法",
+            detail=f"invalid_fields={sorted(invalid_fields)}",
+            status_code=500,
+        )
 
-    for conversation in conversations:
-        if conversation["id"] == conversation_id:
-            conversation.update(updates)
-            conversation["updated_at"] = _now_iso()
-            save_conversations(conversations)
-            return conversation
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            if updates:
+                set_sql = sql.SQL(", ").join(
+                    sql.SQL("{} = {}").format(
+                        sql.Identifier(key),
+                        sql.Placeholder(key),
+                    )
+                    for key in updates
+                )
 
-    raise ConversationError(
-        message="会话不存在",
-        detail=f"conversation_id={conversation_id}",
-        status_code=404,
-    )
+                query = sql.SQL("""
+                    UPDATE conversations
+                    SET {set_sql},
+                        updated_at = NOW()
+                    WHERE id = %(conversation_id)s
+                    RETURNING *
+                    """).format(set_sql=set_sql)
 
+                params = {**updates, "conversation_id": conversation_id}
+            else:
+                query = sql.SQL("""
+                    UPDATE conversations
+                    SET updated_at = NOW()
+                    WHERE id = %(conversation_id)s
+                    RETURNING *
+                    """)
+                params = {"conversation_id": conversation_id}
 
-def load_messages() -> list[dict[str, Any]]:
-    return _load_json_list(MESSAGES_FILE)
+            cur.execute(query, params)
+            row = cur.fetchone()
 
+        conn.commit()
 
-def save_messages(messages: list[dict[str, Any]]) -> None:
-    _save_json_list(MESSAGES_FILE, messages)
+    conversation = _normalize_row(cast(dict[str, Any] | None, row))
+
+    if conversation is None:
+        raise ConversationError(
+            message="会话不存在",
+            detail=f"conversation_id={conversation_id}",
+            status_code=404,
+        )
+
+    return conversation
 
 
 def create_message(
@@ -162,36 +195,137 @@ def create_message(
             status_code=400,
         )
 
-    message = {
-        "id": str(uuid.uuid4()),
-        "conversation_id": conversation_id,
-        "role": role,
-        "content": content,
-        "metadata": metadata or {},
-        "created_at": _now_iso(),
-    }
+    message_id = str(uuid.uuid4())
 
-    messages = load_messages()
-    messages.append(message)
-    save_messages(messages)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO messages (
+                    id,
+                    conversation_id,
+                    role,
+                    content,
+                    metadata,
+                    created_at
+                )
+                VALUES (
+                    %(id)s,
+                    %(conversation_id)s,
+                    %(role)s,
+                    %(content)s,
+                    %(metadata)s::jsonb,
+                    NOW()
+                )
+                RETURNING *
+                """,
+                {
+                    "id": message_id,
+                    "conversation_id": conversation_id,
+                    "role": role,
+                    "content": content,
+                    "metadata": json.dumps(metadata or {}, ensure_ascii=False),
+                },
+            )
+            row = cur.fetchone()
+
+            cur.execute(
+                """
+                UPDATE conversations
+                SET updated_at = NOW()
+                WHERE id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+        conn.commit()
+
+    message = _normalize_message(cast(dict[str, Any] | None, row))
+
+    if message is None:
+        raise ConversationError(
+            message="创建消息失败",
+            status_code=500,
+        )
 
     return message
 
 
+def _normalize_message(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+
+    result = dict(row)
+
+    if isinstance(result.get("created_at"), datetime):
+        result["created_at"] = result["created_at"].isoformat()
+
+    if result.get("metadata") is None:
+        result["metadata"] = {}
+
+    return result
+
+
 def list_messages(conversation_id: str) -> list[dict[str, Any]]:
-    messages = load_messages()
-    return [
-        message for message in messages if message["conversation_id"] == conversation_id
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM messages
+                WHERE conversation_id = %(conversation_id)s
+                ORDER BY created_at ASC
+                """,
+                {"conversation_id": conversation_id},
+            )
+            rows = cur.fetchall()
+
+    messages = [
+        _normalize_message(cast(dict[str, Any], row)) for row in rows if row is not None
     ]
+    return [message for message in messages if message is not None]
 
 
 def list_recent_messages(
     conversation_id: str,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
-    messages = list_messages(conversation_id)
-    return messages[-limit:]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM messages
+                WHERE conversation_id = %(conversation_id)s
+                ORDER BY created_at DESC
+                LIMIT %(limit)s
+                """,
+                {
+                    "conversation_id": conversation_id,
+                    "limit": limit,
+                },
+            )
+            rows = cur.fetchall()
+
+    messages = [
+        _normalize_message(cast(dict[str, Any], row)) for row in rows if row is not None
+    ]
+
+    return [message for message in reversed(messages) if message is not None]
 
 
 def count_messages(conversation_id: str) -> int:
-    return len(list_messages(conversation_id))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM messages
+                WHERE conversation_id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+            row = cur.fetchone()
+
+    count_row = cast(dict[str, Any] | None, row)
+    return int(count_row["count"]) if count_row else 0

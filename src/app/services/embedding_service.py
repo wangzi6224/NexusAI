@@ -6,7 +6,8 @@ from src.app.config import (
     get_embedding_dimension,
     get_embedding_model,
 )
-from src.app.document_store import load_document_chunks
+
+# from src.app.document_store import load_document_chunks
 from src.app.exceptions import AppError
 from src.app.services.embedding.sentence_transformer_provider import (
     SentenceTransformerEmbeddingProvider,
@@ -33,41 +34,41 @@ class EmbeddingService:
             "vector_norm": round(vector_norm, 4),
         }
 
-    def embed_document(self, document_id: str) -> dict[str, Any]:
-        all_chunks = load_document_chunks()
-        self.vector_store.sync_chunks_from_json(all_chunks)
+    # def embed_document(self, document_id: str) -> dict[str, Any]:
+    #     all_chunks = load_document_chunks()
+    #     self.vector_store.sync_chunks_from_json(all_chunks)
 
-        chunks = self.vector_store.list_chunks_by_document(document_id)
+    #     chunks = self.vector_store.list_chunks_by_document(document_id)
 
-        if not chunks:
-            raise AppError(
-                code="DOCUMENT_CHUNKS_NOT_FOUND",
-                message="该文档没有可向量化的 chunks",
-                detail=f"document_id={document_id}",
-                status_code=404,
-            )
+    #     if not chunks:
+    #         raise AppError(
+    #             code="DOCUMENT_CHUNKS_NOT_FOUND",
+    #             message="该文档没有可向量化的 chunks",
+    #             detail=f"document_id={document_id}",
+    #             status_code=404,
+    #         )
 
-        return self._embed_chunks(
-            chunks=chunks,
-            document_id=document_id,
-        )
+    #     return self._embed_chunks(
+    #         chunks=chunks,
+    #         document_id=document_id,
+    #     )
 
-    def embed_all_pending(self) -> dict[str, Any]:
-        all_chunks = load_document_chunks()
-        self.vector_store.sync_chunks_from_json(all_chunks)
+    # def embed_all_pending(self) -> dict[str, Any]:
+    #     all_chunks = load_document_chunks()
+    #     self.vector_store.sync_chunks_from_json(all_chunks)
 
-        limit = get_embedding_batch_size()
-        chunks = self.vector_store.list_pending_chunks(limit=limit)
+    #     limit = get_embedding_batch_size()
+    #     chunks = self.vector_store.list_pending_chunks(limit=limit)
 
-        result = self._embed_chunks(chunks=chunks)
+    #     result = self._embed_chunks(chunks=chunks)
 
-        return {
-            "total_chunks": result["total_chunks"],
-            "embedded_chunks": result["embedded_chunks"],
-            "failed_chunks": result["failed_chunks"],
-            "embedding_model": result["embedding_model"],
-            "status": result["status"],
-        }
+    #     return {
+    #         "total_chunks": result["total_chunks"],
+    #         "embedded_chunks": result["embedded_chunks"],
+    #         "failed_chunks": result["failed_chunks"],
+    #         "embedding_model": result["embedding_model"],
+    #         "status": result["status"],
+    #     }
 
     def get_document_embedding_status(self, document_id: str) -> dict[str, Any]:
         items = self.vector_store.get_document_embedding_status(document_id)
