@@ -1,0 +1,727 @@
+{
+  "info": {
+    "_postman_id": "2be05c54-5911-4400-bc36-0db8d8605be7",
+    "name": "My Python AI App API",
+    "description": "根据 /Users/wangzilong/Projects/my_python_project/src/app/api/routes.py 生成。默认 baseUrl 为 http://127.0.0.1:8000。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "基础",
+      "item": [
+        {
+          "name": "GET 首页静态页面",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "路由: GET /。返回前端 index.html。"
+          }
+        },
+        {
+          "name": "GET 健康检查",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "路由: GET /health。无参数。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "聊天",
+      "item": [
+        {
+          "name": "POST 同步聊天",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat"
+              ]
+            },
+            "description": "路由: POST /chat。JSON body: message 必填，model 可选。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"你好，请介绍一下当前项目。\",\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST 流式聊天 SSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "stream"
+              ]
+            },
+            "description": "路由: POST /chat/stream。以 text/event-stream 返回。JSON body: message 必填，model 可选。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"请用三句话解释 FastAPI。\",\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "历史与模型",
+      "item": [
+        {
+          "name": "GET 聊天历史",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "history"
+              ]
+            },
+            "description": "路由: GET /history。无参数。"
+          }
+        },
+        {
+          "name": "POST 清空聊天历史",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/history/clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "history",
+                "clear"
+              ]
+            },
+            "description": "路由: POST /history/clear。无 body。"
+          }
+        },
+        {
+          "name": "GET 可用模型列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "models"
+              ]
+            },
+            "description": "路由: GET /models。无参数。"
+          }
+        },
+        {
+          "name": "POST 选择模型",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/model/select",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "model",
+                "select"
+              ]
+            },
+            "description": "路由: POST /model/select。JSON body: model 必填。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "会话",
+      "item": [
+        {
+          "name": "POST 创建会话",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "路由: POST /conversations。JSON body: title 必填，model 可选。成功后自动保存 collection 变量 conversation_id。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman 测试会话\",\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && data.id) {",
+                  "  pm.collectionVariables.set(\"conversation_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET 会话列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations"
+              ]
+            },
+            "description": "路由: GET /conversations。无参数。若返回 items，会自动把第一条 id 保存为 conversation_id。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && Array.isArray(data.items) && data.items.length > 0) {",
+                  "  pm.collectionVariables.set(\"conversation_id\", data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET 会话详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}"
+              ]
+            },
+            "description": "路由: GET /conversations/{conversation_id}。路径变量: conversation_id。"
+          }
+        },
+        {
+          "name": "GET 会话消息列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "description": "路由: GET /conversations/{conversation_id}/messages。路径变量: conversation_id。"
+          }
+        },
+        {
+          "name": "POST 发送会话消息",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "description": "路由: POST /conversations/{conversation_id}/messages。路径变量: conversation_id。JSON body: content 必填，model 可选。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"请继续解释这个项目的路由设计。\",\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST 发送会话消息 SSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}/messages/stream",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}",
+                "messages",
+                "stream"
+              ]
+            },
+            "description": "路由: POST /conversations/{conversation_id}/messages/stream。路径变量: conversation_id。以 text/event-stream 返回。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"请用流式方式回答。\",\n  \"model\": \"{{model}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET 上下文预览",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}/context-preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}",
+                "context-preview"
+              ]
+            },
+            "description": "路由: GET /conversations/{conversation_id}/context-preview。路径变量: conversation_id。"
+          }
+        },
+        {
+          "name": "POST 手动更新摘要",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/conversations/{{conversation_id}}/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "conversations",
+                "{{conversation_id}}",
+                "summary"
+              ]
+            },
+            "description": "路由: POST /conversations/{conversation_id}/summary。路径变量: conversation_id。无 body。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "文档",
+      "item": [
+        {
+          "name": "POST 上传文档",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "upload"
+              ]
+            },
+            "description": "路由: POST /documents/upload。multipart/form-data 参数: file 必填。成功后自动保存 collection 变量 document_id。",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{upload_file_path}}",
+                  "description": "支持 .md / .txt 文件；可在 collection 变量 upload_file_path 中修改。"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && data.document_id) {",
+                  "  pm.collectionVariables.set(\"document_id\", data.document_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET 文档列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents"
+              ]
+            },
+            "description": "路由: GET /documents。无参数。若返回 items，会自动把第一条 id 保存为 document_id。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && Array.isArray(data.items) && data.items.length > 0) {",
+                  "  pm.collectionVariables.set(\"document_id\", data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET 文档详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{document_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}"
+              ]
+            },
+            "description": "路由: GET /documents/{document_id}。路径变量: document_id。"
+          }
+        },
+        {
+          "name": "GET 文档 Chunk 列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{document_id}}/chunks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "chunks"
+              ]
+            },
+            "description": "路由: GET /documents/{document_id}/chunks。路径变量: document_id。"
+          }
+        },
+        {
+          "name": "DELETE 删除文档",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{document_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}"
+              ]
+            },
+            "description": "路由: DELETE /documents/{document_id}。路径变量: document_id。"
+          }
+        },
+        {
+          "name": "POST 向量化单个文档",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{document_id}}/embed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "embed"
+              ]
+            },
+            "description": "路由: POST /documents/{document_id}/embed。路径变量: document_id。无 body。"
+          }
+        },
+        {
+          "name": "GET 文档向量化状态",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{document_id}}/embedding-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{document_id}}",
+                "embedding-status"
+              ]
+            },
+            "description": "路由: GET /documents/{document_id}/embedding-status。路径变量: document_id。"
+          }
+        },
+        {
+          "name": "POST 向量化所有待处理文档",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/embed-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "embed-all"
+              ]
+            },
+            "description": "路由: POST /documents/embed-all。无 body。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Embedding",
+      "item": [
+        {
+          "name": "POST 测试 Embedding",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/embeddings/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "embeddings",
+                "test"
+              ]
+            },
+            "description": "路由: POST /embeddings/test。JSON body: text 必填。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"FastAPI 可以通过 exception_handler 注册全局异常处理器。\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST 向量检索调试",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/embeddings/search-debug",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "embeddings",
+                "search-debug"
+              ]
+            },
+            "description": "路由: POST /embeddings/search-debug。JSON body: query 必填，top_k 默认 5，范围 1-20。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"FastAPI 如何处理异常？\",\n  \"top_k\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "model",
+      "value": "gemma4:e2b",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "请先运行“POST 创建会话”或“GET 会话列表”自动填充",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "请先运行“POST 上传文档”或“GET 文档列表”自动填充",
+      "type": "string"
+    },
+    {
+      "key": "upload_file_path",
+      "value": "/Users/wangzilong/Projects/my_python_project/docs/text.txt",
+      "type": "string"
+    }
+  ]
+}
