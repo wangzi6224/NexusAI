@@ -1,5 +1,9 @@
 from functools import lru_cache
+<<<<<<< HEAD
 from typing import Any, Literal
+=======
+from typing import Any
+>>>>>>> d70ff2c190336b7a20016df353ae74fac41294ae
 
 from src.app.config import (
     get_embedding_batch_size,
@@ -156,9 +160,13 @@ class EmbeddingService:
                     error_message=str(exc),
                 )
 
+<<<<<<< HEAD
         status: Literal["completed"] | Literal["failed"] = (
             "completed" if failed_chunks == 0 else "failed"
         )
+=======
+        status = "completed" if failed_chunks == 0 else "failed"
+>>>>>>> d70ff2c190336b7a20016df353ae74fac41294ae
 
         return {
             "document_id": document_id,
