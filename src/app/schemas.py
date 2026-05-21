@@ -250,3 +250,62 @@ class SearchDebugResponse(BaseModel):
     embedding_model: str
     top_k: int
     items: list[SearchDebugChunkItem]
+
+
+class RagSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="用户检索问题")
+    top_k: int = Field(default=5, ge=1, le=20)
+    score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
+class RagSearchChunkItem(BaseModel):
+    chunk_id: str
+    document_id: str
+    filename: str
+    chunk_index: int
+    heading: str | None = None
+    content: str
+    score: float
+    distance: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RagSearchResponse(BaseModel):
+    query: str
+    embedding_model: str
+    top_k: int
+    score_threshold: float
+    chunks: list[RagSearchChunkItem]
+
+
+class RagAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, description="用户问题")
+    top_k: int = Field(default=5, ge=1, le=20)
+    score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    model: str | None = Field(default=None, description="可选，覆盖本次回答使用的模型")
+
+
+class RagSourceItem(BaseModel):
+    chunk_id: str
+    document_id: str
+    filename: str
+    heading: str | None = None
+    chunk_index: int
+    score: float
+
+
+class RagTrace(BaseModel):
+    top_k: int
+    score_threshold: float
+    retrieved_count: int
+    embedding_model: str
+    chat_model: str
+    provider: str
+    latency_ms: int
+
+
+class RagAskResponse(BaseModel):
+    question: str
+    answer: str
+    sources: list[RagSourceItem]
+    trace: RagTrace

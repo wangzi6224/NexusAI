@@ -37,7 +37,12 @@ from src.app.schemas import (
     EmbeddingStatusResponse,
     SearchDebugRequest,
     SearchDebugResponse,
+    RagSearchRequest,
+    RagSearchResponse,
+    RagAskRequest,
+    RagAskResponse,
 )
+from src.app.services.rag.rag_service import RagService
 from src.app.services.model_service import get_models, select_model
 from src.app.services.history_service import clear_chat_history, get_history
 from src.app.services.chat_service import handle_chat, handle_chat_stream
@@ -325,3 +330,24 @@ def search_debug_api(request: SearchDebugRequest) -> SearchDebugResponse:
         top_k=request.top_k,
     )
     return SearchDebugResponse(**result)
+
+
+@router.post("/rag/search", response_model=RagSearchResponse)
+def rag_search_api(request: RagSearchRequest) -> RagSearchResponse:
+    result = RagService().search(
+        query=request.query,
+        top_k=request.top_k,
+        score_threshold=request.score_threshold,
+    )
+    return RagSearchResponse(**result)
+
+
+@router.post("/rag/ask", response_model=RagAskResponse)
+def rag_ask_api(request: RagAskRequest) -> RagAskResponse:
+    result = RagService().ask(
+        question=request.question,
+        top_k=request.top_k,
+        score_threshold=request.score_threshold,
+        model=request.model,
+    )
+    return RagAskResponse(**result)

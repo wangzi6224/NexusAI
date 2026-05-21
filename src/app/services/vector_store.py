@@ -202,6 +202,7 @@ class PgVectorStore:
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        score_threshold: float = 0.0,
     ) -> list[dict[str, Any]]:
         with get_connection() as conn:
             self._register_vector(conn)
@@ -210,22 +211,27 @@ class PgVectorStore:
                 cur.execute(
                     """
                     SELECT
-                        id AS chunk_id,
-                        document_id,
-                        chunk_index,
-                        heading,
-                        content,
-                        embedding <=> %(query_embedding)s AS distance,
-                        1 - (embedding <=> %(query_embedding)s) AS score
-                    FROM document_chunks
-                    WHERE embedding IS NOT NULL
-                      AND embedding_status = 'completed'
-                    ORDER BY embedding <=> %(query_embedding)s
+                        dc.id AS chunk_id,
+                        dc.document_id,
+                        d.filename,
+                        dc.chunk_index,
+                        dc.heading,
+                        dc.content,
+                        dc.metadata,
+                        dc.embedding <=> %(query_embedding)s AS distance,
+                        1 - (dc.embedding <=> %(query_embedding)s) AS score
+                    FROM document_chunks dc
+                    JOIN documents d ON d.id = dc.document_id
+                    WHERE dc.embedding IS NOT NULL
+                    AND dc.embedding_status = 'completed'
+                    AND 1 - (dc.embedding <=> %(query_embedding)s) >= %(score_threshold)s
+                    ORDER BY dc.embedding <=> %(query_embedding)s
                     LIMIT %(top_k)s
                     """,
                     {
                         "query_embedding": Vector(query_embedding),
                         "top_k": top_k,
+                        "score_threshold": score_threshold,
                     },
                 )
                 return [dict(row) for row in cur.fetchall()]
