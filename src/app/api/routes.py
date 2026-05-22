@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from src.app.paths import STATIC_DIR
-from src.app.schemas import (
+from src.app.schemas.schemas import (
     ChatRequest,
     HistoryItem,
     ChatResponse,

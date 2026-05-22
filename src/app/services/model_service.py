@@ -1,6 +1,6 @@
 from src.app.health import get_available_models
 from src.app.runtime_config import get_selected_model, set_selected_model
-from src.app.schemas import ModelsResponse, SelectModelResponse
+from src.app.schemas.schemas import ModelsResponse, SelectModelResponse
 
 
 def get_models() -> ModelsResponse:

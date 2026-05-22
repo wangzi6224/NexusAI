@@ -7,7 +7,7 @@ from src.app.config import get_ollama_model
 from src.app.history import append_history
 from src.app.logger import get_logger
 from src.app.prompts import build_chat_prompt
-from src.app.schemas import ChatResponse, TokenUsage
+from src.app.schemas.schemas import ChatResponse, TokenUsage
 from src.app.services.llm.ollama_provider import OllamaProvider
 
 logger = get_logger()

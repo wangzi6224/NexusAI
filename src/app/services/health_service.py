@@ -1,5 +1,6 @@
 from src.app.health import check_ollama_model_exists, check_ollama_server
-from src.app.schemas import HealthResponse
+from src.app.schemas.schemas import HealthResponse
+
 
 def get_health_status() -> HealthResponse:
     ok, message = check_ollama_server()
