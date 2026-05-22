@@ -7,8 +7,9 @@ __pycache__/
 .vscode/
 .env
 logs/*.log
-data/chat_history.json
-docs/*.ipynb
+data/
+src/app/data/
+docs/
 
 # Frontend dependencies
 web/node_modules/
