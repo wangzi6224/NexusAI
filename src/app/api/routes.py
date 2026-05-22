@@ -41,6 +41,8 @@ from src.app.schemas import (
     RagSearchResponse,
     RagAskRequest,
     RagAskResponse,
+    ConversationRagAskRequest,
+    ConversationRagAskResponse,
 )
 from src.app.services.rag.rag_service import RagService
 from src.app.services.model_service import get_models, select_model
@@ -59,6 +61,7 @@ from src.app.services.conversation_service import (
 )
 from src.app.services.document_service import DocumentService
 from src.app.services.embedding_service import get_embedding_service
+from src.app.services.rag.conversation_rag_service import ConversationRagService
 
 router = APIRouter()
 
@@ -351,3 +354,21 @@ def rag_ask_api(request: RagAskRequest) -> RagAskResponse:
         model=request.model,
     )
     return RagAskResponse(**result)
+
+
+@router.post(
+    "/conversations/{conversation_id}/rag/ask",
+    response_model=ConversationRagAskResponse,
+)
+def conversation_rag_ask_api(
+    conversation_id: str,
+    request: ConversationRagAskRequest,
+) -> ConversationRagAskResponse:
+    result = ConversationRagService().ask(
+        conversation_id=conversation_id,
+        question=request.question,
+        top_k=request.top_k,
+        score_threshold=request.score_threshold,
+        model=request.model,
+    )
+    return ConversationRagAskResponse(**result)
