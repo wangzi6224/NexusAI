@@ -18,6 +18,7 @@ class RagRetriever:
         top_k: int = 5,
         score_threshold: float = 0.3,
     ) -> dict[str, Any]:
+        embedding_model = get_embedding_model()
         query_embedding = self.embedding_provider.embed_text(query)
 
         chunks = self.vector_store.search_similar_chunks(
@@ -28,7 +29,7 @@ class RagRetriever:
 
         return {
             "query": query,
-            "embedding_model": get_embedding_model(),
+            "embedding_model": embedding_model,
             "top_k": top_k,
             "score_threshold": score_threshold,
             "chunks": [

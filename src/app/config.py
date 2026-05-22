@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         alias="EMBEDDING_MODEL",
     )
-    embedding_batch_size: int = Field(default=16, alias="EMBEDDING_BATCH_SIZE")
+    embedding_batch_size: int = Field(default=5000, alias="EMBEDDING_BATCH_SIZE")
     embedding_dimension: int = Field(default=384, alias="EMBEDDING_DIMENSION")
 
 

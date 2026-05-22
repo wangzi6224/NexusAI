@@ -309,3 +309,33 @@ class RagAskResponse(BaseModel):
     answer: str
     sources: list[RagSourceItem]
     trace: RagTrace
+
+
+class ConversationRagAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, description="用户当前问题")
+    top_k: int = Field(default=5, ge=1, le=20)
+    score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    model: str | None = Field(default=None)
+
+
+class ConversationRagTrace(BaseModel):
+    original_query: str
+    rewritten_query: str
+    rewrite_changed: bool
+    context_message_count: int
+    retrieved_count: int
+    top_k: int
+    score_threshold: float
+    rewrite_latency_ms: int
+    retrieval_latency_ms: int
+    generation_latency_ms: int
+    fallback_reason: str | None = None
+
+
+class ConversationRagAskResponse(BaseModel):
+    conversation_id: str
+    question: str
+    rewritten_query: str
+    answer: str
+    sources: list[RagSourceItem]
+    trace: ConversationRagTrace

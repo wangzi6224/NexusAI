@@ -443,3 +443,9 @@ HINT:  No operator matches the given name and argument types. You might need to 
 
   File "/Users/wangzilong/Projects/my_python_project/src/app/api/routes.py", line 335, in rag_search_api
     POST /rag/search
+2026-05-22 08:17:48,728 | ERROR | my_python_project | LLM提供者错误: path=/models error=获取模型列表失败
+2026-05-22 09:49:55,171 | ERROR | my_python_project | LLM提供者错误: path=/models error=获取模型列表失败
+2026-05-22 09:50:05,996 | ERROR | my_python_project | LLM提供者错误: path=/models error=Ollama 服务不可用，无法获取模型列表
+2026-05-22 09:52:15,809 | ERROR | my_python_project | LLM提供者错误: path=/models error=获取模型列表失败
+2026-05-22 09:53:54,766 | INFO | my_python_project | 开始更新会话摘要: conversation_id=8bb21f49-faa2-434b-b386-9b4ee00c57fc
+2026-05-22 09:54:02,657 | INFO | my_python_project | 会话摘要已更新: conversation_id=8bb21f49-faa2-434b-b386-9b4ee00c57fc, elapsed_ms=7882
