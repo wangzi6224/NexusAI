@@ -16,6 +16,11 @@ const routes: RoutesTypes = [
     component: './Home',
     layout: false,
   },
+  {
+    path: '/docs',
+    component: './Docs',
+    layout: false,
+  },
 ];
 
 export default routes;

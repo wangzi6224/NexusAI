@@ -142,19 +142,86 @@ export interface SelectModelResponse {
   message: string;
 }
 
+export interface DocumentItem {
+  id: string;
+  filename: string;
+  file_type: string;
+  source_path?: string;
+  status: string;
+  chunk_count: number;
+  char_count: number;
+  error_message?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DocumentListResponse {
+  items: DocumentItem[];
+}
+
+export interface UploadDocumentResponse {
+  document_id: string;
+  filename: string;
+  file_type: string;
+  status: string;
+  chunk_count: number;
+  char_count: number;
+  created_at: string;
+}
+
+export interface DocumentChunkItem {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  heading?: string | null;
+  content: string;
+  char_count: number;
+  estimated_tokens: number;
+  embedding_status?: string;
+  created_at: string;
+  updated_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DocumentChunkListResponse {
+  items: DocumentChunkItem[];
+}
+
+export interface EmbeddingStatusItem {
+  chunk_id: string;
+  chunk_index: number;
+  embedding_status: string;
+  embedding_model?: string | null;
+  embedding_error?: string | null;
+  embedding_updated_at?: string | null;
+}
+
+export interface EmbeddingStatusResponse {
+  document_id: string;
+  items: EmbeddingStatusItem[];
+}
+
+export interface EmbedAllDocumentsResponse {
+  total_chunks: number;
+  embedded_chunks: number;
+  failed_chunks: number;
+  embedding_model: string;
+  status: string;
+}
+
 // ---- API 函数 ----
 
-export async function getHealth (): Promise<HealthResponse> {
+export async function getHealth(): Promise<HealthResponse> {
   const { data } = await http.get<HealthResponse>('/health');
   return data;
 }
 
-export async function sendChat (payload: ChatRequest): Promise<ChatResponse> {
+export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
   const { data } = await http.post<ChatResponse>('/chat', payload);
   return data;
 }
 
-export async function sendChatStream (
+export async function sendChatStream(
   payload: ChatRequest,
   onChunk: (chunk: ChatStreamChunk) => void,
 ): Promise<void> {
@@ -244,7 +311,7 @@ function parseSseEvent(event: string): { event: string; data: string } | null {
   };
 }
 
-export async function createConversation (
+export async function createConversation(
   payload: ConversationCreateRequest,
 ): Promise<ConversationDetailResponse> {
   const { data } = await http.post<ConversationDetailResponse>(
@@ -254,12 +321,12 @@ export async function createConversation (
   return data;
 }
 
-export async function getConversations (): Promise<ConversationListResponse> {
+export async function getConversations(): Promise<ConversationListResponse> {
   const { data } = await http.get<ConversationListResponse>('/conversations');
   return data;
 }
 
-export async function getConversation (
+export async function getConversation(
   conversationId: string,
 ): Promise<ConversationDetailResponse> {
   const { data } = await http.get<ConversationDetailResponse>(
@@ -268,7 +335,7 @@ export async function getConversation (
   return data;
 }
 
-export async function getConversationMessages (
+export async function getConversationMessages(
   conversationId: string,
 ): Promise<MessageListResponse> {
   const { data } = await http.get<MessageListResponse>(
@@ -277,7 +344,7 @@ export async function getConversationMessages (
   return data;
 }
 
-export async function sendConversationMessage (
+export async function sendConversationMessage(
   conversationId: string,
   payload: SendMessageRequest,
 ): Promise<SendMessageResponse> {
@@ -288,7 +355,7 @@ export async function sendConversationMessage (
   return data;
 }
 
-export async function sendConversationMessageStream (
+export async function sendConversationMessageStream(
   conversationId: string,
   payload: SendMessageRequest,
   onChunk: (chunk: ConversationStreamChunk) => void,
@@ -357,24 +424,80 @@ export async function sendConversationMessageStream (
   }
 }
 
-export async function getHistory (): Promise<HistoryItem[]> {
+export async function getHistory(): Promise<HistoryItem[]> {
   const { data } = await http.get<HistoryItem[]>('/history');
   return data;
 }
 
-export async function clearHistory (): Promise<ClearHistoryResponse> {
+export async function clearHistory(): Promise<ClearHistoryResponse> {
   const { data } = await http.post<ClearHistoryResponse>('/history/clear');
   return data;
 }
 
-export async function getModels (): Promise<ModelsResponse> {
+export async function getModels(): Promise<ModelsResponse> {
   const { data } = await http.get<ModelsResponse>('/models');
   return data;
 }
 
-export async function selectModel (model: string): Promise<SelectModelResponse> {
+export async function selectModel(model: string): Promise<SelectModelResponse> {
   const { data } = await http.post<SelectModelResponse>('/model/select', {
     model,
   });
+  return data;
+}
+
+export async function uploadDocument(
+  file: File,
+): Promise<UploadDocumentResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const { data } = await http.post<UploadDocumentResponse>(
+    '/documents/upload',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  );
+
+  return data;
+}
+
+export async function getDocuments(): Promise<DocumentListResponse> {
+  const { data } = await http.get<DocumentListResponse>('/documents');
+  return data;
+}
+
+export async function triggerDocumentSplit(documentId: string): Promise<void> {
+  await http.post(`/documents/${documentId}/split`);
+}
+
+export async function getDocumentChunks(
+  documentId: string,
+): Promise<DocumentChunkListResponse> {
+  const { data } = await http.get<DocumentChunkListResponse>(
+    `/documents/${documentId}/chunks`,
+  );
+
+  return data;
+}
+
+export async function getDocumentEmbeddingStatus(
+  documentId: string,
+): Promise<EmbeddingStatusResponse> {
+  const { data } = await http.get<EmbeddingStatusResponse>(
+    `/documents/${documentId}/embedding-status`,
+  );
+
+  return data;
+}
+
+export async function embedAllDocuments(): Promise<EmbedAllDocumentsResponse> {
+  const { data } = await http.post<EmbedAllDocumentsResponse>(
+    '/documents/embed-all',
+  );
+
   return data;
 }

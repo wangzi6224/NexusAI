@@ -1,0 +1,70 @@
+.page {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top right, #f3ffe3 0%, transparent 36%),
+    radial-gradient(circle at bottom left, #e9f2ff 0%, transparent 42%),
+    linear-gradient(180deg, #f7fafc 0%, #eef4f7 100%);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 !important;
+}
+
+.card {
+  margin-bottom: 16px;
+  border-radius: 12px;
+}
+
+.alert {
+  margin-bottom: 12px;
+}
+
+.selectedRow {
+  td {
+    background: #f0f8ff !important;
+  }
+}
+
+.drawerContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chunkTitle {
+  margin: 0 !important;
+}
+
+.expandedContent {
+  padding: 4px 0;
+}
+
+.contentText {
+  max-height: 320px;
+  margin-bottom: 0 !important;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.metaText {
+  max-height: 200px;
+  margin-bottom: 0 !important;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 14px;
+  }
+}
