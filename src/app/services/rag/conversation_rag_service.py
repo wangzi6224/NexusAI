@@ -41,6 +41,7 @@ class ConversationRagService:
                 status_code=404,
             )
 
+        # 清理用户输入的问题，去除首尾空白字符，并检查是否为空
         clean_question = question.strip()
 
         if not clean_question:

@@ -1,6 +1,6 @@
 from time import perf_counter
 from typing import Any
-
+import json
 from src.app.config import get_ollama_model
 from src.app.services.llm.ollama_provider import OllamaProvider
 
@@ -62,34 +62,34 @@ class QueryRewriter:
         current_question: str,
     ) -> list[dict[str, str]]:
         system_prompt = """
-你是一个企业知识库 RAG 系统里的 Query Rewrite 模块。
+        你是一个企业知识库 RAG 系统里的 Query Rewrite 模块。
 
-你的任务：
-把用户当前问题改写成一个独立、完整、适合知识库检索的问题。
+        你的任务：
+        把用户当前问题改写成一个独立、完整、适合知识库检索的问题。
 
-严格要求：
-1. 不要回答问题。
-2. 只输出改写后的问题。
-3. 不要输出解释。
-4. 不要输出 JSON。
-5. 不要编造用户没有表达的意图。
-6. 如果当前问题已经完整，就原样输出。
-7. 保留专有名词、代码标识符、接口路径、文件名、模型名、错误码。
-8. 使用简体中文。
-""".strip()
+        严格要求：
+        1. 不要回答问题。
+        2. 只输出改写后的问题。
+        3. 不要输出解释。
+        4. 不要输出 JSON。
+        5. 不要编造用户没有表达的意图。
+        6. 如果当前问题已经完整，就原样输出。
+        7. 保留专有名词、代码标识符、接口路径、文件名、模型名、错误码。
+        8. 使用简体中文。
+        """.strip()
 
         user_prompt = f"""
-【会话摘要】
-{conversation_summary or "无"}
+        【会话摘要】
+        {conversation_summary or "无"}
 
-【最近对话】
-{self._format_recent_messages(recent_messages)}
+        【最近对话】
+        {self._format_recent_messages(recent_messages)}
 
-【当前问题】
-{current_question}
+        【当前问题】
+        {current_question}
 
-请输出改写后的检索问题：
-""".strip()
+        请输出改写后的检索问题：
+        """.strip()
 
         return [
             {"role": "system", "content": system_prompt},
