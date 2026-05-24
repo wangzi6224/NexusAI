@@ -61,10 +61,10 @@ class Settings(BaseSettings):
 
     # Embedding 配置
     embedding_model: str = Field(
-        default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        default="intfloat/multilingual-e5-base",
         alias="EMBEDDING_MODEL",
     )
-    embedding_batch_size: int = Field(default=5000, alias="EMBEDDING_BATCH_SIZE")
+    embedding_batch_size: int = Field(default=1500, alias="EMBEDDING_BATCH_SIZE")
     embedding_dimension: int = Field(default=768, alias="EMBEDDING_DIMENSION")
 
 
