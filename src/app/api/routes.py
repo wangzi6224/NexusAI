@@ -298,8 +298,14 @@ def test_embedding_api(request: EmbeddingTestRequest) -> EmbeddingTestResponse:
     "/documents/{document_id}/embed",
     response_model=EmbedDocumentResponse,
 )
-def embed_document_api(document_id: str) -> EmbedDocumentResponse:
-    result = get_embedding_service().embed_document(document_id)
+def embed_document_api(
+    document_id: str,
+    model_name: str | None = None,
+) -> EmbedDocumentResponse:
+    result = get_embedding_service().embed_document(
+        document_id=document_id,
+        model_name=model_name,
+    )
     return EmbedDocumentResponse(**result)
 
 
@@ -318,8 +324,14 @@ def get_document_embedding_status_api(
     "/documents/embed-all",
     response_model=EmbedAllDocumentsResponse,
 )
-def embed_all_documents_api() -> EmbedAllDocumentsResponse:
-    result: dict[str, Any] = get_embedding_service().embed_all_pending()
+def embed_all_documents_api(
+    force: bool = False,
+    model_name: str | None = None,
+) -> EmbedAllDocumentsResponse:
+    result: dict[str, Any] = get_embedding_service().embed_all_documents(
+        force=force,
+        model_name=model_name,
+    )
     return EmbedAllDocumentsResponse(**result)
 
 

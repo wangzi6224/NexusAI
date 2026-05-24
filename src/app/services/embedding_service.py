@@ -20,9 +20,14 @@ class EmbeddingService:
         self.provider = SentenceTransformerEmbeddingProvider()
         self.vector_store = PgVectorStore()
 
+    def _get_provider(
+        self,
+        model_name: str | None = None,
+    ) -> SentenceTransformerEmbeddingProvider:
+        return SentenceTransformerEmbeddingProvider(model_name=model_name)
+
     def test_embedding(self, text: str) -> dict[str, Any]:
         vector = self.provider.embed_text(text)
-        self._validate_dimension(vector)
 
         vector_norm = sum(value * value for value in vector) ** 0.5
 
@@ -34,7 +39,11 @@ class EmbeddingService:
             "vector_norm": round(vector_norm, 4),
         }
 
-    def embed_document(self, document_id: str) -> dict[str, Any]:
+    def embed_document(
+        self,
+        document_id: str,
+        model_name: str | None = None,
+    ) -> dict[str, Any]:
         chunks = self.vector_store.list_chunks_by_document(document_id)
 
         if not chunks:
@@ -45,16 +54,57 @@ class EmbeddingService:
                 status_code=404,
             )
 
-        return self._embed_chunks(
+        provider = self._get_provider(model_name=model_name)
+        result = self._embed_chunks(
             chunks=chunks,
             document_id=document_id,
+            provider=provider,
+            embedding_model=model_name or get_embedding_model(),
         )
+
+        return result
 
     def embed_all_pending(self) -> dict[str, Any]:
         limit = get_embedding_batch_size()
         chunks = self.vector_store.list_pending_chunks(limit=limit)
 
         result = self._embed_chunks(chunks=chunks)
+
+        return {
+            "total_chunks": result["total_chunks"],
+            "embedded_chunks": result["embedded_chunks"],
+            "failed_chunks": result["failed_chunks"],
+            "embedding_model": result["embedding_model"],
+            "status": result["status"],
+        }
+
+    def embed_all_documents(
+        self,
+        force: bool = False,
+        model_name: str | None = None,
+    ) -> dict[str, Any]:
+        limit = get_embedding_batch_size()
+        chunks = (
+            self.vector_store.list_all_chunks(limit=limit)
+            if force
+            else self.vector_store.list_pending_chunks(limit=limit)
+        )
+
+        if not chunks:
+            return {
+                "total_chunks": 0,
+                "embedded_chunks": 0,
+                "failed_chunks": 0,
+                "embedding_model": model_name or get_embedding_model(),
+                "status": "completed",
+            }
+
+        provider = self._get_provider(model_name=model_name)
+        result = self._embed_chunks(
+            chunks=chunks,
+            provider=provider,
+            embedding_model=model_name or get_embedding_model(),
+        )
 
         return {
             "total_chunks": result["total_chunks"],
@@ -84,7 +134,6 @@ class EmbeddingService:
 
     def search_debug(self, query: str, top_k: int = 5) -> dict[str, Any]:
         query_embedding = self.provider.embed_text(query)
-        self._validate_dimension(query_embedding)
 
         items = self.vector_store.search_similar_chunks(
             query_embedding=query_embedding,
@@ -109,6 +158,8 @@ class EmbeddingService:
         self,
         chunks: list[dict[str, Any]],
         document_id: str | None = None,
+        provider: SentenceTransformerEmbeddingProvider | None = None,
+        embedding_model: str | None = None,
     ) -> dict[str, Any]:
         total_chunks = len(chunks)
         embedded_chunks = 0
@@ -120,25 +171,25 @@ class EmbeddingService:
                 "total_chunks": 0,
                 "embedded_chunks": 0,
                 "failed_chunks": 0,
-                "embedding_model": get_embedding_model(),
+                "embedding_model": embedding_model or get_embedding_model(),
                 "status": "completed",
             }
 
+        provider = provider or self.provider
+        embedding_model = embedding_model or get_embedding_model()
         chunk_ids = [chunk["id"] for chunk in chunks]
         texts = [chunk["content"] for chunk in chunks]
 
         self.vector_store.mark_chunks_processing(chunk_ids)
 
         try:
-            embeddings = self.provider.embed_texts(texts)
+            embeddings = provider.embed_texts(texts)
 
             for chunk, embedding in zip(chunks, embeddings):
-                self._validate_dimension(embedding)
-
                 self.vector_store.update_chunk_embedding(
                     chunk_id=chunk["id"],
                     embedding=embedding,
-                    embedding_model=get_embedding_model(),
+                    embedding_model=embedding_model,
                 )
                 embedded_chunks += 1
 
@@ -160,19 +211,18 @@ class EmbeddingService:
             "total_chunks": total_chunks,
             "embedded_chunks": embedded_chunks,
             "failed_chunks": failed_chunks,
-            "embedding_model": get_embedding_model(),
+            "embedding_model": embedding_model,
             "status": status,
         }
 
-    def _validate_dimension(self, vector: list[float]) -> None:
-        expected_dimension = get_embedding_dimension()
+    def _validate_dimension(self, vector: list[float], expected: int) -> None:
         actual_dimension = len(vector)
 
-        if actual_dimension != expected_dimension:
+        if actual_dimension != expected:
             raise AppError(
                 code="EMBEDDING_DIMENSION_MISMATCH",
-                message="Embedding 维度和配置不一致",
-                detail=f"expected={expected_dimension}, actual={actual_dimension}",
+                message="Embedding 维度和模型实际维度不一致",
+                detail=f"expected={expected}, actual={actual_dimension}",
                 status_code=500,
             )
 

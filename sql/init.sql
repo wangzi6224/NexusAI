@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     char_count INTEGER NOT NULL,
     estimated_tokens INTEGER NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    embedding vector(384),
+    embedding vector(768),
     embedding_model TEXT,
     embedding_status TEXT NOT NULL DEFAULT 'pending',
     embedding_error TEXT,

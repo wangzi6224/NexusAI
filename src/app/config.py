@@ -65,7 +65,7 @@ class Settings(BaseSettings):
         alias="EMBEDDING_MODEL",
     )
     embedding_batch_size: int = Field(default=5000, alias="EMBEDDING_BATCH_SIZE")
-    embedding_dimension: int = Field(default=384, alias="EMBEDDING_DIMENSION")
+    embedding_dimension: int = Field(default=768, alias="EMBEDDING_DIMENSION")
 
 
 # 定义一个函数 get_settings，用于获取 Settings 实例，并使用 lru_cache 装饰器进行缓存，以提高性能

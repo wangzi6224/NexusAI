@@ -106,6 +106,22 @@ class PgVectorStore:
                 )
                 return [dict(row) for row in cur.fetchall()]
 
+    def list_all_chunks(self, limit: int = 100) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            self._register_vector(conn)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM document_chunks
+                    ORDER BY created_at ASC
+                    LIMIT %(limit)s
+                    """,
+                    {"limit": limit},
+                )
+                return [dict(row) for row in cur.fetchall()]
+
     def mark_chunks_processing(self, chunk_ids: list[str]) -> None:
         if not chunk_ids:
             return
