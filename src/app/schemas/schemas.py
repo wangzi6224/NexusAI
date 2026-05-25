@@ -253,9 +253,13 @@ class SearchDebugResponse(BaseModel):
 
 
 class RagSearchRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="用户检索问题")
+    query: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
-    score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    score_threshold: float = Field(default=0.3, ge=0, le=1)
+
+    candidate_k: int = Field(default=30, ge=1, le=100)
+    rerank_top_n: int = Field(default=5, ge=1, le=20)
+    rerank_enabled: bool = Field(default=True)
 
 
 class RagSearchChunkItem(BaseModel):
@@ -279,10 +283,15 @@ class RagSearchResponse(BaseModel):
 
 
 class RagAskRequest(BaseModel):
-    question: str = Field(..., min_length=1, description="用户问题")
+    question: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
-    score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
-    model: str | None = Field(default=None, description="可选，覆盖本次回答使用的模型")
+    score_threshold: float = Field(default=0.3, ge=0, le=1)
+
+    candidate_k: int = Field(default=30, ge=1, le=100)
+    rerank_top_n: int = Field(default=5, ge=1, le=20)
+    rerank_enabled: bool = Field(default=True)
+
+    model: str | None = None
 
 
 class RagSourceItem(BaseModel):

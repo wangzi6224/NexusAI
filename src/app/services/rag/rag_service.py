@@ -2,6 +2,7 @@ from time import perf_counter
 from typing import Any
 
 from src.app.config import get_ollama_model
+from src.app.services.llm.base import LLMResponse
 from src.app.services.llm.ollama_provider import OllamaProvider
 from src.app.services.rag.prompt_builder import RagPromptBuilder
 from src.app.services.rag.retriever import RagRetriever
@@ -20,11 +21,17 @@ class RagService:
         query: str,
         top_k: int = 5,
         score_threshold: float = 0.3,
+        candidate_k: int | None = None,
+        rerank_top_n: int | None = None,
+        rerank_enabled: bool | None = None,
     ) -> dict[str, Any]:
         return self.retriever.search(
             query=query,
             top_k=top_k,
             score_threshold=score_threshold,
+            candidate_k=candidate_k,
+            rerank_top_n=rerank_top_n,
+            rerank_enabled=rerank_enabled,
         )
 
     def ask(
@@ -33,11 +40,17 @@ class RagService:
         top_k: int = 5,
         score_threshold: float = 0.3,
         model: str | None = None,
+        candidate_k: int | None = None,
+        rerank_top_n: int | None = None,
+        rerank_enabled: bool | None = None,
     ) -> dict[str, Any]:
         search_result = self.search(
             query=question,
             top_k=top_k,
             score_threshold=score_threshold,
+            candidate_k=candidate_k,
+            rerank_top_n=rerank_top_n,
+            rerank_enabled=rerank_enabled,
         )
 
         chunks = search_result["chunks"]
@@ -65,7 +78,7 @@ class RagService:
         )
 
         start = perf_counter()
-        response = self.llm_provider.chat(
+        response: LLMResponse = self.llm_provider.chat(
             messages=messages,
             model=selected_model,
         )
@@ -74,17 +87,7 @@ class RagService:
         return {
             "question": question,
             "answer": response.content,
-            "sources": [
-                {
-                    "chunk_id": chunk["chunk_id"],
-                    "document_id": chunk["document_id"],
-                    "filename": chunk["filename"],
-                    "heading": chunk.get("heading"),
-                    "chunk_index": chunk["chunk_index"],
-                    "score": chunk["score"],
-                }
-                for chunk in chunks
-            ],
+            "sources": self._build_sources(chunks),
             "trace": {
                 "top_k": top_k,
                 "score_threshold": score_threshold,
@@ -95,3 +98,20 @@ class RagService:
                 "latency_ms": latency_ms,
             },
         }
+
+    def _build_sources(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "chunk_id": chunk["chunk_id"],
+                "document_id": chunk["document_id"],
+                "filename": chunk["filename"],
+                "heading": chunk.get("heading"),
+                "chunk_index": chunk["chunk_index"],
+                "vector_score": chunk.get("vector_score"),
+                "vector_distance": chunk.get("vector_distance"),
+                "retrieval_rank": chunk.get("retrieval_rank"),
+                "rerank_score": chunk.get("rerank_score"),
+                "rerank_rank": chunk.get("rerank_rank"),
+            }
+            for chunk in chunks
+        ]

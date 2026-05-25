@@ -353,7 +353,11 @@ def rag_search_api(request: RagSearchRequest) -> RagSearchResponse:
         query=request.query,
         top_k=request.top_k,
         score_threshold=request.score_threshold,
+        candidate_k=request.candidate_k,
+        rerank_top_n=request.rerank_top_n,
+        rerank_enabled=request.rerank_enabled,
     )
+
     return RagSearchResponse(**result)
 
 
@@ -364,6 +368,9 @@ def rag_ask_api(request: RagAskRequest) -> RagAskResponse:
         top_k=request.top_k,
         score_threshold=request.score_threshold,
         model=request.model,
+        candidate_k=request.candidate_k,
+        rerank_top_n=request.rerank_top_n,
+        rerank_enabled=request.rerank_enabled,
     )
     return RagAskResponse(**result)
 

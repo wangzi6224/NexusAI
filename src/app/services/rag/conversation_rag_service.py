@@ -31,6 +31,9 @@ class ConversationRagService:
         top_k: int = 5,
         score_threshold: float = 0.3,
         model: str | None = None,
+        candidate_k: int | None = None,
+        rerank_top_n: int | None = None,
+        rerank_enabled: bool | None = None,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
 
@@ -77,7 +80,13 @@ class ConversationRagService:
             query=rewritten_query,
             top_k=top_k,
             score_threshold=score_threshold,
+            candidate_k=candidate_k,
+            rerank_top_n=rerank_top_n,
+            rerank_enabled=rerank_enabled,
         )
+
+        search_trace = search_result["trace"]
+
         retrieval_latency_ms = int((perf_counter() - retrieval_start) * 1000)
 
         chunks = search_result["chunks"]
@@ -147,16 +156,43 @@ class ConversationRagService:
         ]
 
         trace = {
+            # 原始用户问题
             "original_query": clean_question,
+            # 重写后用于检索的 query
             "rewritten_query": rewritten_query,
+            # 是否进行了重写
             "rewrite_changed": rewrite_result["rewrite_changed"],
+            # 本次对话上下文消息数量
             "context_message_count": len(recent_messages),
+            # 最终检索到并用于生成回答的 chunk 数量
             "retrieved_count": len(chunks),
+            # 传入的 top_k 参数，表示希望返回的 top 结果数
             "top_k": top_k,
+            # 传入的 candidate_k 参数，表示向量检索召回的候选数量
+            "candidate_k": candidate_k,
+            # 传入的 rerank_top_n 参数，表示 rerank 后保留的结果数量
+            "rerank_top_n": rerank_top_n,
+            # 传入的相似度阈值
             "score_threshold": score_threshold,
+            # 向量检索返回的候选总数
+            "candidate_count": search_trace["candidate_count"],
+            # 重写耗时
             "rewrite_latency_ms": rewrite_result["latency_ms"],
-            "retrieval_latency_ms": retrieval_latency_ms,
+            # 嵌入计算耗时
+            "embedding_latency_ms": search_trace["embedding_latency_ms"],
+            # 向量检索耗时
+            "retrieval_latency_ms": search_trace["retrieval_latency_ms"],
+            # rerank 耗时
+            "rerank_latency_ms": search_trace["rerank_latency_ms"],
+            # 生成回答耗时
             "generation_latency_ms": generation_latency_ms,
+            # rerank 是否启用
+            "rerank_enabled": search_trace["rerank_enabled"],
+            # rerank 使用的模型
+            "rerank_model": search_trace["rerank_model"],
+            # rerank 失败时的降级原因
+            "rerank_fallback_reason": search_trace["rerank_fallback_reason"],
+            # query 重写失败或没命中时的降级原因
             "fallback_reason": rewrite_result.get("fallback_reason"),
         }
 
