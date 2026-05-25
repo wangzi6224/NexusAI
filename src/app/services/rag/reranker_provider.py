@@ -4,7 +4,7 @@ from typing import Sequence
 
 from FlagEmbedding import FlagReranker
 
-from src.app.config import get_settings
+from src.app.config import Settings, get_settings
 
 
 class BgeRerankerProvider:
@@ -29,11 +29,17 @@ class BgeRerankerProvider:
         model_name: str | None = None,
         use_fp16: bool | None = None,
     ) -> None:
-        settings = get_settings()
+        settings: Settings = get_settings()
 
-        self.model_name = model_name or settings.reranker_model
-        self.use_fp16 = use_fp16 if use_fp16 is not None else settings.reranker_use_fp16
+        # 初始化模型配置
+        self.model_name: str = model_name or settings.reranker_model
 
+        # 是否使用 fp16 取决于入参（优先）和全局配置（次优先）。
+        self.use_fp16: bool = (
+            use_fp16 if use_fp16 is not None else settings.reranker_use_fp16
+        )
+
+        # 模型实例，初始为 None，使用时才加载。
         self._model: FlagReranker | None = None
 
     def _get_model(self) -> FlagReranker:
