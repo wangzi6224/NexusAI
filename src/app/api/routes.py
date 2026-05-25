@@ -398,7 +398,7 @@ def conversation_rag_ask_api(
 
 @router.get("/rag/search-debug", response_model=RagSearchDebugResponse)
 def rag_search_debug_api(
-    message: str = Query(..., min_length=1, description="要比较的查询内容"),
+    query: str = Query(..., min_length=1, description="要比较的查询内容"),
 ) -> RagSearchDebugResponse:
-    result = RagDebugService().compare_search(message=message)
+    result = RagDebugService().compare_search(query=query)
     return RagSearchDebugResponse(**result)

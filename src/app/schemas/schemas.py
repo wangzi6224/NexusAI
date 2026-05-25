@@ -374,3 +374,4 @@ class RagSearchDebugResponse(BaseModel):
     without_rerank: RagSearchResponse
     with_rerank: RagSearchWithRerankResponse
     compare: list[dict[str, Any]]
+    latency_ms: int
