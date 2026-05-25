@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import FileResponse, StreamingResponse
 
 from src.app.paths import STATIC_DIR
@@ -43,6 +43,8 @@ from src.app.schemas.schemas import (
     RagAskResponse,
     ConversationRagAskRequest,
     ConversationRagAskResponse,
+    RagSearchDebugRequest,
+    RagSearchDebugResponse,
 )
 from src.app.services.rag.rag_service import RagService
 from src.app.services.model_service import get_models, select_model
@@ -62,6 +64,7 @@ from src.app.services.conversation_service import (
 from src.app.services.document_service import DocumentService
 from src.app.services.embedding_service import get_embedding_service
 from src.app.services.rag.conversation_rag_service import ConversationRagService
+from src.app.services.rag.rag_debug_service import RagDebugService
 
 router = APIRouter()
 
@@ -391,3 +394,11 @@ def conversation_rag_ask_api(
         model=request.model,
     )
     return ConversationRagAskResponse(**result)
+
+
+@router.get("/rag/search-debug", response_model=RagSearchDebugResponse)
+def rag_search_debug_api(
+    message: str = Query(..., min_length=1, description="要比较的查询内容"),
+) -> RagSearchDebugResponse:
+    result = RagDebugService().compare_search(message=message)
+    return RagSearchDebugResponse(**result)

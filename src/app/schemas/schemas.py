@@ -282,6 +282,21 @@ class RagSearchResponse(BaseModel):
     chunks: list[RagSearchChunkItem]
 
 
+class RagSearchWithRerankChunkItem(RagSearchChunkItem):
+    retrieval_rank: int | None = None
+    rerank_rank: int | None = None
+    vector_score: float | None = None
+    rerank_score: float | None = None
+
+
+class RagSearchWithRerankResponse(BaseModel):
+    query: str
+    embedding_model: str
+    top_k: int
+    score_threshold: float
+    chunks: list[RagSearchWithRerankChunkItem]
+
+
 class RagAskRequest(BaseModel):
     question: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
@@ -348,3 +363,14 @@ class ConversationRagAskResponse(BaseModel):
     answer: str
     sources: list[RagSourceItem]
     trace: ConversationRagTrace
+
+
+class RagSearchDebugRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="用于调试的查询消息")
+
+
+class RagSearchDebugResponse(BaseModel):
+    query: str
+    without_rerank: RagSearchResponse
+    with_rerank: RagSearchWithRerankResponse
+    compare: list[dict[str, Any]]
