@@ -1,0 +1,30 @@
+[
+  {
+    "id": "q001",
+    "query": "Reranker 是在向量检索之前还是之后？",
+    "expected_keywords": [
+      "向量召回之后",
+      "精排",
+      "候选 chunk"
+    ]
+  },
+  {
+    "id": "q002",
+    "query": "candidate_k 和 rerank_top_n 有什么区别？",
+    "expected_keywords": [
+      "召回数量",
+      "精排后保留",
+      "Prompt"
+    ]
+  },
+  {
+    "id": "q003",
+    "query": "为什么 RAG 需要 trace？",
+    "expected_keywords": [
+      "定位问题",
+      "latency",
+      "sources",
+      "debug"
+    ]
+  }
+]
