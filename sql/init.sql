@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     filename TEXT NOT NULL,
@@ -26,6 +27,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     embedding_status TEXT NOT NULL DEFAULT 'pending',
     embedding_error TEXT,
     embedding_updated_at TIMESTAMPTZ,
+    search_vector tsvector setweight(
+        to_tsvector('simple', coalesce(heading, '')),
+        'A'
+    ) || setweight(to_tsvector('simple', content), 'B'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (document_id, chunk_index)
@@ -67,3 +72,5 @@ CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw ON document_chunks
 CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_created_at ON messages (conversation_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_chat_history_created_at ON chat_history (created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_search_vector ON document_chunks USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_content_trgm ON document_chunks USING GIN (content gin_trgm_ops);
