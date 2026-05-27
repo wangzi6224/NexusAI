@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 
 from src.app.api.exception_handlers import register_exception_handlers
 from src.app.api.routes import router
-from src.app.api import agent
 from src.app.paths import STATIC_DIR
 
 app = FastAPI(title="My Python AI App")
@@ -26,6 +25,5 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(router)
-app.include_router(agent.router)
 
 register_exception_handlers(app)

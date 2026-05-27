@@ -1,13 +1,20 @@
-from sentence_transformers import SentenceTransformer
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from src.app.config import get_embedding_model
 from src.app.services.embedding.base import EmbeddingProvider
 
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
+
 
 class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
     def __init__(self, model_name: str | None = None) -> None:
+        from sentence_transformers import SentenceTransformer
+
         self.model_name = model_name or get_embedding_model()
-        self.model = SentenceTransformer(self.model_name)
+        self.model: SentenceTransformer = SentenceTransformer(self.model_name)
 
     def embed_text(self, text: str) -> list[float]:
         embeddings: list[list[float]] = self.embed_texts([text])

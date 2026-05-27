@@ -1,2 +1,35 @@
 """API route modules grouped by product area."""
 
+from src.app.api.routers import (
+    agent,
+    base,
+    chat,
+    conversations,
+    documents,
+    embeddings,
+    history_models,
+    rag,
+)
+
+ROUTERS = (
+    base.router,
+    chat.router,
+    history_models.router,
+    conversations.router,
+    documents.router,
+    embeddings.router,
+    rag.router,
+    agent.router,
+)
+
+__all__ = [
+    "ROUTERS",
+    "agent",
+    "base",
+    "chat",
+    "conversations",
+    "documents",
+    "embeddings",
+    "history_models",
+    "rag",
+]

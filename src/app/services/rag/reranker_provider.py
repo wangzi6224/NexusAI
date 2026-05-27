@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Sequence
-
-from FlagEmbedding import FlagReranker
+from typing import TYPE_CHECKING, Sequence
 
 from src.app.config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from FlagEmbedding import FlagReranker
 
 
 class BgeRerankerProvider:
@@ -54,6 +55,8 @@ class BgeRerankerProvider:
         """
 
         if self._model is None:
+            from FlagEmbedding import FlagReranker
+
             self._model = FlagReranker(
                 self.model_name,
                 use_fp16=self.use_fp16,
