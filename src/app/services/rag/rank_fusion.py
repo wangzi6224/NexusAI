@@ -6,8 +6,21 @@ def reciprocal_rank_fusion(
     top_k: int = 20,
     k: int = 60,
 ) -> list[dict[str, Any]]:
+    """
+    Reciprocal Rank Fusion (RRF) 算法，用于融合来自多个检索源的排序结果。
+
+    Args:
+        ranked_lists (list[list[dict[str, Any]]]): 每个检索源返回的候选结果列表，按该源得分从高到低排序。
+            列表内元素是字典，通常包含 chunk_id、score、distance、keyword_score 等字段。
+        top_k (int, optional): 最终返回的融合结果数量上限。Defaults to 20.
+        k (int, optional): RRF 公式中的平滑常数，默认值为 60。
+
+    Returns:
+        list[dict[str, Any]]: 融合后的候选结果列表，按 RRF 分数降序排序，包含 fusion_rank 与 rrf_score 等额外字段。
+    """
     merged: dict[str, dict[str, Any]] = {}
 
+    # 遍历每个检索源的排序结果，计算每个 chunk 的 RRF 分数并合并元信息
     for source_index, chunks in enumerate(ranked_lists):
         source_name: Literal["vector"] | Literal["keyword"] = (
             "vector" if source_index == 0 else "keyword"
