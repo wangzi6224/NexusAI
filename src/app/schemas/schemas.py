@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Any
 
+from src.app.services.rag.retrieval_mode import (
+    RETRIEVAL_MODE_VECTOR_RERANK,
+    RetrievalMode,
+)
+
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户输入的问题")
@@ -257,9 +262,19 @@ class RagSearchRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.3, ge=0, le=1)
 
+    retrieval_mode: RetrievalMode = Field(
+        default=RETRIEVAL_MODE_VECTOR_RERANK,
+        description="vector_rerank / hybrid",
+    )
+
     candidate_k: int = Field(default=30, ge=1, le=100)
     rerank_top_n: int = Field(default=5, ge=1, le=20)
     rerank_enabled: bool = Field(default=True)
+
+    vector_top_k: int = Field(default=30, ge=1, le=100)
+    keyword_top_k: int = Field(default=30, ge=1, le=100)
+    fusion_top_k: int = Field(default=20, ge=1, le=100)
+    enable_mmr: bool = Field(default=True)
 
 
 class RagSearchChunkItem(BaseModel):
@@ -340,11 +355,23 @@ class ConversationRagAskRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
     model: str | None = Field(default=None)
+    candidate_k: int = Field(default=30, ge=1, le=100)
+    rerank_top_n: int = Field(default=5, ge=1, le=20)
+    rerank_enabled: bool = Field(default=True)
+    retrieval_mode: RetrievalMode = Field(
+        default=RETRIEVAL_MODE_VECTOR_RERANK,
+        description="vector_rerank / hybrid",
+    )
+    vector_top_k: int = Field(default=30, ge=1, le=100)
+    keyword_top_k: int = Field(default=30, ge=1, le=100)
+    fusion_top_k: int = Field(default=20, ge=1, le=100)
+    enable_mmr: bool = Field(default=True)
 
 
 class ConversationRagTrace(BaseModel):
     original_query: str
     rewritten_query: str
+    retrieval_mode: RetrievalMode = RETRIEVAL_MODE_VECTOR_RERANK
     rewrite_changed: bool
     context_message_count: int
     retrieved_count: int

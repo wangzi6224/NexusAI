@@ -10,8 +10,14 @@ from src.app.conversation_store import (
 )
 from src.app.exceptions import ConversationError
 from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.rag.hybrid_retriever import HybridRetriever
 from src.app.services.rag.prompt_builder import RagPromptBuilder
 from src.app.services.rag.query_rewriter import QueryRewriter
+from src.app.services.rag.retrieval_mode import (
+    RETRIEVAL_MODE_HYBRID,
+    RETRIEVAL_MODE_VECTOR_RERANK,
+    RetrievalMode,
+)
 from src.app.services.rag.retriever import RagRetriever
 
 NO_ANSWER = "根据当前知识库资料，无法确定。"
@@ -21,6 +27,7 @@ class ConversationRagService:
     def __init__(self) -> None:
         self.query_rewriter = QueryRewriter()
         self.retriever = RagRetriever()
+        self.hybrid_retriever = HybridRetriever()
         self.prompt_builder = RagPromptBuilder()
         self.llm_provider = OllamaProvider()
 
@@ -34,6 +41,11 @@ class ConversationRagService:
         candidate_k: int | None = None,
         rerank_top_n: int | None = None,
         rerank_enabled: bool | None = None,
+        retrieval_mode: RetrievalMode = RETRIEVAL_MODE_VECTOR_RERANK,
+        vector_top_k: int = 30,
+        keyword_top_k: int = 30,
+        fusion_top_k: int = 20,
+        enable_mmr: bool = True,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
 
@@ -76,14 +88,26 @@ class ConversationRagService:
         rewritten_query = rewrite_result["rewritten_query"]
 
         retrieval_start = perf_counter()
-        search_result = self.retriever.search(
-            query=rewritten_query,
-            top_k=top_k,
-            score_threshold=score_threshold,
-            candidate_k=candidate_k,
-            rerank_top_n=rerank_top_n,
-            rerank_enabled=rerank_enabled,
-        )
+        if retrieval_mode == RETRIEVAL_MODE_HYBRID:
+            search_result = self.hybrid_retriever.search(
+                query=rewritten_query,
+                vector_top_k=vector_top_k,
+                keyword_top_k=keyword_top_k,
+                fusion_top_k=fusion_top_k,
+                final_top_k=top_k,
+                score_threshold=score_threshold,
+                enable_mmr=enable_mmr,
+                enable_rerank=rerank_enabled if rerank_enabled is not None else True,
+            )
+        else:
+            search_result = self.retriever.search(
+                query=rewritten_query,
+                top_k=top_k,
+                score_threshold=score_threshold,
+                candidate_k=candidate_k,
+                rerank_top_n=rerank_top_n,
+                rerank_enabled=rerank_enabled,
+            )
 
         search_trace = search_result["trace"]
 
@@ -95,6 +119,7 @@ class ConversationRagService:
             trace = {
                 "original_query": clean_question,
                 "rewritten_query": rewritten_query,
+                "retrieval_mode": retrieval_mode,
                 "rewrite_changed": rewrite_result["rewrite_changed"],
                 "context_message_count": len(recent_messages),
                 "retrieved_count": 0,
@@ -150,7 +175,12 @@ class ConversationRagService:
                 "filename": chunk["filename"],
                 "heading": chunk.get("heading"),
                 "chunk_index": chunk["chunk_index"],
-                "score": chunk["score"],
+                "score": float(
+                    chunk.get("score")
+                    or chunk.get("rerank_score")
+                    or chunk.get("vector_score")
+                    or 0.0
+                ),
             }
             for chunk in chunks
         ]
@@ -160,6 +190,8 @@ class ConversationRagService:
             "original_query": clean_question,
             # 重写后用于检索的 query
             "rewritten_query": rewritten_query,
+            # 检索模式：vector_rerank 或 hybrid
+            "retrieval_mode": retrieval_mode,
             # 是否进行了重写
             "rewrite_changed": rewrite_result["rewrite_changed"],
             # 本次对话上下文消息数量
@@ -170,28 +202,47 @@ class ConversationRagService:
             "top_k": top_k,
             # 传入的 candidate_k 参数，表示向量检索召回的候选数量
             "candidate_k": candidate_k,
+            # 混合检索参数：向量召回数量
+            "vector_top_k": vector_top_k,
+            # 混合检索参数：关键词召回数量
+            "keyword_top_k": keyword_top_k,
+            # 混合检索参数：融合候选数量
+            "fusion_top_k": fusion_top_k,
+            # 混合检索参数：是否启用 MMR
+            "enable_mmr": enable_mmr,
             # 传入的 rerank_top_n 参数，表示 rerank 后保留的结果数量
             "rerank_top_n": rerank_top_n,
             # 传入的相似度阈值
             "score_threshold": score_threshold,
-            # 向量检索返回的候选总数
-            "candidate_count": search_trace["candidate_count"],
+            # 候选总数（不同检索模式字段不同）
+            "candidate_count": search_trace.get(
+                "candidate_count",
+                search_trace.get("fusion_count", 0),
+            ),
             # 重写耗时
             "rewrite_latency_ms": rewrite_result["latency_ms"],
             # 嵌入计算耗时
-            "embedding_latency_ms": search_trace["embedding_latency_ms"],
-            # 向量检索耗时
-            "retrieval_latency_ms": search_trace["retrieval_latency_ms"],
+            "embedding_latency_ms": search_trace.get("embedding_latency_ms", 0),
+            # 检索耗时（不同检索模式字段不同）
+            "retrieval_latency_ms": search_trace.get(
+                "retrieval_latency_ms",
+                search_trace.get("total_retrieval_latency_ms", retrieval_latency_ms),
+            ),
+            # 混合检索细分耗时
+            "vector_latency_ms": search_trace.get("vector_latency_ms", 0),
+            "keyword_latency_ms": search_trace.get("keyword_latency_ms", 0),
+            "fusion_latency_ms": search_trace.get("fusion_latency_ms", 0),
+            "mmr_latency_ms": search_trace.get("mmr_latency_ms", 0),
             # rerank 耗时
-            "rerank_latency_ms": search_trace["rerank_latency_ms"],
+            "rerank_latency_ms": search_trace.get("rerank_latency_ms", 0),
             # 生成回答耗时
             "generation_latency_ms": generation_latency_ms,
             # rerank 是否启用
-            "rerank_enabled": search_trace["rerank_enabled"],
+            "rerank_enabled": search_trace.get("rerank_enabled", False),
             # rerank 使用的模型
-            "rerank_model": search_trace["rerank_model"],
+            "rerank_model": search_trace.get("rerank_model"),
             # rerank 失败时的降级原因
-            "rerank_fallback_reason": search_trace["rerank_fallback_reason"],
+            "rerank_fallback_reason": search_trace.get("rerank_fallback_reason"),
             # query 重写失败或没命中时的降级原因
             "fallback_reason": rewrite_result.get("fallback_reason"),
         }

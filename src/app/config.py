@@ -79,6 +79,18 @@ class Settings(BaseSettings):
         default=1200, alias="RAG_MAX_RERANK_CONTENT_CHARS"
     )
 
+    rag_default_retrieval_mode: str = Field(
+        default="vector_rerank",
+        alias="RAG_DEFAULT_RETRIEVAL_MODE",
+    )
+
+    rag_vector_top_k: int = Field(default=30, alias="RAG_VECTOR_TOP_K")
+    rag_keyword_top_k: int = Field(default=30, alias="RAG_KEYWORD_TOP_K")
+    rag_fusion_top_k: int = Field(default=20, alias="RAG_FUSION_TOP_K")
+    rag_rrf_k: int = Field(default=60, alias="RAG_RRF_K")
+    rag_mmr_enabled: bool = Field(default=True, alias="RAG_MMR_ENABLED")
+    rag_mmr_lambda: float = Field(default=0.7, alias="RAG_MMR_LAMBDA")
+
 
 # 定义一个函数 get_settings，用于获取 Settings 实例，并使用 lru_cache 装饰器进行缓存，以提高性能
 @lru_cache
@@ -144,3 +156,31 @@ def get_rag_rerank_top_n() -> int:
 
 def get_rag_max_rerank_content_chars() -> int:
     return get_settings().rag_max_rerank_content_chars
+
+
+def get_rag_default_retrieval_mode() -> str:
+    return get_settings().rag_default_retrieval_mode
+
+
+def get_rag_vector_top_k() -> int:
+    return get_settings().rag_vector_top_k
+
+
+def get_rag_keyword_top_k() -> int:
+    return get_settings().rag_keyword_top_k
+
+
+def get_rag_fusion_top_k() -> int:
+    return get_settings().rag_fusion_top_k
+
+
+def get_rag_rrf_k() -> int:
+    return get_settings().rag_rrf_k
+
+
+def is_rag_mmr_enabled() -> bool:
+    return get_settings().rag_mmr_enabled
+
+
+def get_rag_mmr_lambda() -> float:
+    return get_settings().rag_mmr_lambda

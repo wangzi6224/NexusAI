@@ -4,7 +4,13 @@ from typing import Any
 from src.app.config import get_ollama_model
 from src.app.services.llm.base import LLMResponse
 from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.rag.hybrid_retriever import HybridRetriever
 from src.app.services.rag.prompt_builder import RagPromptBuilder
+from src.app.services.rag.retrieval_mode import (
+    RETRIEVAL_MODE_HYBRID,
+    RETRIEVAL_MODE_VECTOR_RERANK,
+    RetrievalMode,
+)
 from src.app.services.rag.retriever import RagRetriever
 
 NO_ANSWER = "根据当前知识库资料，无法确定。"
@@ -13,6 +19,7 @@ NO_ANSWER = "根据当前知识库资料，无法确定。"
 class RagService:
     def __init__(self) -> None:
         self.retriever = RagRetriever()
+        self.hybrid_retriever = HybridRetriever()
         self.prompt_builder = RagPromptBuilder()
         self.llm_provider = OllamaProvider()
 
@@ -21,10 +28,27 @@ class RagService:
         query: str,
         top_k: int = 5,
         score_threshold: float = 0.3,
+        retrieval_mode: RetrievalMode = RETRIEVAL_MODE_VECTOR_RERANK,
+        vector_top_k: int = 30,
+        keyword_top_k: int = 30,
+        fusion_top_k: int = 20,
+        enable_mmr: bool = True,
         candidate_k: int | None = None,
         rerank_top_n: int | None = None,
         rerank_enabled: bool | None = None,
     ) -> dict[str, Any]:
+        if retrieval_mode == RETRIEVAL_MODE_HYBRID:
+            return self.hybrid_retriever.search(
+                query=query,
+                vector_top_k=vector_top_k,
+                keyword_top_k=keyword_top_k,
+                fusion_top_k=fusion_top_k,
+                final_top_k=top_k,
+                score_threshold=score_threshold,
+                enable_mmr=enable_mmr,
+                enable_rerank=rerank_enabled if rerank_enabled is not None else True,
+            )
+
         return self.retriever.search(
             query=query,
             top_k=top_k,
