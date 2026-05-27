@@ -7,8 +7,14 @@
 - `src/app/`
   - `main.py`: 启动脚本，负责启动前端 dev server 和后端 `uvicorn` 服务。
   - `server.py`: FastAPI 应用入口，配置 CORS、静态文件和路由。
-  - `api/routes.py`: REST API 路由定义，包括聊天、会话、文档上传、Embedding、RAG 等接口。
+  - `api/routes.py`: REST API 总路由入口，只负责聚合各业务路由模块。
+  - `api/routers/`: 按业务域拆分的 API 路由，包括基础状态、聊天、会话、文档、Embedding 和 RAG。
   - `services/`: 核心业务层，包含聊天服务、会话管理、文档处理、文本切分、向量存储、Embedding 和 RAG 相关逻辑。
+  - `services/rag/`: RAG 子域逻辑，包括检索、混合检索、rerank、query rewrite 和调试接口支撑。
+  - `services/agent/`: Agent 对话流程、规划器、状态和 prompt 构建逻辑。
+  - `services/llm/`: LLM provider 抽象和 Ollama 调用实现。
+  - `services/embedding/`: Embedding provider 抽象和 sentence-transformers 实现。
+  - `services/tools/`: Agent 可调用工具集合。
   - `config.py`: 环境配置管理，使用 `pydantic-settings` 读取 `.env` 环境变量。
   - `paths.py`: 项目路径定义，包括静态目录、数据目录和前端目录。
   - `static/`: 后端静态资源目录。
@@ -145,7 +151,21 @@ EMBEDDING_DIMENSION=384
 │   ├── main.py
 │   ├── server.py
 │   ├── api/
+│   │   ├── routes.py
+│   │   └── routers/
+│   │       ├── base.py
+│   │       ├── chat.py
+│   │       ├── history_models.py
+│   │       ├── conversations.py
+│   │       ├── documents.py
+│   │       ├── embeddings.py
+│   │       └── rag.py
 │   ├── services/
+│   │   ├── agent/
+│   │   ├── embedding/
+│   │   ├── llm/
+│   │   ├── rag/
+│   │   └── tools/
 │   ├── static/
 │   ├── data/
 │   └── config.py
