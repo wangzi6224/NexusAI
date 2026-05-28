@@ -15,11 +15,10 @@ def get_agent_service() -> AgentService:
 
 @router.post("/chat", response_model=AgentChatResponse)
 def agent_chat(
-    conversation_id: str,
     request: AgentChatRequest,
 ) -> AgentChatResponse:
     result = get_agent_service().chat(
-        conversation_id=conversation_id,
+        conversation_id=request.conversation_id,
         question=request.question,
         top_k=request.top_k,
         score_threshold=request.score_threshold,
