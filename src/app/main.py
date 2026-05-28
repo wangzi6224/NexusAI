@@ -42,7 +42,7 @@ def _is_our_backend_process(cmdline: str) -> bool:
         "src.app.main" in cmdline
         or "src.app.server:app" in cmdline
         or "uvicorn" in cmdline
-        and "my_python_project" in cmdline
+        and "NexusAI" in cmdline
     )
 
 

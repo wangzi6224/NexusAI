@@ -5,7 +5,7 @@ from src.app.paths import LOG_DIR
 
 
 def get_logger() -> logging.Logger:
-    logger = logging.getLogger("my_python_project")
+    logger = logging.getLogger("NexusAI")
 
     if logger.handlers:
         return logger

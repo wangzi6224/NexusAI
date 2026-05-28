@@ -43,6 +43,9 @@ web/.env.production.local
 # Frontend misc
 web/.DS_Store
 
+# Ignore Postman local configuration
+postman/
+
 # Keep the docs page route directory despite docs/ ignore rule
 !web/src/pages/Docs/
 !web/src/pages/Docs/**

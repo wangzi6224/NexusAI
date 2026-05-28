@@ -1,4 +1,4 @@
-# my_python_project
+# NexusAI
 
 基于 FastAPI 构建的本地 AI 后端服务，集成 Ollama 大模型调用、混合检索 RAG 问答、向量化文档管理、多轮会话管理、Agent 工具调用，并配套 Umi Max + Ant Design X 前端。
 
@@ -25,7 +25,7 @@
 ## 项目结构
 
 ```
-my_python_project/
+NexusAI/
 ├── src/app/
 │   ├── main.py                  # 一键启动入口：同时启动前端 dev 服务与后端 uvicorn
 │   ├── server.py                # FastAPI 应用实例，配置 CORS、静态挂载、路由注册
