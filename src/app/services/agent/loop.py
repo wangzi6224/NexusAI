@@ -1,4 +1,5 @@
 from time import perf_counter
+from src.app.services.tools.safety import limit_tool_result
 
 from src.app.agent_trace_store import create_agent_event, create_agent_step
 from src.app.services.agent.state import AgentState, AgentStep
@@ -70,6 +71,7 @@ class AgentLoop:
             try:
                 tool = self.tool_registry.get(tool_name)
                 result = tool.run(arguments)
+                result = limit_tool_result(result)
                 latency_ms = int((perf_counter() - start) * 1000)
                 success = bool(result.get("success"))
 
