@@ -1,6 +1,6 @@
 from time import perf_counter
 from src.app.services.tools.safety import limit_tool_result
-
+from src.app.config import get_agent_tool_timeout_seconds
 from src.app.agent_trace_store import create_agent_event, create_agent_step
 from src.app.services.agent.state import AgentState, AgentStep
 from src.app.services.agent.planner import RuleBasedPlanner
@@ -77,7 +77,26 @@ class AgentLoop:
                 result = tool.run(arguments)
                 result = limit_tool_result(result)
                 latency_ms = int((perf_counter() - start) * 1000)
+
+                max_latency_ms = get_agent_tool_timeout_seconds() * 1000
+
                 success = bool(result.get("success"))
+
+                # 暂时没啥大用，后续异步时再更改
+                if latency_ms > max_latency_ms:
+                    success = False
+                    result = {
+                        "success": False,
+                        "data": None,
+                        "error": {
+                            "code": "TOOL_TIMEOUT_ERROR",
+                            "message": f"Tool execution exceeded {max_latency_ms} ms",
+                        },
+                        "metadata": {
+                            "tool_name": tool_name,
+                            "latency_ms": latency_ms,
+                        },
+                    }
 
                 # 构造 tool_call 步骤并保存结果
                 step = AgentStep(
