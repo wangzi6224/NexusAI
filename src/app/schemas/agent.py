@@ -12,8 +12,15 @@ class AgentChatRequest(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
+    run_id: str
     conversation_id: str
     question: str
     answer: str
     tool_calls: list[dict[str, Any]]
     trace: dict[str, Any]
+
+
+class AgentRunDetailResponse(BaseModel):
+    run: dict[str, Any]
+    steps: list[dict[str, Any]]
+    events: list[dict[str, Any]]
