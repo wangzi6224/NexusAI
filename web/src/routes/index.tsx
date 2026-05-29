@@ -21,6 +21,16 @@ const routes: RoutesTypes = [
     component: './Docs',
     layout: false,
   },
+  {
+    path: '/traces',
+    component: './AgentTrace',
+    layout: false,
+  },
+  {
+    path: '/traces/:runId',
+    component: './AgentTrace/Detail',
+    layout: false,
+  },
 ];
 
 export default routes;

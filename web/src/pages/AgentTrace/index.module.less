@@ -1,0 +1,228 @@
+.page {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(43, 138, 255, 0.14), transparent 34%),
+    radial-gradient(circle at bottom left, rgba(22, 163, 74, 0.12), transparent 40%),
+    linear-gradient(180deg, #f7fafc 0%, #eef4f7 100%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 !important;
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 6px 0 0 !important;
+  color: #64748b;
+}
+
+.card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+
+.toolbar {
+  width: 100%;
+}
+
+.conversationSelect {
+  min-width: 360px;
+}
+
+.alert {
+  margin-bottom: 12px;
+}
+
+.questionText {
+  display: block;
+  max-width: 520px;
+}
+
+.loadingBox {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+}
+
+.longText {
+  max-height: 220px;
+  margin-bottom: 0 !important;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.traceChain {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 6px 2px 12px;
+}
+
+.chainNode {
+  display: flex;
+  min-width: 190px;
+  max-width: 260px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+
+  &:hover {
+    border-color: #1677ff;
+    box-shadow: 0 10px 24px rgba(22, 119, 255, 0.14);
+    transform: translateY(-1px);
+  }
+}
+
+.chainNode_success {
+  border-color: #b7eb8f;
+}
+
+.chainNode_error {
+  border-color: #ffccc7;
+}
+
+.chainNode_processing {
+  border-color: #91caff;
+}
+
+.chainNode_default {
+  border-color: #dbe4ef;
+}
+
+.chainIcon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  color: #1677ff;
+  background: #eef6ff;
+  border-radius: 50%;
+}
+
+.chainNode_success .chainIcon {
+  color: #16a34a;
+  background: #effbea;
+}
+
+.chainNode_error .chainIcon {
+  color: #d4380d;
+  background: #fff1f0;
+}
+
+.chainBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chainMeta {
+  font-size: 12px;
+}
+
+.chainConnector {
+  position: relative;
+  width: 46px;
+  flex: 0 0 46px;
+
+  &::before {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 2px;
+    background: #b8c4d4;
+    content: '';
+  }
+
+  &::after {
+    position: absolute;
+    top: calc(50% - 5px);
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-top: 2px solid #b8c4d4;
+    border-right: 2px solid #b8c4d4;
+    content: '';
+    transform: rotate(45deg);
+  }
+}
+
+.stepLabel {
+  scroll-margin-top: 16px;
+}
+
+.stepContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eventItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jsonBlock {
+  max-height: 360px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: #dbeafe;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #0f172a;
+  border-radius: 6px;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 14px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .conversationSelect {
+    min-width: 100%;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chainNode {
+    min-width: 170px;
+  }
+}

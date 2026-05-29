@@ -209,6 +209,62 @@ export interface EmbedAllDocumentsResponse {
   status: string;
 }
 
+export interface AgentRunItem {
+  id: string;
+  conversation_id: string;
+  user_message_id: string;
+  status: string;
+  input: string;
+  final_answer?: string | null;
+  model?: string | null;
+  provider: string;
+  max_steps: number;
+  step_count: number;
+  total_latency_ms?: number | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentStepItem {
+  id: string;
+  run_id: string;
+  step_index: number;
+  step_type: string;
+  thought?: string | null;
+  reason?: string | null;
+  tool_name?: string | null;
+  tool_arguments: Record<string, unknown>;
+  tool_result?: Record<string, unknown> | null;
+  success: boolean;
+  latency_ms: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface AgentEventItem {
+  id: string;
+  run_id: string;
+  step_id?: string | null;
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentRunListResponse {
+  conversation_id: string;
+  runs: AgentRunItem[];
+}
+
+export interface AgentRunDetailResponse {
+  run: AgentRunItem;
+  steps: AgentStepItem[];
+  events: AgentEventItem[];
+}
+
 // ---- API 函数 ----
 
 export async function getHealth(): Promise<HealthResponse> {
@@ -497,6 +553,26 @@ export async function getDocumentEmbeddingStatus(
 export async function embedAllDocuments(): Promise<EmbedAllDocumentsResponse> {
   const { data } = await http.post<EmbedAllDocumentsResponse>(
     '/documents/embed-all',
+  );
+
+  return data;
+}
+
+export async function getAgentRuns(
+  conversationId: string,
+): Promise<AgentRunListResponse> {
+  const { data } = await http.get<AgentRunListResponse>(
+    `/agent/conversations/${conversationId}/runs`,
+  );
+
+  return data;
+}
+
+export async function getAgentRunDetail(
+  runId: string,
+): Promise<AgentRunDetailResponse> {
+  const { data } = await http.get<AgentRunDetailResponse>(
+    `/agent/runs/${runId}`,
   );
 
   return data;
