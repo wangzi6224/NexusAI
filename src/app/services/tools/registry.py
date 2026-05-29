@@ -1,5 +1,6 @@
 from src.app.config import get_agent_allowed_tools
 from src.app.services.tools.base import Tool
+from jsonschema import validate
 
 
 class ToolRegistry:
@@ -36,3 +37,7 @@ class ToolRegistry:
             }
             for tool in self._tools.values()
         ]
+
+    def validate_arguments(self, tool_name: str, arguments: dict) -> None:
+        tool = self.get(tool_name)
+        validate(instance=arguments, schema=tool.parameters)

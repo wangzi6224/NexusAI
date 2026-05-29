@@ -5,6 +5,7 @@ from src.app.agent_trace_store import create_agent_event, create_agent_step
 from src.app.services.agent.state import AgentState, AgentStep
 from src.app.services.agent.planner import RuleBasedPlanner
 from src.app.services.tools.registry import ToolRegistry
+from jsonschema import ValidationError
 
 
 class AgentLoop:
@@ -70,6 +71,9 @@ class AgentLoop:
 
             try:
                 tool = self.tool_registry.get(tool_name)
+
+                # 校验参数
+                self.tool_registry.validate_arguments(tool_name, arguments)
                 result = tool.run(arguments)
                 result = limit_tool_result(result)
                 latency_ms = int((perf_counter() - start) * 1000)
@@ -114,7 +118,21 @@ class AgentLoop:
                 )
 
                 return state
-
+            except ValidationError as exc:
+                # 参数不通过
+                latency_ms = int((perf_counter() - start) * 1000)
+                result = {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "TOOL_ARGUMENT_SCHEMA_ERROR",
+                        "message": exc.message,
+                    },
+                    "metadata": {
+                        "tool_name": tool_name,
+                        "latency_ms": latency_ms,
+                    },
+                }
             except Exception as exc:
                 latency_ms = int((perf_counter() - start) * 1000)
                 result = {

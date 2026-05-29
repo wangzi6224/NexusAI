@@ -40,4 +40,5 @@ dependencies = [
     "wheel==0.46.3",
     "flagembedding==1.2.11",
     "peft==0.11.1",
+    "jsonschema>=4.26.0",
 ]
