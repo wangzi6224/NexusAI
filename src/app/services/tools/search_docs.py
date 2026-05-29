@@ -1,5 +1,7 @@
 from typing import Any
+from time import perf_counter
 
+from src.app.services.tools.result import tool_error, tool_success
 from src.app.services.tools.base import Tool
 from src.app.services.rag.retriever import RagRetriever
 
@@ -36,17 +38,16 @@ class SearchDocsTool(Tool):
         self.retriever = RagRetriever()
 
     def run(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        start = perf_counter()
         query = str(arguments.get("query", "")).strip()
 
         if not query:
-            return {
-                "success": False,
-                "tool_name": self.name,
-                "error": {
-                    "code": "INVALID_ARGUMENTS",
-                    "message": "query 不能为空",
-                },
-            }
+            return tool_error(
+                tool_name=self.name,
+                code="INVALID_ARGUMENTS",
+                message="query 不能为空",
+                latency_ms=int((perf_counter() - start) * 1000),
+            )
 
         top_k = int(arguments.get("top_k", 5))
         score_threshold = float(arguments.get("score_threshold", 0.3))
@@ -57,8 +58,15 @@ class SearchDocsTool(Tool):
             score_threshold=score_threshold,
         )
 
-        return {
-            "success": True,
-            "tool_name": self.name,
-            "data": result,
-        }
+        latency_ms = int((perf_counter() - start) * 1000)
+
+        return tool_success(
+            tool_name=self.name,
+            data=result,
+            latency_ms=latency_ms,
+            metadata={
+                "query": query,
+                "top_k": top_k,
+                "score_threshold": score_threshold,
+            },
+        )
