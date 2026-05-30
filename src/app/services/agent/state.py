@@ -2,6 +2,23 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class AgentObservation(BaseModel):
+    # 观察来自哪个步骤
+    step: int
+    # 工具名称
+    tool_name: str
+    # 工具参数
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    # 工具是否执行成功
+    success: bool
+    # 经过长度限制后的工具结果
+    result: dict[str, Any] | None = None
+    # 错误码
+    error_code: str | None = None
+    # 错误消息
+    error_message: str | None = None
+
+
 class AgentStep(BaseModel):
     # 当前步骤编号
     step: int
@@ -26,23 +43,27 @@ class AgentStep(BaseModel):
 
 
 class AgentState(BaseModel):
-    # 运行 ID，用于唯一标识本次代理执行
+    # 运行ID
     run_id: str
-    # 会话 ID，用于关联当前会话
+    # 会话ID
     conversation_id: str
-    # 用户消息 ID，用于关联用户请求
+    # 用户消息ID
     user_message_id: str
-    # 用户提问内容
+    # 用户问题
     question: str
-    # 与当前代理执行关联的消息列表
+    # 消息列表
     messages: list[dict[str, Any]]
-    # 当前执行步骤列表
+    # 步骤列表
     steps: list[AgentStep] = Field(default_factory=list)
+    # 观察列表
+    observations: list[AgentObservation] = Field(default_factory=list)
     # 最大步骤数
     max_steps: int = 3
-    # 使用的模型名称
+    # 模型名称
     model: str
-    # 结果候选数量
+    # top_k 参数
     top_k: int = 5
-    # 结果过滤分数阈值
+    # 分数阈值
     score_threshold: float = 0.3
+    # 结束原因
+    finish_reason: str | None = None
