@@ -1,29 +1,68 @@
+from __future__ import annotations
+
+import json
 from time import perf_counter
-from src.app.services.tools.safety import limit_tool_result
-from src.app.config import get_agent_tool_timeout_seconds
+from typing import Any
+
+from jsonschema import ValidationError
+
 from src.app.agent_trace_store import create_agent_event, create_agent_step
-from src.app.services.agent.state import AgentState, AgentStep
+from src.app.config import get_agent_tool_timeout_seconds
+from src.app.services.agent.state import AgentObservation, AgentState, AgentStep
 from src.app.services.agent.planner import RuleBasedPlanner
 from src.app.services.tools.registry import ToolRegistry
-from jsonschema import ValidationError
+from src.app.services.tools.safety import limit_tool_result
+
+
+# 生成工具调用的唯一键，用于检测重复调用，避免 Agent 陷入循环。
+def _tool_call_key(tool_name: str, arguments: dict[str, Any]) -> str:
+    return json.dumps(
+        {"tool_name": tool_name, "arguments": arguments},
+        ensure_ascii=False,
+        sort_keys=True,  # 确保参数顺序不同但内容相同的工具调用被识别为重复调用
+    )
+
+
+# 检测是否存在重复工具调用，避免 Agent 陷入循环。
+def _has_duplicate_tool_call(
+    state: AgentState, tool_name: str, arguments: dict[str, Any]
+) -> bool:
+    current_key = _tool_call_key(tool_name, arguments)
+
+    for step in state.steps:
+        if step.type != "tool_call" or not step.tool_name:
+            continue
+        if _tool_call_key(step.tool_name, step.arguments) == current_key:
+            return True
+
+    return False
+
+
+# 将 AgentStep 转换为 AgentObservation，供下一轮 planner 使用。
+def _build_observation(step: AgentStep) -> AgentObservation:
+    return AgentObservation(
+        step=step.step,
+        tool_name=step.tool_name or "unknown",
+        arguments=step.arguments,
+        success=step.success,
+        result=step.result,
+        error_code=step.error_code
+        or ((step.result or {}).get("error") or {}).get("code"),
+        error_message=step.error_message
+        or ((step.result or {}).get("error") or {}).get("message"),
+    )
 
 
 class AgentLoop:
     def __init__(self, tool_registry: ToolRegistry) -> None:
-        # 初始化 agent 循环，注入工具注册表和规则规划器
         self.tool_registry = tool_registry
         self.planner = RuleBasedPlanner()
 
     def run(self, state: AgentState) -> AgentState:
-        # 运行 agent 循环，最多执行 state.max_steps 个步骤
         for index in range(state.max_steps):
             step_index = index + 1
-            decision = self.planner.plan(
-                question=state.question,
-                step_count=len(state.steps),
-            )
+            decision = self.planner.plan(state)
 
-            # 如果规划器返回 final 类型，则标记为完成并结束
             if decision["type"] == "final":
                 step = AgentStep(
                     step=step_index,
@@ -31,6 +70,7 @@ class AgentLoop:
                     reason=decision.get("reason"),
                 )
                 state.steps.append(step)
+                state.finish_reason = "planner_final"
 
                 create_agent_step(
                     run_id=state.run_id,
@@ -51,10 +91,63 @@ class AgentLoop:
 
                 return state
 
-            tool_name = decision["tool_name"]
-            arguments = decision.get("arguments", {})
+            tool_name = str(decision["tool_name"])
+            arguments = dict(decision.get("arguments", {}))
 
-            # 记录工具调用开始事件
+            # 检测到重复工具调用，阻断并记录错误，避免 Agent 陷入循环。
+            if _has_duplicate_tool_call(state, tool_name, arguments):
+                result = {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "DUPLICATE_TOOL_CALL_BLOCKED",
+                        "message": "检测到重复工具调用，已阻断，避免 Agent 陷入循环",
+                    },
+                    "metadata": {
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                    },
+                }
+
+                step = AgentStep(
+                    step=step_index,
+                    type="error",
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=result,
+                    success=False,
+                    reason=decision.get("reason"),
+                    error_code="DUPLICATE_TOOL_CALL_BLOCKED",
+                    error_message="重复工具调用已阻断",
+                )
+                state.steps.append(step)
+                state.finish_reason = "duplicate_tool_call_blocked"
+
+                create_agent_step(
+                    run_id=state.run_id,
+                    step_index=step_index,
+                    step_type="error",
+                    reason=step.reason,
+                    tool_name=tool_name,
+                    tool_arguments=arguments,
+                    tool_result=result,
+                    success=False,
+                    error_code=step.error_code,
+                    error_message=step.error_message,
+                )
+
+                create_agent_event(
+                    run_id=state.run_id,
+                    event_type="duplicate_tool_call_blocked",
+                    payload={
+                        "step_index": step_index,
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                    },
+                )
+
+                return state
+
             create_agent_event(
                 run_id=state.run_id,
                 event_type="agent_step_start",
@@ -67,153 +160,209 @@ class AgentLoop:
                 },
             )
 
-            start = perf_counter()
+            # 解析工具调用步骤，执行工具，并记录步骤结果和事件
+            step = self._execute_tool_step(
+                state=state,
+                step_index=step_index,
+                tool_name=tool_name,
+                arguments=arguments,
+                reason=decision.get("reason"),
+            )
 
-            try:
-                tool = self.tool_registry.get(tool_name)
+            # 将步骤结果转换为observation，添加到状态中，为下一轮 planner 提供输入。
+            state.steps.append(step)
+            state.observations.append(_build_observation(step))
 
-                # 校验参数
-                self.tool_registry.validate_arguments(tool_name, arguments)
-                result = tool.run(arguments)
-                result = limit_tool_result(result)
-                latency_ms = int((perf_counter() - start) * 1000)
+            # 工具调用后不 return，继续下一轮 planner 决策。
+            continue
 
-                max_latency_ms = get_agent_tool_timeout_seconds() * 1000
-
-                success = bool(result.get("success"))
-
-                # 暂时没啥大用，后续异步时再更改
-                if latency_ms > max_latency_ms:
-                    success = False
-                    result = {
-                        "success": False,
-                        "data": None,
-                        "error": {
-                            "code": "TOOL_TIMEOUT_ERROR",
-                            "message": f"Tool execution exceeded {max_latency_ms} ms",
-                        },
-                        "metadata": {
-                            "tool_name": tool_name,
-                            "latency_ms": latency_ms,
-                        },
-                    }
-
-                # 构造 tool_call 步骤并保存结果
-                step = AgentStep(
-                    step=step_index,
-                    type="tool_call",
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    result=result,
-                    success=success,
-                    latency_ms=latency_ms,
-                    reason=decision.get("reason"),
-                )
-                state.steps.append(step)
-
-                create_agent_step(
-                    run_id=state.run_id,
-                    step_index=step_index,
-                    step_type="tool_call",
-                    reason=decision.get("reason"),
-                    tool_name=tool_name,
-                    tool_arguments=arguments,
-                    tool_result=result,
-                    success=success,
-                    latency_ms=latency_ms,
-                    error_code=(result.get("error") or {}).get("code"),
-                    error_message=(result.get("error") or {}).get("message"),
-                )
-
-                create_agent_event(
-                    run_id=state.run_id,
-                    event_type="tool_result",
-                    payload={
-                        "step_index": step_index,
-                        "tool_name": tool_name,
-                        "success": success,
-                        "latency_ms": latency_ms,
-                    },
-                )
-
-                return state
-            except ValidationError as exc:
-                # 参数不通过
-                latency_ms = int((perf_counter() - start) * 1000)
-                result = {
-                    "success": False,
-                    "data": None,
-                    "error": {
-                        "code": "TOOL_ARGUMENT_SCHEMA_ERROR",
-                        "message": exc.message,
-                    },
-                    "metadata": {
-                        "tool_name": tool_name,
-                        "latency_ms": latency_ms,
-                    },
-                }
-            except Exception as exc:
-                latency_ms = int((perf_counter() - start) * 1000)
-                result = {
-                    "success": False,
-                    "data": None,
-                    "error": {
-                        "code": "TOOL_EXECUTION_ERROR",
-                        "message": str(exc),
-                    },
-                    "metadata": {
-                        "tool_name": tool_name,
-                        "latency_ms": latency_ms,
-                    },
-                }
-
-                # 如果工具执行失败，则记录失败步骤和错误事件
-                step = AgentStep(
-                    step=step_index,
-                    type="tool_call",
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    result=result,
-                    success=False,
-                    latency_ms=latency_ms,
-                    reason=decision.get("reason"),
-                    error_code="TOOL_EXECUTION_ERROR",
-                    error_message=str(exc),
-                )
-                state.steps.append(step)
-
-                create_agent_step(
-                    run_id=state.run_id,
-                    step_index=step_index,
-                    step_type="tool_call",
-                    reason=decision.get("reason"),
-                    tool_name=tool_name,
-                    tool_arguments=arguments,
-                    tool_result=result,
-                    success=False,
-                    latency_ms=latency_ms,
-                    error_code="TOOL_EXECUTION_ERROR",
-                    error_message=str(exc),
-                )
-
-                create_agent_event(
-                    run_id=state.run_id,
-                    event_type="tool_error",
-                    payload={
-                        "step_index": step_index,
-                        "tool_name": tool_name,
-                        "latency_ms": latency_ms,
-                        "error": result["error"],
-                    },
-                )
-
-                return state
-
-        # 达到最大步骤数，记录事件并返回当前状态
+        # 超过最大步骤限制，强制结束 Agent 运行。
+        state.finish_reason = "max_steps_reached"
         create_agent_event(
             run_id=state.run_id,
             event_type="agent_max_steps_reached",
             payload={"max_steps": state.max_steps},
         )
-
         return state
+
+    def _execute_tool_step(
+        self,
+        *,
+        state: AgentState,
+        step_index: int,
+        tool_name: str,
+        arguments: dict[str, Any],
+        reason: str | None,
+    ) -> AgentStep:
+        """解析工具调用步骤，执行工具，并记录步骤结果和事件
+
+        Args:
+            state (AgentState): 当前的 Agent 状态
+            step_index (int): 当前步骤的索引
+            tool_name (str): 工具名称
+            arguments (dict[str, Any]): 工具调用参数
+            reason (str | None): 工具调用的原因
+
+        Returns:
+            AgentStep: 工具调用步骤的结果
+        """
+        start = perf_counter()
+
+        try:
+            tool = self.tool_registry.get(tool_name)
+            # 验证工具参数是否合法，合法则执行工具，否则记录参数错误
+            self.tool_registry.validate_arguments(tool_name, arguments)
+            result = tool.run(arguments)
+            result = limit_tool_result(
+                result
+            )  # 对工具结果进行长度限制，避免过大结果导致后续处理问题
+
+            latency_ms = int((perf_counter() - start) * 1000)
+            max_latency_ms = get_agent_tool_timeout_seconds() * 1000
+            success = bool(result.get("success"))
+
+            if latency_ms > max_latency_ms:
+                success = False
+                result = {
+                    "success": False,
+                    "data": None,
+                    "error": {
+                        "code": "TOOL_TIMEOUT_ERROR",
+                        "message": f"Tool execution exceeded {max_latency_ms} ms",
+                    },
+                    "metadata": {
+                        "tool_name": tool_name,
+                        "latency_ms": latency_ms,
+                    },
+                }
+
+            step = AgentStep(
+                step=step_index,
+                type="tool_call",
+                tool_name=tool_name,
+                arguments=arguments,
+                result=result,
+                success=success,
+                latency_ms=latency_ms,
+                reason=reason,
+                error_code=(result.get("error") or {}).get("code"),
+                error_message=(result.get("error") or {}).get("message"),
+            )
+
+            create_agent_step(
+                run_id=state.run_id,
+                step_index=step_index,
+                step_type="tool_call",
+                reason=reason,
+                tool_name=tool_name,
+                tool_arguments=arguments,
+                tool_result=result,
+                success=success,
+                latency_ms=latency_ms,
+                error_code=step.error_code,
+                error_message=step.error_message,
+            )
+
+            create_agent_event(
+                run_id=state.run_id,
+                event_type="tool_result",
+                payload={
+                    "step_index": step_index,
+                    "tool_name": tool_name,
+                    "success": success,
+                    "latency_ms": latency_ms,
+                },
+            )
+
+            return step
+
+        except ValidationError as exc:
+            # 工具参数验证错误，记录错误步骤和事件
+            return self._record_tool_error_step(
+                state=state,
+                step_index=step_index,
+                tool_name=tool_name,
+                arguments=arguments,
+                reason=reason,
+                start=start,
+                code="TOOL_ARGUMENT_SCHEMA_ERROR",
+                message=exc.message,
+            )
+
+        except Exception as exc:
+            return self._record_tool_error_step(
+                state=state,
+                step_index=step_index,
+                tool_name=tool_name,
+                arguments=arguments,
+                reason=reason,
+                start=start,
+                code="TOOL_EXECUTION_ERROR",
+                message=str(exc),
+            )
+
+    def _record_tool_error_step(
+        self,
+        *,
+        state: AgentState,
+        step_index: int,
+        tool_name: str,
+        arguments: dict[str, Any],
+        reason: str | None,
+        start: float,
+        code: str,
+        message: str,
+    ) -> AgentStep:
+        latency_ms = int((perf_counter() - start) * 1000)
+        result = {
+            "success": False,
+            "data": None,
+            "error": {
+                "code": code,
+                "message": message,
+            },
+            "metadata": {
+                "tool_name": tool_name,
+                "latency_ms": latency_ms,
+            },
+        }
+
+        step = AgentStep(
+            step=step_index,
+            type="tool_call",
+            tool_name=tool_name,
+            arguments=arguments,
+            result=result,
+            success=False,
+            latency_ms=latency_ms,
+            reason=reason,
+            error_code=code,
+            error_message=message,
+        )
+
+        create_agent_step(
+            run_id=state.run_id,
+            step_index=step_index,
+            step_type="tool_call",
+            reason=reason,
+            tool_name=tool_name,
+            tool_arguments=arguments,
+            tool_result=result,
+            success=False,
+            latency_ms=latency_ms,
+            error_code=code,
+            error_message=message,
+        )
+
+        create_agent_event(
+            run_id=state.run_id,
+            event_type="tool_error",
+            payload={
+                "step_index": step_index,
+                "tool_name": tool_name,
+                "latency_ms": latency_ms,
+                "error": result["error"],
+            },
+        )
+
+        return step
