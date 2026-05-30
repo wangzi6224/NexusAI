@@ -1,7 +1,9 @@
 from typing import Any
+from time import perf_counter
 
-from src.app.services.tools.base import Tool
 from src.app.document_store import list_documents
+from src.app.services.tools.base import Tool
+from src.app.services.tools.result import tool_success
 
 
 class ListDocsTool(Tool):
@@ -17,12 +19,13 @@ class ListDocsTool(Tool):
     }
 
     def run(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        start = perf_counter()
         documents = list_documents()
+        latency_ms = int((perf_counter() - start) * 1000)
 
-        return {
-            "success": True,
-            "tool_name": self.name,
-            "data": {
+        return tool_success(
+            tool_name=self.name,
+            data={
                 "documents": [
                     {
                         "document_id": item["id"],
@@ -33,4 +36,6 @@ class ListDocsTool(Tool):
                     for item in documents
                 ]
             },
-        }
+            latency_ms=latency_ms,
+            metadata={"document_count": len(documents)},
+        )
