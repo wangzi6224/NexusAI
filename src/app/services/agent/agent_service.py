@@ -171,8 +171,11 @@ class AgentService:
         trace = {
             "run_id": run_id,
             "max_steps": max_steps,
-            "step_count": len(state.steps),
+            "loop_step_count": len(state.steps),
+            "tool_call_count": len(tool_calls),
             "used_tools": [step.tool_name for step in state.steps if step.tool_name],
+            "finish_reason": state.finish_reason,
+            "observations": [item.model_dump() for item in state.observations],
             "model": response.model,
             "provider": response.provider,
         }
