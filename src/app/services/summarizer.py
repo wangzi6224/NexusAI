@@ -10,7 +10,8 @@ from src.app.conversation_store import (
     update_conversation,
 )
 from src.app.exceptions import ConversationError
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.config import resolve_llm_model
+from src.app.services.llm.factory import get_llm_provider
 
 SUMMARY_TRIGGER_MESSAGE_COUNT = 20
 SUMMARY_KEEP_RECENT_MESSAGES = 10
@@ -153,8 +154,12 @@ class Summarizer:
             previous_summary=conversation.get("summary"),
         )
 
-        provider = OllamaProvider()
-        selected_model = model or conversation.get("model")
+        provider = get_llm_provider()
+        selected_model = resolve_llm_model(
+            model=model,
+            stored_model=conversation.get("model"),
+            stored_provider=conversation.get("provider"),
+        )
 
         response = provider.chat(
             messages=prompt_messages,

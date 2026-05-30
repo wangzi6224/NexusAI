@@ -32,6 +32,25 @@ class Settings(BaseSettings):
         alias="OLLAMA_KEEP_ALIVE",
     )
 
+    # LLM Provider 选择：默认保持 Ollama，可通过 .env 切到 DeepSeek
+    llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")
+
+    # DeepSeek 线上 API 配置，兼容 OpenAI Chat Completions 接口
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com",
+        alias="DEEPSEEK_BASE_URL",
+    )
+    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_model: str = Field(
+        default="deepseek-v4-flash",
+        alias="DEEPSEEK_MODEL",
+    )
+    deepseek_timeout: int = Field(default=120, alias="DEEPSEEK_TIMEOUT")
+    deepseek_thinking_enabled: bool = Field(
+        default=False,
+        alias="DEEPSEEK_THINKING_ENABLED",
+    )
+
     # PostgreSQL 数据库配置
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
@@ -122,6 +141,38 @@ def get_ollama_timeout() -> int:
 def get_ollama_keep_alive() -> str:
     """返回 Ollama keep-alive 配置。"""
     return get_settings().ollama_keep_alive
+
+
+def get_llm_provider_name() -> str:
+    """返回当前 LLM Provider 名称。"""
+    return get_settings().llm_provider.lower().strip()
+
+
+def get_default_llm_model() -> str:
+    """返回当前 Provider 对应的默认模型名称。"""
+    settings = get_settings()
+    provider = settings.llm_provider.lower().strip()
+
+    if provider == "deepseek":
+        return settings.deepseek_model
+
+    return settings.ollama_model
+
+
+def resolve_llm_model(
+    model: str | None = None,
+    stored_model: str | None = None,
+    stored_provider: str | None = None,
+) -> str:
+    """按当前 Provider 解析本次请求应使用的模型。"""
+    if model:
+        return model
+
+    current_provider = get_llm_provider_name()
+    if stored_model and (not stored_provider or stored_provider == current_provider):
+        return stored_model
+
+    return get_default_llm_model()
 
 
 # 应用级配置函数

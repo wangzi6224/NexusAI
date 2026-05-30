@@ -3,19 +3,23 @@ from time import perf_counter
 from typing import Iterable
 from json import dumps
 
-from src.app.config import get_ollama_model
+from src.app.config import get_llm_provider_name, resolve_llm_model
 from src.app.history import append_history
 from src.app.logger import get_logger
 from src.app.prompts import build_chat_prompt
 from src.app.schemas.schemas import ChatResponse, TokenUsage
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.factory import get_llm_provider
 
 logger = get_logger()
 
 
 def handle_chat(message: str, model: str | None = None) -> ChatResponse:
-    selected_model = model or get_ollama_model()
-    logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
+    selected_model = resolve_llm_model(model=model)
+    logger.info(
+        "收到聊天请求，provider=%s, model=%s",
+        get_llm_provider_name(),
+        selected_model,
+    )
 
     prompt = build_chat_prompt(message)
 
@@ -26,7 +30,7 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
         }
     ]
 
-    provider = OllamaProvider()
+    provider = get_llm_provider()
 
     start = perf_counter()
     llm_response = provider.chat(messages=messages, model=selected_model)
@@ -60,8 +64,12 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
 
 
 def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
-    selected_model = model or get_ollama_model()
-    logger.info("收到聊天请求，provider=ollama, model=%s", selected_model)
+    selected_model = resolve_llm_model(model=model)
+    logger.info(
+        "收到聊天请求，provider=%s, model=%s",
+        get_llm_provider_name(),
+        selected_model,
+    )
 
     prompt = build_chat_prompt(message)
 
@@ -72,8 +80,7 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
         }
     ]
 
-    # 注意这里实例化 OllamaProvider 后续会改为工厂模式，根据配置选择不同的 LLMProvider 实现
-    provider = OllamaProvider()
+    provider = get_llm_provider()
 
     # 用于拼接完整回答的列表
     full_answer_parts: list[str] = []

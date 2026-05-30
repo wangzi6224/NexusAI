@@ -1,7 +1,7 @@
 from time import perf_counter
 from typing import Any
 
-from src.app.config import get_ollama_model
+from src.app.config import resolve_llm_model
 from src.app.conversation_store import (
     create_message,
     get_conversation,
@@ -9,7 +9,7 @@ from src.app.conversation_store import (
     update_conversation,
 )
 from src.app.exceptions import ConversationError
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.factory import get_llm_provider
 from src.app.services.rag.hybrid_retriever import HybridRetriever
 from src.app.services.rag.prompt_builder import RagPromptBuilder
 from src.app.services.rag.query_rewriter import QueryRewriter
@@ -29,7 +29,7 @@ class ConversationRagService:
         self.retriever = RagRetriever()
         self.hybrid_retriever = HybridRetriever()
         self.prompt_builder = RagPromptBuilder()
-        self.llm_provider = OllamaProvider()
+        self.llm_provider = get_llm_provider()
 
     def ask(
         self,
@@ -65,7 +65,11 @@ class ConversationRagService:
                 status_code=400,
             )
 
-        selected_model = model or conversation.get("model") or get_ollama_model()
+        selected_model = resolve_llm_model(
+            model=model,
+            stored_model=conversation.get("model"),
+            stored_provider=conversation.get("provider"),
+        )
 
         user_message = create_message(
             conversation_id=conversation_id,

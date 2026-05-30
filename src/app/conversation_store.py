@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from psycopg import sql
 
-from src.app.config import get_ollama_model
+from src.app.config import get_default_llm_model, get_llm_provider_name
 from src.app.db import get_connection
 from src.app.exceptions import ConversationError
 
@@ -64,7 +64,7 @@ def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
                     0,
                     NULL,
                     %(model)s,
-                    'ollama',
+                    %(provider)s,
                     'active',
                     NOW(),
                     NOW()
@@ -74,7 +74,8 @@ def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
                 {
                     "id": conversation_id,
                     "title": title,
-                    "model": model or get_ollama_model(),
+                    "model": model or get_default_llm_model(),
+                    "provider": get_llm_provider_name(),
                 },
             )
             row = cur.fetchone()

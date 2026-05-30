@@ -1,13 +1,13 @@
 from time import perf_counter
 from typing import Any
 import json
-from src.app.config import get_ollama_model
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.config import resolve_llm_model
+from src.app.services.llm.factory import get_llm_provider
 
 
 class QueryRewriter:
     def __init__(self) -> None:
-        self.llm_provider = OllamaProvider()
+        self.llm_provider = get_llm_provider()
 
     def rewrite(
         self,
@@ -16,7 +16,7 @@ class QueryRewriter:
         current_question: str,
         model: str | None = None,
     ) -> dict[str, Any]:
-        selected_model = model or get_ollama_model()
+        selected_model = resolve_llm_model(model=model)
         start = perf_counter()
 
         messages = self._build_messages(

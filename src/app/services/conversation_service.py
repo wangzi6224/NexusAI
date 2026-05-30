@@ -5,7 +5,7 @@ from typing import Any
 
 from src.app.services.context_builder import ContextBuilder
 from src.app.services.summarizer import Summarizer
-from src.app.config import get_ollama_model
+from src.app.config import resolve_llm_model
 from src.app.conversation_store import (
     count_messages,
     create_conversation,
@@ -17,7 +17,7 @@ from src.app.conversation_store import (
 )
 from src.app.exceptions import ConversationError
 from src.app.logger import get_logger
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.factory import get_llm_provider
 
 logger = get_logger()
 
@@ -86,7 +86,11 @@ def send_conversation_message(
             status_code=400,
         )
 
-    selected_model = model or conversation.get("model") or get_ollama_model()
+    selected_model = resolve_llm_model(
+        model=model,
+        stored_model=conversation.get("model"),
+        stored_provider=conversation.get("provider"),
+    )
 
     user_message = create_message(
         conversation_id=conversation_id,
@@ -97,7 +101,7 @@ def send_conversation_message(
     context_builder = ContextBuilder()
     llm_messages = context_builder.build_messages(conversation_id)
 
-    provider = OllamaProvider()
+    provider = get_llm_provider()
 
     start = perf_counter()
     llm_response = provider.chat(
@@ -163,7 +167,11 @@ def stream_conversation_message(
         yield _sse_event("done", "[DONE]")
         return
 
-    selected_model = model or conversation.get("model") or get_ollama_model()
+    selected_model = resolve_llm_model(
+        model=model,
+        stored_model=conversation.get("model"),
+        stored_provider=conversation.get("provider"),
+    )
 
     try:
         user_message = create_message(
@@ -184,7 +192,7 @@ def stream_conversation_message(
             },
         )
 
-        provider = OllamaProvider()
+        provider = get_llm_provider()
         full_answer_parts: list[str] = []
 
         start = perf_counter()
@@ -215,7 +223,7 @@ def stream_conversation_message(
             content=full_answer,
             metadata={
                 "model": selected_model,
-                "provider": "ollama",
+                "provider": provider.name,
                 "latency_ms": latency_ms,
                 "context_message_count": len(llm_messages),
                 "is_stream": True,

@@ -9,7 +9,7 @@ from src.app.agent_trace_store import (
     update_agent_run,
 )
 
-from src.app.config import get_ollama_model
+from src.app.config import get_llm_provider_name, resolve_llm_model
 from src.app.conversation_store import (
     create_message,
     get_conversation,
@@ -20,7 +20,7 @@ from src.app.exceptions import ConversationError
 from src.app.services.agent.loop import AgentLoop
 from src.app.services.agent.prompt_builder import AgentPromptBuilder
 from src.app.services.agent.state import AgentState
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.factory import get_llm_provider
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.list_docs import ListDocsTool
 from src.app.services.tools.search_docs import SearchDocsTool
@@ -29,7 +29,7 @@ from src.app.services.tools.read_doc import ReadDocTool
 
 class AgentService:
     def __init__(self) -> None:
-        self.llm_provider = OllamaProvider()
+        self.llm_provider = get_llm_provider()
         self.prompt_builder = AgentPromptBuilder()
 
         registry = ToolRegistry()
@@ -65,7 +65,11 @@ class AgentService:
                 status_code=400,
             )
 
-        selected_model = model or conversation.get("model") or get_ollama_model()
+        selected_model = resolve_llm_model(
+            model=model,
+            stored_model=conversation.get("model"),
+            stored_provider=conversation.get("provider"),
+        )
 
         user_message = create_message(
             conversation_id=conversation_id,
@@ -83,7 +87,7 @@ class AgentService:
             user_message_id=user_message["id"],
             input_text=clean_question,
             model=selected_model,
-            provider="ollama",
+            provider=get_llm_provider_name(),
             max_steps=max_steps,
             metadata={
                 "top_k": top_k,

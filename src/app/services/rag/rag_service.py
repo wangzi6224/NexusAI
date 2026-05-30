@@ -1,9 +1,9 @@
 from time import perf_counter
 from typing import Any
 
-from src.app.config import get_ollama_model
+from src.app.config import get_llm_provider_name, resolve_llm_model
 from src.app.services.llm.base import LLMResponse
-from src.app.services.llm.ollama_provider import OllamaProvider
+from src.app.services.llm.factory import get_llm_provider
 from src.app.services.rag.hybrid_retriever import HybridRetriever
 from src.app.services.rag.prompt_builder import RagPromptBuilder
 from src.app.services.rag.retrieval_mode import (
@@ -21,7 +21,7 @@ class RagService:
         self.retriever = RagRetriever()
         self.hybrid_retriever = HybridRetriever()
         self.prompt_builder = RagPromptBuilder()
-        self.llm_provider = OllamaProvider()
+        self.llm_provider = get_llm_provider()
 
     def search(
         self,
@@ -78,7 +78,7 @@ class RagService:
         )
 
         chunks = search_result["chunks"]
-        selected_model = model or get_ollama_model()
+        selected_model = resolve_llm_model(model=model)
 
         if not chunks:
             return {
@@ -91,7 +91,7 @@ class RagService:
                     "retrieved_count": 0,
                     "embedding_model": search_result["embedding_model"],
                     "chat_model": selected_model,
-                    "provider": "ollama",
+                    "provider": get_llm_provider_name(),
                     "latency_ms": 0,
                 },
             }
