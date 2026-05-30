@@ -109,4 +109,3 @@ def rag_search_debug_api(
 ) -> RagSearchDebugResponse:
     result = RagDebugService().compare_search(query=query)
     return RagSearchDebugResponse(**result)
-

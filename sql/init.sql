@@ -161,6 +161,29 @@ ON agent_steps (run_id, step_index ASC);
 CREATE INDEX IF NOT EXISTS idx_agent_events_run_id_created_at
 ON agent_events (run_id, created_at ASC);
 
+
+-- =====================================================
+-- assistant_runs：每次 Assistant 调用的汇总记录
+-- 记录调用状态、输入输出、耗时和调用细节
+-- =====================================================
+CREATE TABLE IF NOT EXISTS assistant_runs (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  user_message_id TEXT,
+  assistant_message_id TEXT,
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  input TEXT NOT NULL,
+  final_answer TEXT,
+  model TEXT,
+  provider TEXT,
+  latency_ms INTEGER,
+  trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- =====================================================
 -- 文档检索、向量搜索与会话时间线索引
 -- =====================================================
@@ -175,3 +198,12 @@ CREATE INDEX IF NOT EXISTS idx_chat_history_created_at ON chat_history (created_
 -- 用于检索流程的全文和模糊文本索引
 CREATE INDEX IF NOT EXISTS idx_document_chunks_search_vector ON document_chunks USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_content_trgm ON document_chunks USING GIN (content gin_trgm_ops);
+-- Agent 追踪相关索引
+CREATE INDEX IF NOT EXISTS idx_assistant_runs_conversation_id
+ON assistant_runs(conversation_id);
+-- 按创建时间倒序索引，优化最近调用的查询性能
+CREATE INDEX IF NOT EXISTS idx_assistant_runs_created_at
+ON assistant_runs(created_at DESC);
+-- 状态索引，便于统计不同状态的调用数量和性能分析
+CREATE INDEX IF NOT EXISTS idx_assistant_runs_status
+ON assistant_runs(status);

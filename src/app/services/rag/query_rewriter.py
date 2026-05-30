@@ -1,6 +1,5 @@
 from time import perf_counter
 from typing import Any
-import json
 from src.app.config import resolve_llm_model
 from src.app.services.llm.factory import get_llm_provider
 

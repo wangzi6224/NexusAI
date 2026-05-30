@@ -68,6 +68,14 @@ class RagService:
         rerank_top_n: int | None = None,
         rerank_enabled: bool | None = None,
     ) -> dict[str, Any]:
+        """单轮 RAG 问答接口，适用于不需要会话上下文的场景，如单次查询或前端调试使用。
+
+        Args:
+            request (RagAskRequest): 请求对象，包含问题和检索参数。
+
+        Returns:
+            RagAskResponse: 响应对象，包含生成的回答和相关信息。
+        """
         search_result = self.search(
             query=question,
             top_k=top_k,
