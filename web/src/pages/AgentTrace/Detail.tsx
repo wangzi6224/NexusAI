@@ -13,7 +13,9 @@ import {
   ReloadOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { XMarkdown } from '@ant-design/x-markdown';
 import { history, useLocation, useParams } from '@umijs/max';
+import type { CollapseProps } from 'antd';
 import {
   Alert,
   Button,
@@ -27,10 +29,8 @@ import {
   Timeline,
   Typography,
 } from 'antd';
-import type { CollapseProps } from 'antd';
 import axios from 'axios';
-import React, { useMemo, useRef, useState } from 'react';
-import { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './index.module.less';
 
 const { Paragraph, Text, Title } = Typography;
@@ -119,6 +119,15 @@ const summarizeResult = (value: unknown): string => {
   return `${jsonText.slice(0, 220)}...`;
 };
 
+const renderMarkdown = (content: unknown) => (
+  <XMarkdown
+    content={String(content ?? '')}
+    components={{
+      a: (props) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+    }}
+  />
+);
+
 const JsonBlock: React.FC<{ value: unknown }> = ({ value }) => (
   <pre className={styles.jsonBlock}>{toJsonText(value)}</pre>
 );
@@ -164,8 +173,8 @@ const buildChainNodes = (
       statusColor(run.status) === 'processing'
         ? 'processing'
         : statusColor(run.status) === 'error'
-          ? 'error'
-          : 'success',
+        ? 'error'
+        : 'success',
   });
 
   return nodes;
@@ -276,7 +285,9 @@ const AgentTraceDetailPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="error">
                 {step.error_code || step.error_message
-                  ? `${step.error_code || ''} ${step.error_message || ''}`.trim()
+                  ? `${step.error_code || ''} ${
+                      step.error_message || ''
+                    }`.trim()
                   : '-'}
               </Descriptions.Item>
             </Descriptions>
@@ -309,8 +320,8 @@ const AgentTraceDetailPage: React.FC = () => {
         event.event_type.includes('error') || event.event_type.includes('fail')
           ? 'red'
           : event.event_type.includes('end')
-            ? 'green'
-            : 'blue',
+          ? 'green'
+          : 'blue',
       children: (
         <div className={styles.eventItem}>
           <Space wrap>
@@ -347,7 +358,10 @@ const AgentTraceDetailPage: React.FC = () => {
           </Paragraph>
         </div>
         <Space wrap>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => history.push(backUrl)}>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => history.push(backUrl)}
+          >
             返回列表
           </Button>
           <Button
@@ -386,7 +400,9 @@ const AgentTraceDetailPage: React.FC = () => {
                 <Text copyable>{data.run.id}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="status">
-                <Tag color={statusColor(data.run.status)}>{data.run.status}</Tag>
+                <Tag color={statusColor(data.run.status)}>
+                  {data.run.status}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="model">
                 {data.run.model || '-'}
@@ -398,14 +414,22 @@ const AgentTraceDetailPage: React.FC = () => {
                 {formatLatency(data.run.total_latency_ms)}
               </Descriptions.Item>
               <Descriptions.Item label="input" span={2}>
-                <Paragraph className={styles.longText}>
-                  {data.run.input || '-'}
-                </Paragraph>
+                {data.run.input ? (
+                  <div className={styles.markdownBlock}>
+                    {renderMarkdown(data.run.input)}
+                  </div>
+                ) : (
+                  <Paragraph className={styles.longText}>-</Paragraph>
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="final_answer" span={2}>
-                <Paragraph className={styles.longText}>
-                  {data.run.final_answer || '-'}
-                </Paragraph>
+                {data.run.final_answer ? (
+                  <div className={styles.markdownBlock}>
+                    {renderMarkdown(data.run.final_answer)}
+                  </div>
+                ) : (
+                  <Paragraph className={styles.longText}>-</Paragraph>
+                )}
               </Descriptions.Item>
             </Descriptions>
           </Card>
