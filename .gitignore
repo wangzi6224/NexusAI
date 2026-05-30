@@ -5,7 +5,7 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
-.env
+.env.api_keys
 logs/*.log
 src/app/logs/
 src/nexus_ai/logs/
