@@ -103,6 +103,12 @@ class ConversationDetailResponse(ConversationItem):
     pass
 
 
+class DeleteConversationResponse(BaseModel):
+    success: bool
+    message: str
+    conversation_id: str
+
+
 class SendMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, description="用户本次发送的消息内容")
     provider: str | None = Field(default=None, description="可选，覆盖本次请求使用的 Provider")

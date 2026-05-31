@@ -10,6 +10,7 @@ from src.app.conversation_store import (
     count_messages,
     create_conversation,
     create_message,
+    delete_conversation as store_delete_conversation,
     get_conversation,
     list_conversations,
     list_messages,
@@ -322,6 +323,27 @@ def _try_update_summary(
             conversation_id,
             exc,
         )
+
+
+def delete_conversation_by_id(conversation_id: str) -> dict[str, Any]:
+    _ensure_conversation_exists(conversation_id)
+
+    deleted = store_delete_conversation(conversation_id)
+
+    if not deleted:
+        raise ConversationError(
+            message="删除会话失败",
+            detail=f"conversation_id={conversation_id}",
+            status_code=500,
+        )
+
+    logger.info("会话已删除: conversation_id=%s", conversation_id)
+
+    return {
+        "success": True,
+        "message": "会话已删除",
+        "conversation_id": conversation_id,
+    }
 
 
 def get_context_preview(conversation_id: str) -> dict[str, Any]:

@@ -9,6 +9,7 @@ from src.app.schemas.schemas import (
     ConversationDetailResponse,
     ConversationItem,
     ConversationListResponse,
+    DeleteConversationResponse,
     MessageItem,
     MessageListResponse,
     SendMessageRequest,
@@ -17,6 +18,7 @@ from src.app.schemas.schemas import (
 )
 from src.app.services.conversation_service import (
     create_new_conversation,
+    delete_conversation_by_id,
     get_context_preview,
     get_conversation_detail,
     get_conversation_list,
@@ -176,3 +178,18 @@ def update_conversation_summary_api(
 ) -> SummaryUpdateResponse:
     result: dict[str, Any] = update_summary_manually(conversation_id)
     return SummaryUpdateResponse(**result)
+
+
+# 删除会话：删除指定会话及其所有消息
+@router.delete(
+    "/conversations/{conversation_id}",
+    response_model=DeleteConversationResponse,
+    tags=["会话"],
+    summary="删除会话",
+    description="删除指定会话及其关联的全部消息。",
+)
+def delete_conversation_api(
+    conversation_id: str,
+) -> DeleteConversationResponse:
+    result: dict[str, Any] = delete_conversation_by_id(conversation_id)
+    return DeleteConversationResponse(**result)

@@ -320,6 +320,65 @@ def list_recent_messages(
     return [message for message in reversed(messages) if message is not None]
 
 
+def delete_conversation(conversation_id: str) -> bool:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # 先删除关联的 Agent 事件、步骤和运行记录
+            cur.execute(
+                """
+                DELETE FROM agent_events
+                WHERE run_id IN (
+                    SELECT id FROM agent_runs
+                    WHERE conversation_id = %(conversation_id)s
+                )
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+            cur.execute(
+                """
+                DELETE FROM agent_steps
+                WHERE run_id IN (
+                    SELECT id FROM agent_runs
+                    WHERE conversation_id = %(conversation_id)s
+                )
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+            cur.execute(
+                """
+                DELETE FROM agent_runs
+                WHERE conversation_id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+            # 删除消息
+            cur.execute(
+                """
+                DELETE FROM messages
+                WHERE conversation_id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+            # 删除会话本身
+            cur.execute(
+                """
+                DELETE FROM conversations
+                WHERE id = %(conversation_id)s
+                """,
+                {"conversation_id": conversation_id},
+            )
+
+            deleted = cur.rowcount
+
+        conn.commit()
+
+    return deleted > 0
+
+
 def count_messages(conversation_id: str) -> int:
     with get_connection() as conn:
         with conn.cursor() as cur:

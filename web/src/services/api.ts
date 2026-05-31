@@ -392,6 +392,21 @@ export async function getConversations(): Promise<ConversationListResponse> {
   return data;
 }
 
+export interface DeleteConversationResponse {
+  success: boolean;
+  message: string;
+  conversation_id: string;
+}
+
+export async function deleteConversation(
+  conversationId: string,
+): Promise<DeleteConversationResponse> {
+  const { data } = await http.delete<DeleteConversationResponse>(
+    `/conversations/${conversationId}`,
+  );
+  return data;
+}
+
 export async function getConversation(
   conversationId: string,
 ): Promise<ConversationDetailResponse> {

@@ -1,6 +1,6 @@
 import { useChatContext } from '@/contexts/ChatContext';
-import { MessageOutlined, PlusOutlined } from '@ant-design/icons';
-import { Badge, Button, Select, Typography } from 'antd';
+import { DeleteOutlined, MessageOutlined, PlusOutlined } from '@ant-design/icons';
+import { Badge, Button, Popconfirm, Select, Typography } from 'antd';
 import React from 'react';
 import styles from './index.module.less';
 
@@ -18,6 +18,7 @@ const Sidebar: React.FC = () => {
     conversationsLoading,
     conversationsError,
     createConversation,
+    deleteConversation,
     selectConversation,
     startNewConversation,
     handleSelectProvider,
@@ -150,6 +151,25 @@ const Sidebar: React.FC = () => {
                 {item.title}
               </Text>
               <Text className={styles.convMeta}>{item.message_count}</Text>
+              <Popconfirm
+                title="删除会话"
+                description="确定要删除该会话及其全部消息吗？"
+                onConfirm={(e) => {
+                  e?.stopPropagation();
+                  deleteConversation(item.id);
+                }}
+                onCancel={(e) => {
+                  e?.stopPropagation();
+                }}
+                okText="确定"
+                cancelText="取消"
+                placement="right"
+              >
+                <DeleteOutlined
+                  className={styles.convDeleteBtn}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </Popconfirm>
             </div>
           ))
         )}

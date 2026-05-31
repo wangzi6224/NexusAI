@@ -4,6 +4,7 @@ import {
   MessageItem,
   ModelsResponse,
   createConversation as apiCreateConversation,
+  deleteConversation as apiDeleteConversation,
   selectModel as apiSelectModel,
   getConversationMessages,
   getConversations,
@@ -58,6 +59,7 @@ interface ChatContextType {
   sendMessage: (content: string) => Promise<void>;
   loadConversations: () => Promise<void>;
   createConversation: (title?: string) => Promise<ConversationItem | null>;
+  deleteConversation: (conversationId: string) => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
   startNewConversation: () => void;
   loadModels: () => Promise<void>;
@@ -226,6 +228,28 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     },
     [currentModel, currentProvider],
+  );
+
+  const deleteConversation = useCallback(
+    async (conversationId: string) => {
+      try {
+        await apiDeleteConversation(conversationId);
+
+        setConversations((prev) =>
+          prev.filter((item) => item.id !== conversationId),
+        );
+
+        if (activeConversationId === conversationId) {
+          setActiveConversationId(null);
+          setMessages([]);
+        }
+
+        message.success('会话已删除');
+      } catch (err: any) {
+        message.error(getErrorMessage(err, '删除会话失败'));
+      }
+    },
+    [activeConversationId],
   );
 
   const handleSelectModel = useCallback(
@@ -452,6 +476,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         sendMessage,
         loadConversations,
         createConversation,
+        deleteConversation,
         selectConversation,
         startNewConversation,
         loadModels,
