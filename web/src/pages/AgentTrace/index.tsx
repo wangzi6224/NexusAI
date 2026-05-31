@@ -157,7 +157,8 @@ const AgentTracePage: React.FC = () => {
       setConversations(items);
 
       const nextConversationId =
-        queryConversationId && items.some((item) => item.id === queryConversationId)
+        queryConversationId &&
+        items.some((item) => item.id === queryConversationId)
           ? queryConversationId
           : items[0]?.id || '';
 
@@ -272,6 +273,7 @@ const AgentTracePage: React.FC = () => {
         <Space className={styles.toolbar} wrap>
           <Select
             className={styles.conversationSelect}
+            classNames={{ popup: { root: styles.conversationSelectDropdown } }}
             loading={conversationLoading}
             options={conversationOptions}
             placeholder="选择会话"
