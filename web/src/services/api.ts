@@ -92,6 +92,23 @@ export interface SendMessageRequest {
   model?: string | null;
 }
 
+export type AssistantMode = 'auto' | 'chat' | 'agent';
+
+export interface AssistantStreamRequest {
+  message: string;
+  mode?: AssistantMode;
+  model?: string | null;
+  provider?: string | null;
+  options?: {
+    top_k?: number;
+    score_threshold?: number;
+    max_steps?: number;
+    enable_tools?: boolean;
+    enable_rag_tools?: boolean;
+    enable_mcp_tools?: boolean;
+  };
+}
+
 export interface SendMessageResponse {
   user_message: MessageItem;
   assistant_message: MessageItem;
@@ -113,6 +130,57 @@ export interface ConversationStreamChunk {
   assistant_message_id?: string;
   content?: string;
   latency_ms?: number;
+  error?: {
+    code?: string;
+    message?: string;
+    detail?: string;
+  };
+}
+
+export type AssistantStreamEvent =
+  | 'assistant_start'
+  | 'route_decision'
+  | 'tool_call_start'
+  | 'tool_call_end'
+  | 'delta'
+  | 'assistant_end'
+  | 'error'
+  | 'done'
+  | 'message';
+
+export interface AssistantToolCallEvent {
+  tool_name?: string;
+  arguments?: Record<string, unknown>;
+  reason?: string | null;
+  step?: number;
+  success?: boolean;
+  latency_ms?: number;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface AssistantStreamChunk {
+  event: AssistantStreamEvent;
+  delta?: string;
+  assistant_run_id?: string;
+  conversation_id?: string;
+  requested_mode?: AssistantMode;
+  mode?: 'chat' | 'agent';
+  reason?: string;
+  matched_keywords?: string[];
+  assistant_message_id?: string;
+  agent_run_id?: string;
+  latency_ms?: number;
+  model?: string;
+  provider?: string;
+  tool_calls?: AssistantToolCallEvent[];
+  trace?: Record<string, unknown>;
+  tool_name?: string;
+  arguments?: Record<string, unknown>;
+  step?: number;
+  success?: boolean;
+  error_code?: string | null;
+  error_message?: string | null;
   error?: {
     code?: string;
     message?: string;
@@ -496,6 +564,75 @@ export async function sendConversationMessageStream(
 
         onChunk({
           event: parsedEvent.event as ConversationStreamEvent,
+          ...data,
+        });
+      } catch {
+        // 忽略非 JSON 的 SSE 数据
+      }
+    }
+  }
+}
+
+export async function sendAssistantMessageStream(
+  conversationId: string,
+  payload: AssistantStreamRequest,
+  onChunk: (chunk: AssistantStreamChunk) => void,
+): Promise<void> {
+  const response = await fetch(
+    buildApiUrl(`/conversations/${conversationId}/assistant/stream`),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error('流式响应为空');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+
+    for (const rawEvent of events) {
+      const parsedEvent = parseSseEvent(rawEvent);
+
+      if (!parsedEvent) continue;
+      if (parsedEvent.data === '[DONE]') {
+        onChunk({ event: 'done' });
+        return;
+      }
+
+      try {
+        const data = JSON.parse(parsedEvent.data);
+
+        if (parsedEvent.event === 'error') {
+          onChunk({
+            event: 'error',
+            error: data,
+          });
+          continue;
+        }
+
+        onChunk({
+          event: parsedEvent.event as AssistantStreamEvent,
           ...data,
         });
       } catch {

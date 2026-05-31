@@ -57,6 +57,27 @@
   width: 144px !important;
 }
 
+.footer {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.modeSegmented {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+
+  :global(.ant-segmented-item) {
+    color: var(--text-secondary);
+    min-width: 52px;
+  }
+
+  :global(.ant-segmented-item-selected) {
+    color: #ffffff;
+    background: rgba(0, 229, 255, 0.18);
+  }
+}
+
 .sendBtn {
   color: #fff !important;
   border-radius: 8px !important;

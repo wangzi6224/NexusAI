@@ -1,8 +1,9 @@
 import { Sender } from '@ant-design/x';
-import { Button, Flex } from 'antd';
+import { Button, Flex, Segmented, Tooltip } from 'antd';
 import classNames from 'classnames';
 import React, { useState } from 'react';
 import { useChatContext } from '../../contexts/ChatContext';
+import { AssistantMode } from '../../services/api';
 import styles from './index.module.less';
 
 export interface ChatSenderInputProps {
@@ -22,10 +23,11 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
   const { sendMessage, loading } = useChatContext();
 
   const [inputValue, setInputValue] = useState('');
+  const [mode, setMode] = useState<AssistantMode>('auto');
 
   const handleSubmit = (val: string) => {
     if (!val.trim() || loading) return;
-    sendMessage(val.trim());
+    sendMessage(val.trim(), { mode });
     setInputValue('');
   };
 
@@ -57,7 +59,25 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
         autoSize={autoSize}
         loading={loading}
         footer={
-          <Flex align="center" justify="flex-end" gap={8} className="w-full">
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={8}
+            className={styles.footer}
+          >
+            <Tooltip title="自动会按问题类型选择普通聊天或工具增强 Agent">
+              <Segmented
+                size="small"
+                value={mode}
+                onChange={(value) => setMode(value as AssistantMode)}
+                options={[
+                  { label: '自动', value: 'auto' },
+                  { label: '聊天', value: 'chat' },
+                  { label: 'Agent', value: 'agent' },
+                ]}
+                className={styles.modeSegmented}
+              />
+            </Tooltip>
             <Button
               type="primary"
               className={styles.sendBtn}

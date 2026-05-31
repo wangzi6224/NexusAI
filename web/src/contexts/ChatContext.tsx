@@ -1,6 +1,8 @@
 import {
+  AssistantMode,
+  AssistantStreamChunk,
+  AssistantToolCallEvent,
   ConversationItem,
-  ConversationStreamChunk,
   MessageItem,
   ModelsResponse,
   createConversation as apiCreateConversation,
@@ -10,7 +12,7 @@ import {
   getConversations,
   getHealth,
   getModels,
-  sendConversationMessageStream,
+  sendAssistantMessageStream,
 } from '@/services/api';
 import { message } from 'antd';
 import React, {
@@ -39,6 +41,14 @@ export interface ChatMessage {
   model?: string;
   latency_ms?: number;
   usage?: TokenUsage;
+  assistantRunId?: string;
+  agentRunId?: string;
+  requestedMode?: AssistantMode;
+  resolvedMode?: 'chat' | 'agent';
+  routeReason?: string;
+  matchedKeywords?: string[];
+  toolCalls?: AssistantToolCallEvent[];
+  statusText?: string;
 }
 
 interface ChatContextType {
@@ -56,7 +66,10 @@ interface ChatContextType {
   conversationsLoading: boolean;
   messagesLoading: boolean;
   conversationsError: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    options?: { mode?: AssistantMode },
+  ) => Promise<void>;
   loadConversations: () => Promise<void>;
   createConversation: (title?: string) => Promise<ConversationItem | null>;
   deleteConversation: (conversationId: string) => Promise<void>;
@@ -108,7 +121,17 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
     model: typeof metadata.model === 'string' ? metadata.model : undefined,
     latency_ms:
       typeof metadata.latency_ms === 'number' ? metadata.latency_ms : undefined,
+    resolvedMode:
+      metadata.mode === 'chat' || metadata.mode === 'agent'
+        ? metadata.mode
+        : undefined,
   };
+}
+
+function getModeLabel(mode?: AssistantMode | 'chat' | 'agent'): string {
+  if (mode === 'agent') return 'Agent';
+  if (mode === 'chat') return '聊天';
+  return '自动';
 }
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -296,8 +319,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, options?: { mode?: AssistantMode }) => {
       const trimmedContent = content.trim();
+      const requestedMode = options?.mode || 'auto';
 
       if (!trimmedContent || loading) return;
 
@@ -326,27 +350,102 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         content: '',
         timestamp: Date.now() + 1,
         loading: true,
+        requestedMode,
+        statusText: `${getModeLabel(requestedMode)}模式处理中`,
       };
 
       setMessages((prev) => [...prev, userMsg, aiMsgPlaceholder]);
       setLoading(true);
 
       try {
-        await sendConversationMessageStream(
+        await sendAssistantMessageStream(
           conversationId,
           {
-            content: trimmedContent,
+            message: trimmedContent,
+            mode: requestedMode,
             provider: currentProvider || null,
             model: currentModel || null,
           },
-          (chunk: ConversationStreamChunk) => {
-            if (chunk.event === 'message_start' && chunk.user_message_id) {
+          (chunk: AssistantStreamChunk) => {
+            if (chunk.event === 'assistant_start') {
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === userMsg.id
+                  m.id === aiMsgId
                     ? {
                         ...m,
-                        id: chunk.user_message_id || m.id,
+                        assistantRunId: chunk.assistant_run_id || m.id,
+                        requestedMode: chunk.requested_mode || requestedMode,
+                        resolvedMode: chunk.mode,
+                        statusText: chunk.mode
+                          ? `${getModeLabel(chunk.mode)}模式处理中`
+                          : m.statusText,
+                      }
+                    : m,
+                ),
+              );
+              return;
+            }
+
+            if (chunk.event === 'route_decision') {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        resolvedMode: chunk.mode,
+                        routeReason: chunk.reason,
+                        matchedKeywords: chunk.matched_keywords || [],
+                        statusText: `${getModeLabel(chunk.mode)}模式处理中`,
+                      }
+                    : m,
+                ),
+              );
+              return;
+            }
+
+            if (chunk.event === 'tool_call_start') {
+              const toolCall: AssistantToolCallEvent = {
+                tool_name: chunk.tool_name,
+                arguments: chunk.arguments,
+                reason: chunk.reason,
+                step: chunk.step,
+              };
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        toolCalls: [...(m.toolCalls || []), toolCall],
+                        statusText: chunk.tool_name
+                          ? `调用工具：${chunk.tool_name}`
+                          : '调用工具中',
+                      }
+                    : m,
+                ),
+              );
+              return;
+            }
+
+            if (chunk.event === 'tool_call_end') {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        toolCalls: (m.toolCalls || []).map((item) =>
+                          item.tool_name === chunk.tool_name &&
+                          item.step === chunk.step
+                            ? {
+                                ...item,
+                                success: chunk.success,
+                                latency_ms: chunk.latency_ms,
+                                error_code: chunk.error_code,
+                                error_message: chunk.error_message,
+                              }
+                            : item,
+                        ),
+                        statusText: '整理回答中',
                       }
                     : m,
                 ),
@@ -375,6 +474,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
                           activeConversation?.provider ||
                           'ollama',
                         model: currentModel || activeConversation?.model,
+                        statusText: m.statusText,
                       }
                     : m,
                 ),
@@ -382,21 +482,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
               return;
             }
 
-            if (chunk.event === 'message_end') {
+            if (chunk.event === 'assistant_end') {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
                     ? {
                         ...m,
                         id: chunk.assistant_message_id || m.id,
-                        content: chunk.content || m.content,
                         loading: false,
+                        assistantRunId: chunk.assistant_run_id,
+                        agentRunId: chunk.agent_run_id,
+                        resolvedMode: chunk.mode || m.resolvedMode,
                         latency_ms: chunk.latency_ms,
+                        toolCalls: chunk.tool_calls || m.toolCalls,
                         provider:
+                          chunk.provider ||
                           currentProvider ||
-                          activeConversation?.provider ||
-                          'ollama',
-                        model: currentModel || activeConversation?.model,
+                          activeConversation?.provider,
+                        model:
+                          chunk.model || currentModel || activeConversation?.model,
+                        statusText: undefined,
                       }
                     : m,
                 ),
@@ -417,6 +522,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         );
 
         await loadConversations();
+        const latestMessages = await getConversationMessages(conversationId);
+        setMessages(
+          latestMessages.items
+            .map(toChatMessage)
+            .filter((item): item is ChatMessage => Boolean(item)),
+        );
       } catch (err: any) {
         setMessages((prev) =>
           prev.map((m) =>

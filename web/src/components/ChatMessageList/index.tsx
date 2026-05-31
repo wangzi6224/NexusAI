@@ -2,7 +2,7 @@ import { ChatMessage } from '@/contexts/ChatContext';
 import type { BubbleProps } from '@ant-design/x';
 import { Bubble } from '@ant-design/x';
 import { XMarkdown } from '@ant-design/x-markdown';
-import { Typography } from 'antd';
+import { Space, Tag, Typography } from 'antd';
 import React, { useMemo } from 'react';
 import styles from './index.module.less';
 
@@ -48,26 +48,52 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
         if (msg.role === 'ai' && !isWaiting) {
           item.contentRender = renderMarkdown;
 
-          // 流式完成后显示元信息：provider/model/latency/tokens
-          if (!isStreaming) {
-            const metaParts: string[] = [];
-            if (msg.model) metaParts.push(msg.model);
-            if (msg.provider) metaParts.push(msg.provider);
-            if (msg.latency_ms !== null && msg.latency_ms !== undefined)
-              metaParts.push(`${msg.latency_ms} ms`);
-            if (
-              msg.usage?.total_tokens !== null &&
-              msg.usage?.total_tokens !== undefined
-            )
-              metaParts.push(`${msg.usage.total_tokens} tokens`);
+          const metaParts: string[] = [];
+          if (msg.model) metaParts.push(msg.model);
+          if (msg.provider) metaParts.push(msg.provider);
+          if (msg.latency_ms !== null && msg.latency_ms !== undefined)
+            metaParts.push(`${msg.latency_ms} ms`);
+          if (
+            msg.usage?.total_tokens !== null &&
+            msg.usage?.total_tokens !== undefined
+          )
+            metaParts.push(`${msg.usage.total_tokens} tokens`);
 
-            if (metaParts.length > 0) {
-              item.footer = (
-                <Text type="secondary" className={styles.metaText}>
-                  {metaParts.join(' · ')}
-                </Text>
-              );
-            }
+          const toolCount = msg.toolCalls?.length || 0;
+
+          if (
+            msg.resolvedMode ||
+            msg.statusText ||
+            toolCount > 0 ||
+            metaParts.length > 0
+          ) {
+            item.footer = (
+              <Space size={6} wrap className={styles.metaLine}>
+                {msg.resolvedMode ? (
+                  <Tag
+                    color={msg.resolvedMode === 'agent' ? 'processing' : 'cyan'}
+                    className={styles.metaTag}
+                  >
+                    {msg.resolvedMode === 'agent' ? 'Agent' : '聊天'}
+                  </Tag>
+                ) : null}
+                {toolCount > 0 ? (
+                  <Tag color="purple" className={styles.metaTag}>
+                    工具 {toolCount}
+                  </Tag>
+                ) : null}
+                {msg.statusText ? (
+                  <Text type="secondary" className={styles.metaText}>
+                    {msg.statusText}
+                  </Text>
+                ) : null}
+                {!isStreaming && metaParts.length > 0 ? (
+                  <Text type="secondary" className={styles.metaText}>
+                    {metaParts.join(' · ')}
+                  </Text>
+                ) : null}
+              </Space>
+            );
           }
         }
 
