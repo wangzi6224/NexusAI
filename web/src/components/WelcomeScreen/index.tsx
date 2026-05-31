@@ -21,7 +21,7 @@ const WelcomeScreen: React.FC = () => {
       <div className={styles.content}>
         <div className={styles.titleWrapper}>
           <Title level={2} className={styles.title}>
-            My Python AI App
+            NexusAI
           </Title>
           <Text className={styles.subtitle}>
             基于 FastAPI 后端接口的模型对话前端

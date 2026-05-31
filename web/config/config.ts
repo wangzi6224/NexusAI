@@ -7,7 +7,7 @@ const PUBLIC_PATH = '/';
 const CODE_EDITOR_BIN = process.env.CODE_EDITOR || '/usr/local/bin/code';
 
 export default defineConfig({
-  chainWebpack (memo: any) {
+  chainWebpack(memo: any) {
     // Ensure IDE is deterministic for code-inspector runtime.
     process.env.CODE_EDITOR = process.env.CODE_EDITOR || CODE_EDITOR_BIN;
 
@@ -18,9 +18,10 @@ export default defineConfig({
         port: 6009,
         dev: process.env.NODE_ENV === 'development',
         hooks: {
-          afterInspectRequest (options) {
+          afterInspectRequest(options) {
             options.editor = (options.editor || CODE_EDITOR_BIN) as any;
-            process.env.CODE_EDITOR = process.env.CODE_EDITOR || CODE_EDITOR_BIN;
+            process.env.CODE_EDITOR =
+              process.env.CODE_EDITOR || CODE_EDITOR_BIN;
           },
         },
         showSwitch: true,
@@ -43,7 +44,7 @@ export default defineConfig({
   initialState: {},
   request: {},
   layout: {},
-  title: 'My Python AI App',
+  title: 'NexusAI',
   routes,
   npmClient: 'pnpm',
   alias: {
@@ -62,7 +63,7 @@ export default defineConfig({
       proxyTimeout: 0,
       // 接管响应管道，绕过 compression 中间件缓冲，逐 chunk 强制 flush
       selfHandleResponse: true,
-      onProxyRes (proxyRes: any, _req: any, res: any) {
+      onProxyRes(proxyRes: any, _req: any, res: any) {
         // 转发原始响应头
         Object.keys(proxyRes.headers).forEach((key) => {
           const val = proxyRes.headers[key];

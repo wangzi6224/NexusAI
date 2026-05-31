@@ -6,7 +6,7 @@ from src.app.api.exception_handlers import register_exception_handlers
 from src.app.api.routes import router
 from src.app.paths import STATIC_DIR
 
-app = FastAPI(title="My Python AI App")
+app = FastAPI(title="NexusAI")
 
 app.add_middleware(
     CORSMiddleware,

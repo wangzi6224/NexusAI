@@ -1,5 +1,9 @@
 import { useChatContext } from '@/contexts/ChatContext';
-import { DeleteOutlined, MessageOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  MessageOutlined,
+  PlusOutlined,
+} from '@ant-design/icons';
 import { Badge, Button, Popconfirm, Select, Typography } from 'antd';
 import React from 'react';
 import styles from './index.module.less';
@@ -49,7 +53,7 @@ const Sidebar: React.FC = () => {
       {/* 应用标题 */}
       <div className={styles.newChatWrapper}>
         <Text strong className={styles.appTitle}>
-          My Python AI App
+          NexusAI
         </Text>
         <Button
           type="primary"
