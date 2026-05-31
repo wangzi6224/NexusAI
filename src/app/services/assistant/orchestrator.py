@@ -10,7 +10,6 @@ from src.app.conversation_store import (
     get_conversation,
     update_conversation,
 )
-from src.app.exceptions import ConversationError
 from src.app.logger import get_logger
 from src.app.schemas.assistant import AssistantStreamRequest, RouteDecision
 from src.app.services.agent.agent_service import AgentService
@@ -292,7 +291,6 @@ class AssistantOrchestrator:
         start: float,
     ) -> Iterable[str]:
         # 当前 AgentService.chat 是同步执行。
-        # Week 14 先统一 SSE 协议，不强行改 AgentLoop 为流式。
         result = self.agent_service.chat(
             conversation_id=conversation_id,
             question=clean_message,
@@ -302,10 +300,12 @@ class AssistantOrchestrator:
             model=selected_model,
         )
 
-        tool_calls = result.get("tool_calls", [])
-        trace = result.get("trace", {})
-        answer = result.get("answer", "")
-        agent_run_id = result.get("run_id")
+        tool_calls: list[dict[str, Any]] = result.get("tool_calls", [])
+        trace: dict[str, Any] = result.get("trace", {})
+        answer: str = result.get("answer", "")
+        agent_run_id: str | None = result.get("run_id")
+        user_message_id: str | None = result.get("user_message_id")
+        assistant_message_id: str | None = result.get("assistant_message_id")
 
         for tool_call in tool_calls:
             yield sse_event(
@@ -335,6 +335,11 @@ class AssistantOrchestrator:
 
         latency_ms = int((perf_counter() - start) * 1000)
 
+        # 从 tool_calls 中兼容性抽取 sources（第一版）
+        sources: list[dict[str, Any]] = self._extract_sources_from_tool_calls(
+            tool_calls
+        )
+
         assistant_trace: dict[str, Any] = {
             "assistant_run_id": assistant_run_id,
             "mode": "agent",
@@ -342,14 +347,14 @@ class AssistantOrchestrator:
             "agent_run_id": agent_run_id,
             "agent_trace": trace,
             "tool_calls": tool_calls,
+            "sources": sources,
         }
 
-        # AgentService 已经保存 user/assistant message。
-        # 这里无法直接拿到 assistant_message_id，因为当前 AgentService 返回值没有带。
-        # Week 14 可以先记录 agent_run_id。下一步建议让 AgentService.chat 返回 user_message_id / assistant_message_id。
         self.run_store.update_run(
             assistant_run_id,
             status="completed",
+            user_message_id=user_message_id,
+            assistant_message_id=assistant_message_id,
             final_answer=answer,
             model=trace.get("model") or selected_model,
             provider=trace.get("provider"),
@@ -365,12 +370,14 @@ class AssistantOrchestrator:
             "assistant_end",
             {
                 "assistant_run_id": assistant_run_id,
+                "assistant_message_id": assistant_message_id,
                 "agent_run_id": agent_run_id,
                 "mode": "agent",
                 "latency_ms": latency_ms,
                 "model": trace.get("model") or selected_model,
                 "provider": trace.get("provider"),
                 "tool_calls": tool_calls,
+                "sources": sources,
                 "trace": assistant_trace,
             },
         )
@@ -389,3 +396,78 @@ class AssistantOrchestrator:
                 conversation_id,
                 exc,
             )
+
+    def _extract_sources_from_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """从 Agent tool_calls 中兼容性抽取 sources，供前端展示与后续 Eval 使用。
+
+        抽取原则：
+        - 优先级：result.data.items / result.data.chunks / result.data.sources
+          → result.items / result.chunks / result.sources → result.data
+        - 字段缺失时跳过，不抛异常。
+        - 同一 chunk_id 去重。
+        - content_preview 截断至 160 字。
+        """
+        seen_chunk_ids: set[str] = set()
+        sources: list[dict[str, Any]] = []
+
+        for tool_call in tool_calls:
+            result_raw = tool_call.get("result")
+            if not isinstance(result_raw, dict):
+                # tool_result 有时是 AgentStep 序列化后的结构
+                result_raw = tool_call.get("tool_result")
+            if not isinstance(result_raw, dict):
+                continue
+
+            # 尝试多个候选位置，按优先级依次查找 item 列表
+            candidate_lists: list[Any] = []
+            data = result_raw.get("data")
+            if isinstance(data, dict):
+                for key in ("items", "chunks", "sources"):
+                    v = data.get(key)
+                    if isinstance(v, list):
+                        candidate_lists.append(v)
+                        break  # 找到即止
+            for key in ("items", "chunks", "sources"):
+                v = result_raw.get(key)
+                if isinstance(v, list):
+                    candidate_lists.append(v)
+                    break
+
+            for item_list in candidate_lists:
+                for item in item_list:
+                    if not isinstance(item, dict):
+                        continue
+
+                    chunk_id: str | None = item.get("chunk_id") or item.get("id")
+                    # 去重
+                    if chunk_id and chunk_id in seen_chunk_ids:
+                        continue
+                    if chunk_id:
+                        seen_chunk_ids.add(chunk_id)
+
+                    # content_preview：截断至 160 字
+                    content: str = (
+                        item.get("content") or item.get("content_preview") or ""
+                    )
+                    preview: str = content[:160] if content else ""
+
+                    source: dict[str, Any] = {
+                        "chunk_id": chunk_id,
+                        "document_id": item.get("document_id"),
+                        "filename": item.get("filename"),
+                        "heading": item.get("heading"),
+                        "score": item.get("score")
+                        or item.get("rrf_score")
+                        or item.get("rerank_score"),
+                        "distance": item.get("distance"),
+                        "rerank_score": item.get("rerank_score"),
+                        "rrf_score": item.get("rrf_score"),
+                        "chunk_index": item.get("chunk_index"),
+                        "content_preview": preview,
+                    }
+                    sources.append(source)
+
+        return sources

@@ -1,5 +1,6 @@
 import {
   AssistantMode,
+  AssistantSourceItem,
   AssistantStreamChunk,
   AssistantToolCallEvent,
   ConversationItem,
@@ -48,6 +49,8 @@ export interface ChatMessage {
   routeReason?: string;
   matchedKeywords?: string[];
   toolCalls?: AssistantToolCallEvent[];
+  sources?: AssistantSourceItem[];
+  trace?: Record<string, unknown>;
   statusText?: string;
 }
 
@@ -111,6 +114,51 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
 
   const metadata = item.metadata || {};
 
+  // 安全读取 tool_calls
+  const rawToolCalls = metadata.tool_calls;
+  const toolCalls: AssistantToolCallEvent[] | undefined = Array.isArray(
+    rawToolCalls,
+  )
+    ? (rawToolCalls as AssistantToolCallEvent[])
+    : undefined;
+
+  // 安全读取 sources
+  const rawSources = metadata.sources;
+  const sources: AssistantSourceItem[] | undefined = Array.isArray(rawSources)
+    ? (rawSources as AssistantSourceItem[])
+    : undefined;
+
+  // 安全读取 trace（必须是对象且非 null）
+  const rawTrace = metadata.trace;
+  const trace: Record<string, unknown> | undefined =
+    rawTrace !== null &&
+    typeof rawTrace === 'object' &&
+    !Array.isArray(rawTrace)
+      ? (rawTrace as Record<string, unknown>)
+      : undefined;
+
+  // 从 trace.route_decision 恢复路由原因
+  let routeReason: string | undefined;
+  let matchedKeywords: string[] | undefined;
+  if (trace) {
+    const rd = trace.route_decision;
+    if (rd !== null && typeof rd === 'object' && !Array.isArray(rd)) {
+      const rdObj = rd as Record<string, unknown>;
+      routeReason = typeof rdObj.reason === 'string' ? rdObj.reason : undefined;
+      matchedKeywords = Array.isArray(rdObj.matched_keywords)
+        ? (rdObj.matched_keywords as string[])
+        : undefined;
+    }
+  }
+
+  // agentRunId：兼容 run_id 和 agent_run_id
+  const agentRunId: string | undefined =
+    typeof metadata.agent_run_id === 'string'
+      ? metadata.agent_run_id
+      : typeof metadata.run_id === 'string'
+      ? metadata.run_id
+      : undefined;
+
   return {
     id: item.id,
     role: item.role === 'assistant' ? 'ai' : 'user',
@@ -125,6 +173,16 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
       metadata.mode === 'chat' || metadata.mode === 'agent'
         ? metadata.mode
         : undefined,
+    assistantRunId:
+      typeof metadata.assistant_run_id === 'string'
+        ? metadata.assistant_run_id
+        : undefined,
+    agentRunId,
+    routeReason,
+    matchedKeywords,
+    toolCalls,
+    sources,
+    trace,
   };
 }
 
@@ -495,12 +553,23 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
                         resolvedMode: chunk.mode || m.resolvedMode,
                         latency_ms: chunk.latency_ms,
                         toolCalls: chunk.tool_calls || m.toolCalls,
+                        sources: Array.isArray(chunk.sources)
+                          ? chunk.sources
+                          : m.sources,
+                        trace:
+                          chunk.trace !== null &&
+                          typeof chunk.trace === 'object' &&
+                          !Array.isArray(chunk.trace)
+                            ? chunk.trace
+                            : m.trace,
                         provider:
                           chunk.provider ||
                           currentProvider ||
                           activeConversation?.provider,
                         model:
-                          chunk.model || currentModel || activeConversation?.model,
+                          chunk.model ||
+                          currentModel ||
+                          activeConversation?.model,
                         statusText: undefined,
                       }
                     : m,

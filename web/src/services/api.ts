@@ -157,6 +157,38 @@ export interface AssistantToolCallEvent {
   latency_ms?: number;
   error_code?: string | null;
   error_message?: string | null;
+  result?: Record<string, unknown>;
+}
+
+export interface AssistantSourceItem {
+  chunk_id?: string;
+  document_id?: string;
+  filename?: string;
+  heading?: string | null;
+  score?: number;
+  distance?: number;
+  rerank_score?: number;
+  rrf_score?: number;
+  chunk_index?: number;
+  content_preview?: string;
+}
+
+export interface AssistantRunItem {
+  id: string;
+  conversation_id: string;
+  user_message_id?: string | null;
+  assistant_message_id?: string | null;
+  mode: AssistantMode | 'chat' | 'agent';
+  status: string;
+  input: string;
+  final_answer?: string | null;
+  model?: string | null;
+  provider?: string | null;
+  latency_ms?: number | null;
+  trace: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AssistantStreamChunk {
@@ -174,6 +206,7 @@ export interface AssistantStreamChunk {
   model?: string;
   provider?: string;
   tool_calls?: AssistantToolCallEvent[];
+  sources?: AssistantSourceItem[];
   trace?: Record<string, unknown>;
   tool_name?: string;
   arguments?: Record<string, unknown>;
@@ -640,6 +673,13 @@ export async function sendAssistantMessageStream(
       }
     }
   }
+}
+
+export async function getAssistantRun(
+  runId: string,
+): Promise<AssistantRunItem> {
+  const { data } = await http.get<AssistantRunItem>(`/assistant/runs/${runId}`);
+  return data;
 }
 
 export async function getHistory(): Promise<HistoryItem[]> {

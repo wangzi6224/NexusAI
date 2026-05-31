@@ -160,3 +160,28 @@ class AssistantRunStore:
             )
 
         return run
+
+    def get_run(self, run_id: str) -> dict[str, Any]:
+        """查询单条 AssistantRun。run 不存在时抛 404 ConversationError。"""
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT *
+                    FROM assistant_runs
+                    WHERE id = %(run_id)s
+                    """,
+                    {"run_id": run_id},
+                )
+                row = cur.fetchone()
+
+        run = _normalize_run(cast(dict[str, Any] | None, row))
+
+        if run is None:
+            raise ConversationError(
+                message="Assistant Run 不存在",
+                detail=f"run_id={run_id}",
+                status_code=404,
+            )
+
+        return run

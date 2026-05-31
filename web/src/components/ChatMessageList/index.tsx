@@ -1,3 +1,5 @@
+import ToolCallTimeline from '@/components/ToolCallTimeline';
+import TraceDrawer from '@/components/TraceDrawer';
 import { ChatMessage } from '@/contexts/ChatContext';
 import type { BubbleProps } from '@ant-design/x';
 import { Bubble } from '@ant-design/x';
@@ -65,7 +67,8 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
             msg.resolvedMode ||
             msg.statusText ||
             toolCount > 0 ||
-            metaParts.length > 0
+            metaParts.length > 0 ||
+            msg.assistantRunId
           ) {
             item.footer = (
               <Space size={6} wrap className={styles.metaLine}>
@@ -92,7 +95,21 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     {metaParts.join(' · ')}
                   </Text>
                 ) : null}
+                {!isStreaming && msg.assistantRunId ? (
+                  <TraceDrawer msg={msg} />
+                ) : null}
               </Space>
+            );
+          }
+
+          // ToolCallTimeline 放在 footer 下方（通过 contentRender 追加）
+          if (toolCount > 0 && !isWaiting) {
+            const originalContentRender = item.contentRender || renderMarkdown;
+            item.contentRender = (content: unknown) => (
+              <>
+                {originalContentRender(content)}
+                <ToolCallTimeline toolCalls={msg.toolCalls} />
+              </>
             );
           }
         }

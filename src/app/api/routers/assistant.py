@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -33,3 +34,9 @@ def stream_assistant_message(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/assistant/runs/{run_id}")
+def get_assistant_run(run_id: str) -> dict[str, Any]:
+    """查询单条 AssistantRun 详情。"""
+    return get_assistant_orchestrator().run_store.get_run(run_id)

@@ -1,0 +1,77 @@
+.container {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--ant-color-fill-quaternary, rgba(0 0 0 / 2%));
+  border-radius: 6px;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+}
+
+.title {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.timeline {
+  margin-bottom: 0 !important;
+
+  :global(.ant-timeline-item-last) {
+    padding-bottom: 0;
+  }
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolIcon {
+  font-size: 12px;
+  color: var(--ant-color-primary, #1677ff);
+}
+
+.toolName {
+  font-size: 13px;
+}
+
+.stepTag {
+  font-size: 11px;
+  padding: 0 4px;
+  line-height: 16px;
+}
+
+.latency {
+  font-size: 11px;
+}
+
+.reason {
+  font-size: 12px;
+  display: block;
+}
+
+.error {
+  font-size: 12px;
+  display: block;
+}
+
+.argsCollapse {
+  margin-top: 4px;
+
+  :global(.ant-collapse-content-box) {
+    padding: 4px 0 !important;
+  }
+}
+
+.argCode {
+  white-space: pre-wrap;
+  font-size: 11px;
+  word-break: break-all;
+}
