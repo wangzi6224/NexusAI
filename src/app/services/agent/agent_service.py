@@ -204,6 +204,8 @@ class AgentService:
         return {
             "run_id": run_id,
             "conversation_id": conversation_id,
+            "user_message_id": user_message["id"],
+            "assistant_message_id": assistant_message["id"],
             "question": clean_question,
             "answer": assistant_message["content"],
             "tool_calls": tool_calls,

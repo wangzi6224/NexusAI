@@ -2,6 +2,7 @@
 
 from src.app.api.routers import (
     agent,
+    assistant,
     base,
     chat,
     conversations,
@@ -13,6 +14,7 @@ from src.app.api.routers import (
 
 ROUTERS = (
     base.router,
+    assistant.router,
     chat.router,
     history_models.router,
     conversations.router,
@@ -25,6 +27,7 @@ ROUTERS = (
 __all__ = [
     "ROUTERS",
     "agent",
+    "assistant",
     "base",
     "chat",
     "conversations",
