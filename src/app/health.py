@@ -1,7 +1,12 @@
 import requests
 from src.app.exceptions import LLMProviderError
 
-from src.app.config import get_ollama_base_url, get_ollama_model, get_ollama_timeout
+from src.app.config import (
+    get_ollama_base_url,
+    get_ollama_model,
+    get_ollama_timeout,
+    get_settings,
+)
 
 
 def check_ollama_server() -> tuple[bool, str]:
@@ -37,7 +42,18 @@ def check_ollama_model_exists() -> tuple[bool, str]:
         return False, f"检查模型失败: {exc}"
 
 
-def get_available_models() -> list[str]:
+def get_available_models(provider: str | None = None) -> list[str]:
+    provider_name = (provider or "ollama").lower().strip()
+
+    if provider_name == "deepseek":
+        return [get_settings().deepseek_model]
+
+    if provider_name != "ollama":
+        raise LLMProviderError(
+            message="不支持的 Provider",
+            detail=f"provider={provider_name}",
+        )
+
     base_url = get_ollama_base_url()
     timeout = get_ollama_timeout()
 

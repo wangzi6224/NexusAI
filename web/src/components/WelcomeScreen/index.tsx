@@ -11,7 +11,8 @@ import styles from './index.module.less';
 const { Text, Title } = Typography;
 
 const WelcomeScreen: React.FC = () => {
-  const { health, healthError, currentModel } = useChatContext();
+  const { health, healthError, currentProvider, currentModel } =
+    useChatContext();
 
   return (
     <div className={styles.container}>
@@ -44,7 +45,11 @@ const WelcomeScreen: React.FC = () => {
                   <Text className={styles.healthTextSuccess}>
                     <CheckCircleOutlined className={styles.healthIcon} />
                     后端在线
-                    {currentModel ? `，当前模型：${currentModel}` : ''}
+                    {currentModel
+                      ? `，当前模型：${
+                          currentProvider ? `${currentProvider}/` : ''
+                        }${currentModel}`
+                      : ''}
                   </Text>
                 }
               />

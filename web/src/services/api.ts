@@ -23,6 +23,7 @@ export interface TokenUsage {
 
 export interface ChatRequest {
   message: string;
+  provider?: string | null;
   model?: string | null;
 }
 
@@ -81,11 +82,13 @@ export interface MessageListResponse {
 
 export interface ConversationCreateRequest {
   title: string;
+  provider?: string | null;
   model?: string | null;
 }
 
 export interface SendMessageRequest {
   content: string;
+  provider?: string | null;
   model?: string | null;
 }
 
@@ -132,12 +135,19 @@ export interface ClearHistoryResponse {
 }
 
 export interface ModelsResponse {
+  current_provider: string;
   current_model: string;
   available_models: string[];
+  providers?: {
+    provider: string;
+    current_model: string;
+    available_models: string[];
+  }[];
 }
 
 export interface SelectModelResponse {
   success: boolean;
+  selected_provider: string;
   selected_model: string;
   message: string;
 }
@@ -495,8 +505,12 @@ export async function getModels(): Promise<ModelsResponse> {
   return data;
 }
 
-export async function selectModel(model: string): Promise<SelectModelResponse> {
+export async function selectModel(
+  model: string,
+  provider?: string,
+): Promise<SelectModelResponse> {
   const { data } = await http.post<SelectModelResponse>('/model/select', {
+    provider,
     model,
   });
   return data;

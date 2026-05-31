@@ -43,6 +43,7 @@ def create_conversation_api(
     conversation = create_new_conversation(
         title=request.title,
         model=request.model,
+        provider=request.provider,
     )
     return ConversationDetailResponse(
         **conversation,
@@ -111,6 +112,7 @@ def send_conversation_message_api(
         conversation_id=conversation_id,
         content=request.content,
         model=request.model,
+        provider=request.provider,
     )
 
     return SendMessageResponse(
@@ -135,6 +137,7 @@ def stream_conversation_message_api(
             conversation_id=conversation_id,
             content=request.content,
             model=request.model,
+            provider=request.provider,
         ),
         media_type="text/event-stream",
         headers={
@@ -173,4 +176,3 @@ def update_conversation_summary_api(
 ) -> SummaryUpdateResponse:
     result: dict[str, Any] = update_summary_manually(conversation_id)
     return SummaryUpdateResponse(**result)
-

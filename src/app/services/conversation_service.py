@@ -45,6 +45,7 @@ def _with_message_count(conversation: dict[str, Any]) -> dict[str, Any]:
 def create_new_conversation(
     title: str,
     model: str | None = None,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     if not title.strip():
         raise ConversationError(
@@ -55,6 +56,7 @@ def create_new_conversation(
     return create_conversation(
         title=title.strip(),
         model=model,
+        provider=provider,
     )
 
 
@@ -77,6 +79,7 @@ def send_conversation_message(
     conversation_id: str,
     content: str,
     model: str | None = None,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     conversation = _ensure_conversation_exists(conversation_id)
 
@@ -90,6 +93,7 @@ def send_conversation_message(
         model=model,
         stored_model=conversation.get("model"),
         stored_provider=conversation.get("provider"),
+        provider=provider,
     )
 
     user_message = create_message(
@@ -101,10 +105,10 @@ def send_conversation_message(
     context_builder = ContextBuilder()
     llm_messages = context_builder.build_messages(conversation_id)
 
-    provider = get_llm_provider()
+    llm_provider = get_llm_provider(provider)
 
     start = perf_counter()
-    llm_response = provider.chat(
+    llm_response = llm_provider.chat(
         messages=llm_messages,
         model=selected_model,
     )
@@ -126,7 +130,13 @@ def send_conversation_message(
 
     _try_update_summary(conversation_id, model=selected_model)
 
-    update_conversation(conversation_id, {})
+    update_conversation(
+        conversation_id,
+        {
+            "model": llm_response.model,
+            "provider": llm_response.provider,
+        },
+    )
 
     logger.info(
         "会话消息处理完成: conversation_id=%s latency_ms=%s",
@@ -153,6 +163,7 @@ def stream_conversation_message(
     conversation_id: str,
     content: str,
     model: str | None = None,
+    provider: str | None = None,
 ) -> Iterable[str]:
     conversation = _ensure_conversation_exists(conversation_id)
 
@@ -171,6 +182,7 @@ def stream_conversation_message(
         model=model,
         stored_model=conversation.get("model"),
         stored_provider=conversation.get("provider"),
+        provider=provider,
     )
 
     try:
@@ -192,12 +204,12 @@ def stream_conversation_message(
             },
         )
 
-        provider = get_llm_provider()
+        llm_provider = get_llm_provider(provider)
         full_answer_parts: list[str] = []
 
         start = perf_counter()
 
-        for chunk in provider.stream_chat(
+        for chunk in llm_provider.stream_chat(
             message=llm_messages,
             model=selected_model,
         ):
@@ -223,7 +235,7 @@ def stream_conversation_message(
             content=full_answer,
             metadata={
                 "model": selected_model,
-                "provider": provider.name,
+                "provider": llm_provider.name,
                 "latency_ms": latency_ms,
                 "context_message_count": len(llm_messages),
                 "is_stream": True,
@@ -232,7 +244,13 @@ def stream_conversation_message(
 
         _try_update_summary(conversation_id, model=selected_model)
 
-        update_conversation(conversation_id, {})
+        update_conversation(
+            conversation_id,
+            {
+                "model": selected_model,
+                "provider": llm_provider.name,
+            },
+        )
 
         yield _sse_event(
             "message_end",

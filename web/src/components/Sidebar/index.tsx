@@ -11,6 +11,7 @@ const Sidebar: React.FC = () => {
     health,
     healthError,
     models,
+    currentProvider,
     currentModel,
     conversations,
     activeConversationId,
@@ -19,14 +20,28 @@ const Sidebar: React.FC = () => {
     createConversation,
     selectConversation,
     startNewConversation,
+    handleSelectProvider,
     handleSelectModel,
   } = useChatContext();
 
-  const modelOptions =
-    models?.available_models.map((m) => ({
-      label: m,
-      value: m,
+  const providerOptions =
+    models?.providers?.map((item) => ({
+      label: item.provider,
+      value: item.provider,
     })) ?? [];
+
+  const selectedProviderModels = models?.providers?.find(
+    (item) => item.provider === currentProvider,
+  );
+
+  const modelOptions = (
+    selectedProviderModels?.available_models ||
+    models?.available_models ||
+    []
+  ).map((m) => ({
+    label: m,
+    value: m,
+  }));
 
   return (
     <div className={styles.sidebar}>
@@ -71,7 +86,20 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* 模型选择 */}
+      {/* Provider / 模型选择 */}
+      {providerOptions.length > 0 && (
+        <div className={styles.sectionPad}>
+          <Text className={styles.sectionLabel}>选择 Provider</Text>
+          <Select
+            className={styles.modelSelect}
+            value={currentProvider || undefined}
+            options={providerOptions}
+            onChange={handleSelectProvider}
+            placeholder="选择 Provider"
+          />
+        </div>
+      )}
+
       {modelOptions.length > 0 && (
         <div className={styles.sectionPad}>
           <Text className={styles.sectionLabel}>选择模型</Text>
@@ -79,7 +107,7 @@ const Sidebar: React.FC = () => {
             className={styles.modelSelect}
             value={currentModel || undefined}
             options={modelOptions}
-            onChange={handleSelectModel}
+            onChange={(model) => handleSelectModel(model, currentProvider)}
             placeholder="选择模型"
           />
         </div>

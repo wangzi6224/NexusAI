@@ -9,6 +9,7 @@ from src.app.services.rag.retrieval_mode import (
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户输入的问题")
+    provider: str | None = Field(default=None, description="可选，指定本次请求使用的 Provider")
     model: str | None = Field(default=None, description="可选，指定本次请求使用的模型")
 
 
@@ -45,23 +46,36 @@ class ClearHistoryResponse(BaseModel):
     message: str
 
 
-class ModelsResponse(BaseModel):
+class ProviderModels(BaseModel):
+    provider: str
     current_model: str
     available_models: list[str]
 
 
+class ModelsResponse(BaseModel):
+    current_provider: str
+    current_model: str
+    available_models: list[str]
+    providers: list[ProviderModels] = Field(default_factory=list)
+
+
 class SelectModelRequest(BaseModel):
+    provider: str | None = None
     model: str
 
 
 class SelectModelResponse(BaseModel):
     success: bool
+    selected_provider: str
     selected_model: str
     message: str
 
 
 class ConversationCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, description="会话标题")
+    provider: str | None = Field(
+        default=None, description="可选，指定该会话默认使用的 Provider"
+    )
     model: str | None = Field(
         default=None, description="可选，指定该会话默认使用的模型"
     )
@@ -91,6 +105,7 @@ class ConversationDetailResponse(ConversationItem):
 
 class SendMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, description="用户本次发送的消息内容")
+    provider: str | None = Field(default=None, description="可选，覆盖本次请求使用的 Provider")
     model: str | None = Field(default=None, description="可选，覆盖本次请求使用的模型")
 
 

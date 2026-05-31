@@ -38,8 +38,13 @@ def _normalize_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
     return result
 
 
-def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
+def create_conversation(
+    title: str,
+    model: str | None = None,
+    provider: str | None = None,
+) -> dict[str, Any]:
     conversation_id = str(uuid.uuid4())
+    provider_name = (provider or get_llm_provider_name()).lower().strip()
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -74,8 +79,8 @@ def create_conversation(title: str, model: str | None = None) -> dict[str, Any]:
                 {
                     "id": conversation_id,
                     "title": title,
-                    "model": model or get_default_llm_model(),
-                    "provider": get_llm_provider_name(),
+                    "model": model or get_default_llm_model(provider_name),
+                    "provider": provider_name,
                 },
             )
             row = cur.fetchone()

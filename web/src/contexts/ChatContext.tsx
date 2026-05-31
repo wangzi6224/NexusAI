@@ -4,11 +4,11 @@ import {
   MessageItem,
   ModelsResponse,
   createConversation as apiCreateConversation,
+  selectModel as apiSelectModel,
   getConversationMessages,
   getConversations,
   getHealth,
   getModels,
-  selectModel as apiSelectModel,
   sendConversationMessageStream,
 } from '@/services/api';
 import { message } from 'antd';
@@ -47,6 +47,7 @@ interface ChatContextType {
   healthError: string | null;
   models: ModelsResponse | null;
   modelsError: string | null;
+  currentProvider: string;
   currentModel: string;
   conversations: ConversationItem[];
   activeConversationId: string | null;
@@ -60,7 +61,8 @@ interface ChatContextType {
   selectConversation: (conversationId: string) => Promise<void>;
   startNewConversation: () => void;
   loadModels: () => Promise<void>;
-  handleSelectModel: (model: string) => Promise<void>;
+  handleSelectProvider: (provider: string) => Promise<void>;
+  handleSelectModel: (model: string, provider?: string) => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -103,9 +105,7 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
       typeof metadata.provider === 'string' ? metadata.provider : undefined,
     model: typeof metadata.model === 'string' ? metadata.model : undefined,
     latency_ms:
-      typeof metadata.latency_ms === 'number'
-        ? metadata.latency_ms
-        : undefined,
+      typeof metadata.latency_ms === 'number' ? metadata.latency_ms : undefined,
   };
 }
 
@@ -120,6 +120,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [healthError, setHealthError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [currentProvider, setCurrentProvider] = useState<string>('');
   const [currentModel, setCurrentModel] = useState<string>('');
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
@@ -138,12 +139,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const data = await getModels();
       setModels(data);
+      setCurrentProvider(data.current_provider);
       setCurrentModel(data.current_model);
       setModelsError(null);
     } catch {
       setModelsError('模型列表加载失败');
     }
   }, []);
+
+  const getProviderModels = useCallback(
+    (provider: string) =>
+      models?.providers?.find((item) => item.provider === provider),
+    [models],
+  );
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -199,6 +207,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const conversation = await apiCreateConversation({
           title,
+          provider: currentProvider || null,
           model: currentModel || null,
         });
 
@@ -216,16 +225,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         return null;
       }
     },
-    [currentModel],
+    [currentModel, currentProvider],
   );
 
   const handleSelectModel = useCallback(
-    async (model: string) => {
+    async (model: string, provider?: string) => {
+      const nextProvider = provider || currentProvider;
+
       try {
-        const res = await apiSelectModel(model);
+        const res = await apiSelectModel(model, nextProvider);
         if (res.success) {
+          setCurrentProvider(res.selected_provider || nextProvider);
           setCurrentModel(res.selected_model);
-          message.success(res.message || `已切换模型：${res.selected_model}`);
+          message.success(
+            res.message ||
+              `已切换模型：${res.selected_provider}/${res.selected_model}`,
+          );
           await loadModels();
         } else {
           message.error(res.message || '模型切换失败');
@@ -234,7 +249,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         message.error(getErrorMessage(err, '模型切换失败'));
       }
     },
-    [loadModels],
+    [currentProvider, loadModels],
+  );
+
+  const handleSelectProvider = useCallback(
+    async (provider: string) => {
+      const providerModels = getProviderModels(provider);
+      const nextModel =
+        providerModels?.current_model || providerModels?.available_models[0];
+
+      setCurrentProvider(provider);
+
+      if (!nextModel) {
+        setCurrentModel('');
+        message.error('该 Provider 暂无可用模型');
+        return;
+      }
+
+      await handleSelectModel(nextModel, provider);
+    },
+    [getProviderModels, handleSelectModel],
   );
 
   const sendMessage = useCallback(
@@ -278,6 +312,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
           conversationId,
           {
             content: trimmedContent,
+            provider: currentProvider || null,
             model: currentModel || null,
           },
           (chunk: ConversationStreamChunk) => {
@@ -311,7 +346,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
                         ...m,
                         content: `${m.content}${chunk.delta || ''}`,
                         loading: true,
-                        provider: activeConversation?.provider || 'ollama',
+                        provider:
+                          currentProvider ||
+                          activeConversation?.provider ||
+                          'ollama',
                         model: currentModel || activeConversation?.model,
                       }
                     : m,
@@ -330,7 +368,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
                         content: chunk.content || m.content,
                         loading: false,
                         latency_ms: chunk.latency_ms,
-                        provider: activeConversation?.provider || 'ollama',
+                        provider:
+                          currentProvider ||
+                          activeConversation?.provider ||
+                          'ollama',
                         model: currentModel || activeConversation?.model,
                       }
                     : m,
@@ -376,6 +417,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
       activeConversationId,
       createConversation,
       currentModel,
+      currentProvider,
       loadConversations,
       loading,
     ],
@@ -399,6 +441,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         healthError,
         models,
         modelsError,
+        currentProvider,
         currentModel,
         conversations,
         activeConversationId,
@@ -412,6 +455,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         selectConversation,
         startNewConversation,
         loadModels,
+        handleSelectProvider,
         handleSelectModel,
         clearMessages,
       }}

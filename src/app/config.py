@@ -143,17 +143,27 @@ def get_ollama_keep_alive() -> str:
     return get_settings().ollama_keep_alive
 
 
+def get_supported_llm_providers() -> list[str]:
+    """返回当前代码支持的 LLM Provider 列表。"""
+    return ["ollama", "deepseek"]
+
+
 def get_llm_provider_name() -> str:
     """返回当前 LLM Provider 名称。"""
-    return get_settings().llm_provider.lower().strip()
+    try:
+        from src.app.runtime_config import get_selected_provider
+
+        return get_selected_provider()
+    except Exception:
+        return get_settings().llm_provider.lower().strip()
 
 
-def get_default_llm_model() -> str:
+def get_default_llm_model(provider: str | None = None) -> str:
     """返回当前 Provider 对应的默认模型名称。"""
     settings = get_settings()
-    provider = settings.llm_provider.lower().strip()
+    provider_name = (provider or settings.llm_provider).lower().strip()
 
-    if provider == "deepseek":
+    if provider_name == "deepseek":
         return settings.deepseek_model
 
     return settings.ollama_model
@@ -163,16 +173,22 @@ def resolve_llm_model(
     model: str | None = None,
     stored_model: str | None = None,
     stored_provider: str | None = None,
+    provider: str | None = None,
 ) -> str:
     """按当前 Provider 解析本次请求应使用的模型。"""
     if model:
         return model
 
-    current_provider = get_llm_provider_name()
+    current_provider = (provider or get_llm_provider_name()).lower().strip()
     if stored_model and (not stored_provider or stored_provider == current_provider):
         return stored_model
 
-    return get_default_llm_model()
+    try:
+        from src.app.runtime_config import get_selected_model
+
+        return get_selected_model(current_provider)
+    except Exception:
+        return get_default_llm_model(current_provider)
 
 
 # 应用级配置函数

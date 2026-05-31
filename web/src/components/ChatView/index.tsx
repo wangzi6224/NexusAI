@@ -8,8 +8,13 @@ import styles from './index.module.less';
 const { Text } = Typography;
 
 const ChatView: React.FC = () => {
-  const { messages, currentModel, activeConversation, messagesLoading } =
-    useChatContext();
+  const {
+    messages,
+    currentProvider,
+    currentModel,
+    activeConversation,
+    messagesLoading,
+  } = useChatContext();
 
   return (
     <div className={styles.chatView}>
@@ -17,7 +22,11 @@ const ChatView: React.FC = () => {
       <div className={styles.chatHeader}>
         <Text className={styles.chatTitle} ellipsis>
           {activeConversation?.title || '新会话'}
-          {currentModel ? ` · ${currentModel}` : ''}
+          {currentModel
+            ? ` · ${
+                currentProvider ? `${currentProvider}/` : ''
+              }${currentModel}`
+            : ''}
         </Text>
       </div>
 

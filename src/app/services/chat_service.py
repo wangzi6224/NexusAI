@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import Iterable
 from json import dumps
 
-from src.app.config import get_llm_provider_name, resolve_llm_model
+from src.app.config import resolve_llm_model
 from src.app.history import append_history
 from src.app.logger import get_logger
 from src.app.prompts import build_chat_prompt
@@ -13,11 +13,16 @@ from src.app.services.llm.factory import get_llm_provider
 logger = get_logger()
 
 
-def handle_chat(message: str, model: str | None = None) -> ChatResponse:
-    selected_model = resolve_llm_model(model=model)
+def handle_chat(
+    message: str,
+    model: str | None = None,
+    provider: str | None = None,
+) -> ChatResponse:
+    selected_model = resolve_llm_model(model=model, provider=provider)
+    llm_provider = get_llm_provider(provider)
     logger.info(
         "收到聊天请求，provider=%s, model=%s",
-        get_llm_provider_name(),
+        llm_provider.name,
         selected_model,
     )
 
@@ -30,10 +35,8 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
         }
     ]
 
-    provider = get_llm_provider()
-
     start = perf_counter()
-    llm_response = provider.chat(messages=messages, model=selected_model)
+    llm_response = llm_provider.chat(messages=messages, model=selected_model)
     elapsed = perf_counter() - start
     latency_ms = int(elapsed * 1000)
 
@@ -63,11 +66,16 @@ def handle_chat(message: str, model: str | None = None) -> ChatResponse:
     )
 
 
-def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
-    selected_model = resolve_llm_model(model=model)
+def handle_chat_stream(
+    message: str,
+    model: str | None = None,
+    provider: str | None = None,
+) -> Iterable[str]:
+    selected_model = resolve_llm_model(model=model, provider=provider)
+    llm_provider = get_llm_provider(provider)
     logger.info(
         "收到聊天请求，provider=%s, model=%s",
-        get_llm_provider_name(),
+        llm_provider.name,
         selected_model,
     )
 
@@ -80,8 +88,6 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
         }
     ]
 
-    provider = get_llm_provider()
-
     # 用于拼接完整回答的列表
     full_answer_parts: list[str] = []
 
@@ -89,7 +95,7 @@ def handle_chat_stream(message: str, model: str | None = None) -> Iterable[str]:
     start = perf_counter()
 
     try:
-        for chunk in provider.stream_chat(message=msg, model=selected_model):
+        for chunk in llm_provider.stream_chat(message=msg, model=selected_model):
 
             # 如果当前 chunk 表示流结束（done=True），则跳出循环
             if chunk.done:

@@ -17,7 +17,11 @@ router = APIRouter()
 )
 def chat(request: ChatRequest) -> ChatResponse:
     try:
-        return handle_chat(message=request.message, model=request.model)
+        return handle_chat(
+            message=request.message,
+            model=request.model,
+            provider=request.provider,
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"模型调用失败: {exc}") from exc
 
@@ -34,6 +38,7 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
         handle_chat_stream(
             message=request.message,
             model=request.model,
+            provider=request.provider,
         ),
         media_type="text/event-stream",
         headers={
@@ -42,4 +47,3 @@ def chat_stream(request: ChatRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
-
