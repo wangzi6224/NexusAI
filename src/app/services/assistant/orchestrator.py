@@ -95,11 +95,13 @@ class AssistantOrchestrator:
             provider=request.provider,
         )
 
+        route_start = perf_counter()
         route_decision = self._route(
             conversation_id=conversation_id,
             request=request,
             selected_model=selected_model,
         )
+        route_ms = int((perf_counter() - route_start) * 1000)
 
         assistant_run = self.run_store.create_run(
             conversation_id=conversation_id,
@@ -143,6 +145,7 @@ class AssistantOrchestrator:
                     provider=request.provider,
                     assistant_run_id=assistant_run_id,
                     route_decision=route_decision,
+                    route_ms=route_ms,
                     start=start,
                 )
                 return
@@ -154,6 +157,7 @@ class AssistantOrchestrator:
                 assistant_run_id=assistant_run_id,
                 request=request,
                 route_decision=route_decision,
+                route_ms=route_ms,
                 start=start,
             )
 
@@ -176,6 +180,11 @@ class AssistantOrchestrator:
                         "message": str(exc),
                     },
                     "route_decision": route_decision.model_dump(),
+                    "latency": {
+                        "route_ms": route_ms,
+                        "agent_ms": None,
+                        "total_ms": latency_ms,
+                    },
                 },
             )
 
@@ -198,6 +207,7 @@ class AssistantOrchestrator:
         provider: str | None,
         assistant_run_id: str,
         route_decision: RouteDecision,
+        route_ms: int,
         start: float,
     ) -> Iterable[str]:
         user_message = create_message(
@@ -262,11 +272,22 @@ class AssistantOrchestrator:
         )
 
         trace = {
-            "assistant_run_id": assistant_run_id,
-            "mode": "chat",
             "route_decision": route_decision.model_dump(),
-            "context_message_count": len(llm_messages),
+            "planner": {
+                "type": None,
+                "prompt_version": None,
+                "fallback_count": 0,
+                "decision_count": 0,
+            },
+            "agent_run_id": None,
             "tool_calls": [],
+            "finish_reason": "chat_completed",
+            "latency": {
+                "route_ms": route_ms,
+                "agent_ms": 0,
+                "total_ms": latency_ms,
+            },
+            "context_message_count": len(llm_messages),
         }
 
         self.run_store.update_run(
@@ -329,9 +350,11 @@ class AssistantOrchestrator:
         assistant_run_id: str,
         request: AssistantStreamRequest,
         route_decision: RouteDecision,
+        route_ms: int,
         start: float,
     ) -> Iterable[str]:
         # 当前 AgentService.chat 是同步执行。
+        agent_start = perf_counter()
         result = self.agent_service.chat(
             conversation_id=conversation_id,
             question=clean_message,
@@ -340,6 +363,7 @@ class AssistantOrchestrator:
             max_steps=request.options.max_steps,
             model=selected_model,
         )
+        agent_ms = int((perf_counter() - agent_start) * 1000)
 
         tool_calls: list[dict[str, Any]] = result.get("tool_calls", [])
         trace: dict[str, Any] = result.get("trace", {})
@@ -382,13 +406,16 @@ class AssistantOrchestrator:
         )
 
         assistant_trace: dict[str, Any] = {
-            "assistant_run_id": assistant_run_id,
-            "mode": "agent",
             "route_decision": route_decision.model_dump(),
+            "planner": self._normalize_planner_trace(trace.get("planner")),
             "agent_run_id": agent_run_id,
-            "agent_trace": trace,
-            "tool_calls": tool_calls,
-            "sources": sources,
+            "tool_calls": self._summarize_tool_calls(tool_calls),
+            "finish_reason": trace.get("finish_reason"),
+            "latency": {
+                "route_ms": route_ms,
+                "agent_ms": agent_ms,
+                "total_ms": latency_ms,
+            },
         }
 
         self.run_store.update_run(
@@ -512,3 +539,33 @@ class AssistantOrchestrator:
                     sources.append(source)
 
         return sources
+
+    def _summarize_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "step": tool_call.get("step"),
+                "tool_name": tool_call.get("tool_name"),
+                "success": tool_call.get("success"),
+                "latency_ms": tool_call.get("latency_ms"),
+            }
+            for tool_call in tool_calls
+        ]
+
+    def _normalize_planner_trace(self, planner: Any) -> dict[str, Any]:
+        if not isinstance(planner, dict):
+            return {
+                "type": None,
+                "prompt_version": None,
+                "fallback_count": 0,
+                "decision_count": 0,
+            }
+
+        return {
+            "type": planner.get("type"),
+            "prompt_version": planner.get("prompt_version"),
+            "fallback_count": int(planner.get("fallback_count") or 0),
+            "decision_count": int(planner.get("decision_count") or 0),
+        }

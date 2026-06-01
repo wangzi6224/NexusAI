@@ -22,6 +22,7 @@ from src.app.conversation_store import (
 )
 from src.app.exceptions import ConversationError
 from src.app.services.agent.loop import AgentLoop
+from src.app.services.agent.planner_prompt_builder import LLM_PLANNER_PROMPT_VERSION
 from src.app.services.agent.prompt_builder import AgentPromptBuilder
 from src.app.services.agent.state import AgentState
 from src.app.services.assistant.event import EVENT_AGENT_RUN_END, EVENT_AGENT_RUN_START
@@ -36,6 +37,7 @@ class AgentService:
     def __init__(self) -> None:
         self.llm_provider = get_llm_provider()
         self.prompt_builder = AgentPromptBuilder()
+        self.planner_type = get_agent_planner_type()
 
         registry = ToolRegistry()
         registry.register(ListDocsTool())
@@ -44,7 +46,7 @@ class AgentService:
 
         self.agent_loop = AgentLoop(
             tool_registry=registry,
-            planner_type=get_agent_planner_type(),
+            planner_type=self.planner_type,
         )
 
     def chat(
@@ -128,6 +130,12 @@ class AgentService:
             model=selected_model,
             top_k=top_k,
             score_threshold=score_threshold,
+            planner_type=self.planner_type,
+            planner_prompt_version=(
+                LLM_PLANNER_PROMPT_VERSION
+                if self.planner_type == "llm"
+                else self.planner_type
+            ),
         )
 
         state: AgentState = self.agent_loop.run(state)
@@ -187,6 +195,12 @@ class AgentService:
             "tool_call_count": len(tool_calls),
             "used_tools": [step.tool_name for step in state.steps if step.tool_name],
             "finish_reason": state.finish_reason,
+            "planner": {
+                "type": state.planner_type,
+                "prompt_version": state.planner_prompt_version,
+                "fallback_count": state.planner_fallback_count,
+                "decision_count": state.planner_decision_count,
+            },
             "observations": [item.model_dump() for item in state.observations],
             "model": response.model,
             "provider": response.provider,

@@ -122,7 +122,7 @@ def build_state(question: str, max_steps: int = 3) -> AgentState:
 
 
 def test_agent_loop_can_search_then_read_then_final() -> None:
-    loop = AgentLoop(tool_registry=FakeRegistry())  # type: ignore[arg-type]
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
     state = build_state("根据知识库详细分析 Button 组件规范", max_steps=3)
 
     result = loop.run(state)
@@ -132,13 +132,15 @@ def test_agent_loop_can_search_then_read_then_final() -> None:
     assert [step.tool_name for step in tool_steps] == ["search_docs", "read_doc"]
     assert result.steps[-1].type == "final"
     assert result.finish_reason == "planner_final"
+    assert result.planner_decision_count == 3
+    assert result.planner_fallback_count == 0
     assert len(result.observations) == 2
     assert result.observations[0].tool_name == "search_docs"
     assert result.observations[1].tool_name == "read_doc"
 
 
 def test_agent_loop_respects_max_steps() -> None:
-    loop = AgentLoop(tool_registry=FakeRegistry())  # type: ignore[arg-type]
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
     state = build_state("根据知识库详细分析 Button 组件规范", max_steps=1)
 
     result = loop.run(state)
@@ -146,6 +148,7 @@ def test_agent_loop_respects_max_steps() -> None:
     assert len(result.steps) == 1
     assert result.steps[0].tool_name == "search_docs"
     assert result.finish_reason == "max_steps_reached"
+    assert result.planner_decision_count == 1
 
 
 def test_agent_loop_records_validation_error_as_observation() -> None:
@@ -158,7 +161,7 @@ def test_agent_loop_records_validation_error_as_observation() -> None:
                 "reason": "故意缺少 query",
             }
 
-    loop = AgentLoop(tool_registry=FakeRegistry())  # type: ignore[arg-type]
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
     loop.planner = BadPlanner()  # type: ignore[assignment]
     state = build_state("根据知识库查询 Button", max_steps=1)
 
@@ -185,7 +188,7 @@ def test_agent_loop_blocks_duplicate_tool_call() -> None:
                 "reason": "重复调用测试",
             }
 
-    loop = AgentLoop(tool_registry=FakeRegistry())  # type: ignore[arg-type]
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
     loop.planner = DuplicatePlanner()  # type: ignore[assignment]
     state = build_state("根据知识库查询 Button", max_steps=3)
 
@@ -195,3 +198,4 @@ def test_agent_loop_blocks_duplicate_tool_call() -> None:
     assert result.steps[1].type == "error"
     assert result.steps[1].error_code == "DUPLICATE_TOOL_CALL_BLOCKED"
     assert result.finish_reason == "duplicate_tool_call_blocked"
+    assert result.planner_decision_count == 2

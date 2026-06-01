@@ -118,3 +118,40 @@ class TestExtractSources:
         # 不应该抛异常
         sources = self.orchestrator._extract_sources_from_tool_calls(tool_calls)
         assert isinstance(sources, list)
+
+
+class TestAssistantTraceHelpers:
+    def setup_method(self) -> None:
+        self.orchestrator = AssistantOrchestrator.__new__(AssistantOrchestrator)
+
+    def test_summarizes_tool_calls_for_assistant_run_trace(self) -> None:
+        tool_calls = [
+            {
+                "step": 1,
+                "tool_name": "search_docs",
+                "success": True,
+                "latency_ms": 132,
+                "result": {"data": {"items": [{"content": "ignored"}]}},
+            }
+        ]
+
+        summary = self.orchestrator._summarize_tool_calls(tool_calls)
+
+        assert summary == [
+            {
+                "step": 1,
+                "tool_name": "search_docs",
+                "success": True,
+                "latency_ms": 132,
+            }
+        ]
+
+    def test_normalizes_missing_planner_trace(self) -> None:
+        planner = self.orchestrator._normalize_planner_trace(None)
+
+        assert planner == {
+            "type": None,
+            "prompt_version": None,
+            "fallback_count": 0,
+            "decision_count": 0,
+        }

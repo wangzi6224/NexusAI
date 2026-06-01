@@ -74,6 +74,7 @@ class AgentLoop:
         for index in range(state.max_steps):
             step_index = index + 1
             decision = self.planner.plan(state)
+            state.planner_decision_count += 1
 
             if decision["type"] == "final":
                 step = AgentStep(

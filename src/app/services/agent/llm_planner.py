@@ -67,6 +67,7 @@ class LLMPlanner:
         except Exception as exc:
             latency_ms = int((perf_counter() - start) * 1000)
             fallback = self.fallback_planner.plan(state)
+            state.planner_fallback_count += 1
             create_agent_event(
                 run_id=state.run_id,
                 event_type=EVENT_PLANNER_FALLBACK,

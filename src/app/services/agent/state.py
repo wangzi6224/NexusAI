@@ -67,3 +67,11 @@ class AgentState(BaseModel):
     score_threshold: float = 0.3
     # 结束原因
     finish_reason: str | None = None
+    # Planner 类型
+    planner_type: str = "llm"
+    # Planner 提示词版本
+    planner_prompt_version: str | None = None
+    # Planner 产出决策次数
+    planner_decision_count: int = 0
+    # Planner 异常后使用兜底决策次数
+    planner_fallback_count: int = 0
