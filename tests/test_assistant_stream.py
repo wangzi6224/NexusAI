@@ -12,7 +12,12 @@ from __future__ import annotations
 
 import json
 
-from src.app.services.assistant.event import sse_event
+from src.app.services.assistant.event import (
+    EVENT_ASSISTANT_END,
+    EVENT_DELTA,
+    EVENT_DONE,
+    sse_event,
+)
 from src.app.services.assistant.orchestrator import AssistantOrchestrator
 
 # ─── sse_event 格式测试 ────────────────────────────────────────────────────
@@ -20,17 +25,17 @@ from src.app.services.assistant.orchestrator import AssistantOrchestrator
 
 class TestSseEvent:
     def test_string_data(self) -> None:
-        result = sse_event("done", "[DONE]")
+        result = sse_event(EVENT_DONE, "[DONE]")
         assert result == "event: done\ndata: [DONE]\n\n"
 
     def test_dict_data(self) -> None:
-        result = sse_event("delta", {"delta": "hello"})
+        result = sse_event(EVENT_DELTA, {"delta": "hello"})
         assert result.startswith("event: delta\ndata: ")
         data = json.loads(result.split("data: ", 1)[1].strip())
         assert data["delta"] == "hello"
 
     def test_format_has_double_newline(self) -> None:
-        result = sse_event("assistant_end", {"assistant_message_id": "msg-1"})
+        result = sse_event(EVENT_ASSISTANT_END, {"assistant_message_id": "msg-1"})
         assert result.endswith("\n\n")
 
 

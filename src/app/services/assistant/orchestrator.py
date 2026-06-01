@@ -14,7 +14,17 @@ from src.app.conversation_store import (
 from src.app.logger import get_logger
 from src.app.schemas.assistant import AssistantStreamRequest
 from src.app.services.agent.agent_service import AgentService
-from src.app.services.assistant.event import sse_event
+from src.app.services.assistant.event import (
+    EVENT_ASSISTANT_END,
+    EVENT_ASSISTANT_START,
+    EVENT_DELTA,
+    EVENT_DONE,
+    EVENT_ERROR,
+    EVENT_ROUTE_DECISION,
+    EVENT_TOOL_CALL_END,
+    EVENT_TOOL_CALL_START,
+    sse_event,
+)
 from src.app.services.assistant.llm_router import ModeRouter
 from src.app.services.assistant.mode_router import RouterContext
 from src.app.services.assistant.route_decision import RouteDecision
@@ -55,27 +65,27 @@ class AssistantOrchestrator:
         if not clean_message:
             # 消息内容不能为空，直接返回错误事件并结束流。
             yield sse_event(
-                "error",
+                EVENT_ERROR,
                 {
                     "code": "EMPTY_MESSAGE",
                     "message": "消息内容不能为空",
                 },
             )
-            yield sse_event("done", "[DONE]")
+            yield sse_event(EVENT_DONE, "[DONE]")
             return
 
         conversation = get_conversation(conversation_id)
         if conversation is None:
             # 会话不存在，直接返回错误事件并结束流。
             yield sse_event(
-                "error",
+                EVENT_ERROR,
                 {
                     "code": "CONVERSATION_NOT_FOUND",
                     "message": "会话不存在",
                     "detail": f"conversation_id={conversation_id}",
                 },
             )
-            yield sse_event("done", "[DONE]")
+            yield sse_event(EVENT_DONE, "[DONE]")
             return
 
         selected_model = resolve_llm_model(
@@ -106,7 +116,7 @@ class AssistantOrchestrator:
         assistant_run_id = assistant_run["id"]
 
         yield sse_event(
-            "assistant_start",
+            EVENT_ASSISTANT_START,
             {
                 "assistant_run_id": assistant_run_id,
                 "conversation_id": conversation_id,
@@ -116,7 +126,7 @@ class AssistantOrchestrator:
         )
 
         yield sse_event(
-            "route_decision",
+            EVENT_ROUTE_DECISION,
             {
                 "mode": route_decision.mode,
                 "reason": route_decision.reason,
@@ -170,14 +180,14 @@ class AssistantOrchestrator:
             )
 
             yield sse_event(
-                "error",
+                EVENT_ERROR,
                 {
                     "code": "ASSISTANT_STREAM_ERROR",
                     "message": "Assistant 处理失败",
                     "detail": str(exc),
                 },
             )
-            yield sse_event("done", "[DONE]")
+            yield sse_event(EVENT_DONE, "[DONE]")
 
     def _stream_chat(
         self,
@@ -215,7 +225,7 @@ class AssistantOrchestrator:
                 break
 
             full_answer_parts.append(chunk.delta)
-            yield sse_event("delta", {"delta": chunk.delta})
+            yield sse_event(EVENT_DELTA, {"delta": chunk.delta})
 
         full_answer = "".join(full_answer_parts)
         latency_ms = int((perf_counter() - start) * 1000)
@@ -272,7 +282,7 @@ class AssistantOrchestrator:
         )
 
         yield sse_event(
-            "assistant_end",
+            EVENT_ASSISTANT_END,
             {
                 "assistant_run_id": assistant_run_id,
                 "assistant_message_id": assistant_message["id"],
@@ -284,7 +294,7 @@ class AssistantOrchestrator:
                 "trace": trace,
             },
         )
-        yield sse_event("done", "[DONE]")
+        yield sse_event(EVENT_DONE, "[DONE]")
 
     def _route(
         self,
@@ -340,7 +350,7 @@ class AssistantOrchestrator:
 
         for tool_call in tool_calls:
             yield sse_event(
-                "tool_call_start",
+                EVENT_TOOL_CALL_START,
                 {
                     "tool_name": tool_call.get("tool_name"),
                     "arguments": tool_call.get("arguments") or {},
@@ -349,7 +359,7 @@ class AssistantOrchestrator:
                 },
             )
             yield sse_event(
-                "tool_call_end",
+                EVENT_TOOL_CALL_END,
                 {
                     "tool_name": tool_call.get("tool_name"),
                     "success": tool_call.get("success"),
@@ -362,7 +372,7 @@ class AssistantOrchestrator:
 
         # 第一版可以一次性返回完整答案。
         # 后续再把 Agent final answer 改成真正 token 流。
-        yield sse_event("delta", {"delta": answer})
+        yield sse_event(EVENT_DELTA, {"delta": answer})
 
         latency_ms = int((perf_counter() - start) * 1000)
 
@@ -398,7 +408,7 @@ class AssistantOrchestrator:
         )
 
         yield sse_event(
-            "assistant_end",
+            EVENT_ASSISTANT_END,
             {
                 "assistant_run_id": assistant_run_id,
                 "assistant_message_id": assistant_message_id,
@@ -412,7 +422,7 @@ class AssistantOrchestrator:
                 "trace": assistant_trace,
             },
         )
-        yield sse_event("done", "[DONE]")
+        yield sse_event(EVENT_DONE, "[DONE]")
 
     def _try_update_summary(
         self, conversation_id: str, model: str | None = None
@@ -436,7 +446,7 @@ class AssistantOrchestrator:
 
         抽取原则：
         - 优先级：result.data.items / result.data.chunks / result.data.sources
-          → result.items / result.chunks / result.sources → result.data
+        → result.items / result.chunks / result.sources → result.data
         - 字段缺失时跳过，不抛异常。
         - 同一 chunk_id 去重。
         - content_preview 截断至 160 字。

@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from src.app.db import get_connection
+from src.app.services.assistant.event import AgentTraceEvent
 
 
 def _normalize_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -261,7 +262,7 @@ def create_agent_step(
 def create_agent_event(
     *,
     run_id: str,
-    event_type: str,
+    event_type: AgentTraceEvent,
     payload: dict[str, Any] | None = None,
     step_id: str | None = None,
 ) -> dict[str, Any]:

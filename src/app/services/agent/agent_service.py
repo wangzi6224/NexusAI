@@ -24,6 +24,7 @@ from src.app.exceptions import ConversationError
 from src.app.services.agent.loop import AgentLoop
 from src.app.services.agent.prompt_builder import AgentPromptBuilder
 from src.app.services.agent.state import AgentState
+from src.app.services.assistant.event import EVENT_AGENT_RUN_END, EVENT_AGENT_RUN_START
 from src.app.services.llm.factory import get_llm_provider
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.list_docs import ListDocsTool
@@ -106,7 +107,7 @@ class AgentService:
 
         create_agent_event(
             run_id=run_id,
-            event_type="agent_run_start",
+            event_type=EVENT_AGENT_RUN_START,
             payload={
                 "conversation_id": conversation_id,
                 "user_message_id": user_message["id"],
@@ -167,7 +168,7 @@ class AgentService:
 
         create_agent_event(
             run_id=run_id,
-            event_type="agent_run_end",
+            event_type=EVENT_AGENT_RUN_END,
             payload={
                 "status": "completed",
                 "step_count": len(state.steps) + 1,

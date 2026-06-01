@@ -18,6 +18,14 @@ from src.app.conversation_store import (
 )
 from src.app.exceptions import ConversationError
 from src.app.logger import get_logger
+from src.app.services.assistant.event import (
+    ConversationStreamEvent,
+    EVENT_DELTA,
+    EVENT_DONE,
+    EVENT_ERROR,
+    EVENT_MESSAGE_END,
+    EVENT_MESSAGE_START,
+)
 from src.app.services.llm.factory import get_llm_provider
 
 logger = get_logger()
@@ -151,7 +159,7 @@ def send_conversation_message(
     }
 
 
-def _sse_event(event: str, data: Any) -> str:
+def _sse_event(event: ConversationStreamEvent, data: Any) -> str:
     if isinstance(data, str):
         payload = data
     else:
@@ -170,13 +178,13 @@ def stream_conversation_message(
 
     if not content.strip():
         yield _sse_event(
-            "error",
+            EVENT_ERROR,
             {
                 "code": "CONVERSATION_ERROR",
                 "message": "消息内容不能为空",
             },
         )
-        yield _sse_event("done", "[DONE]")
+        yield _sse_event(EVENT_DONE, "[DONE]")
         return
 
     selected_model = resolve_llm_model(
@@ -198,7 +206,7 @@ def stream_conversation_message(
         llm_messages = context_builder.build_messages(conversation_id)
 
         yield _sse_event(
-            "message_start",
+            EVENT_MESSAGE_START,
             {
                 "conversation_id": conversation_id,
                 "user_message_id": user_message["id"],
@@ -220,7 +228,7 @@ def stream_conversation_message(
             full_answer_parts.append(chunk.delta)
 
             yield _sse_event(
-                "delta",
+                EVENT_DELTA,
                 {
                     "delta": chunk.delta,
                 },
@@ -254,14 +262,14 @@ def stream_conversation_message(
         )
 
         yield _sse_event(
-            "message_end",
+            EVENT_MESSAGE_END,
             {
                 "assistant_message_id": assistant_message["id"],
                 "content": full_answer,
                 "latency_ms": latency_ms,
             },
         )
-        yield _sse_event("done", "[DONE]")
+        yield _sse_event(EVENT_DONE, "[DONE]")
 
     except Exception as exc:
         logger.exception(
@@ -271,14 +279,14 @@ def stream_conversation_message(
         )
 
         yield _sse_event(
-            "error",
+            EVENT_ERROR,
             {
                 "code": "STREAM_CONVERSATION_MESSAGE_ERROR",
                 "message": "流式会话消息失败",
                 "detail": str(exc),
             },
         )
-        yield _sse_event("done", "[DONE]")
+        yield _sse_event(EVENT_DONE, "[DONE]")
 
 
 def update_summary_manually(conversation_id: str) -> dict[str, Any]:

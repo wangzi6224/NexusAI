@@ -15,6 +15,10 @@ from src.app.services.agent.planner_parser import (
 )
 from src.app.services.agent.planner_prompt_builder import LLMPlannerPromptBuilder
 from src.app.services.agent.state import AgentState
+from src.app.services.assistant.event import (
+    EVENT_PLANNER_DECISION,
+    EVENT_PLANNER_FALLBACK,
+)
 from src.app.services.llm.factory import get_llm_provider
 from src.app.services.tools.registry import ToolRegistry
 
@@ -49,7 +53,7 @@ class LLMPlanner:
             latency_ms = int((perf_counter() - start) * 1000)
             create_agent_event(
                 run_id=state.run_id,
-                event_type="planner_decision",
+                event_type=EVENT_PLANNER_DECISION,
                 payload={
                     "planner": "llm",
                     "decision": decision.model_dump(),
@@ -65,7 +69,7 @@ class LLMPlanner:
             fallback = self.fallback_planner.plan(state)
             create_agent_event(
                 run_id=state.run_id,
-                event_type="planner_fallback",
+                event_type=EVENT_PLANNER_FALLBACK,
                 payload={
                     "planner": "llm",
                     "fallback_planner": "rule_based",

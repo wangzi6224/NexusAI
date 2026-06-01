@@ -11,6 +11,14 @@ from src.app.config import get_agent_tool_timeout_seconds
 from src.app.services.agent.state import AgentObservation, AgentState, AgentStep
 from src.app.services.agent.planner import RuleBasedPlanner
 from src.app.services.agent.llm_planner import LLMPlanner
+from src.app.services.assistant.event import (
+    EVENT_AGENT_MAX_STEPS_REACHED,
+    EVENT_AGENT_STEP_FINAL,
+    EVENT_AGENT_STEP_START,
+    EVENT_DUPLICATE_TOOL_CALL_BLOCKED,
+    EVENT_TOOL_ERROR,
+    EVENT_TOOL_RESULT,
+)
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.safety import limit_tool_result
 
@@ -86,7 +94,7 @@ class AgentLoop:
 
                 create_agent_event(
                     run_id=state.run_id,
-                    event_type="agent_step_final",
+                    event_type=EVENT_AGENT_STEP_FINAL,
                     payload={
                         "step_index": step_index,
                         "reason": step.reason,
@@ -142,7 +150,7 @@ class AgentLoop:
 
                 create_agent_event(
                     run_id=state.run_id,
-                    event_type="duplicate_tool_call_blocked",
+                    event_type=EVENT_DUPLICATE_TOOL_CALL_BLOCKED,
                     payload={
                         "step_index": step_index,
                         "tool_name": tool_name,
@@ -154,7 +162,7 @@ class AgentLoop:
 
             create_agent_event(
                 run_id=state.run_id,
-                event_type="agent_step_start",
+                event_type=EVENT_AGENT_STEP_START,
                 payload={
                     "step_index": step_index,
                     "step_type": "tool_call",
@@ -184,7 +192,7 @@ class AgentLoop:
         state.finish_reason = "max_steps_reached"
         create_agent_event(
             run_id=state.run_id,
-            event_type="agent_max_steps_reached",
+            event_type=EVENT_AGENT_MAX_STEPS_REACHED,
             payload={"max_steps": state.max_steps},
         )
         return state
@@ -269,7 +277,7 @@ class AgentLoop:
 
             create_agent_event(
                 run_id=state.run_id,
-                event_type="tool_result",
+                event_type=EVENT_TOOL_RESULT,
                 payload={
                     "step_index": step_index,
                     "tool_name": tool_name,
@@ -360,7 +368,7 @@ class AgentLoop:
 
         create_agent_event(
             run_id=state.run_id,
-            event_type="tool_error",
+            event_type=EVENT_TOOL_ERROR,
             payload={
                 "step_index": step_index,
                 "tool_name": tool_name,
