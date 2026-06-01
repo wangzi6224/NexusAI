@@ -16,6 +16,8 @@ class LLMModeRouter:
         self.llm_provider = get_llm_provider()
 
     def route(self, context: RouterContext, model: str | None = None) -> RouteDecision:
+
+        # 构建提示词和消息列表，调用 LLM 进行路由决策，并解析输出。
         messages = build_route_messages(
             message=context.message,
             recent_messages=context.recent_messages,
@@ -24,7 +26,10 @@ class LLMModeRouter:
         selected_model = resolve_llm_model(model=model)
         start = perf_counter()
 
-        response = self.llm_provider.chat(messages=messages, model=selected_model)
+        # 这里直接调用 LLM 进行路由决策
+        response = self.llm_provider.structured_chat(
+            messages=messages, model=selected_model
+        )
         latency_ms = int((perf_counter() - start) * 1000)
 
         try:
@@ -60,6 +65,7 @@ class ModeRouter:
         self.llm_router = LLMModeRouter()
 
     def route(self, context: RouterContext, model: str | None = None) -> RouteDecision:
+        # 先通过规则路由，如果规则无法确定则调用 LLM 路由。
         rule_decision = self.rule_router.route(context)
         if rule_decision is not None:
             return rule_decision

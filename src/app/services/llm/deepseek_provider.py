@@ -114,6 +114,54 @@ class DeepSeekProvider(LLMProvider):
             usage=usage,
         )
 
+    def structured_chat(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+    ) -> LLMResponse:
+        config = self._get_deepseek_config()
+        selected_model = model or config["model"]
+        client = self._client(config)
+
+        try:
+            response = client.chat.completions.create(
+                model=selected_model,
+                messages=self._messages(messages),
+                extra_body=self._extra_body(config["thinking_enabled"]),
+                response_format={"type": "json_object"},
+            )
+        except APITimeoutError as exc:
+            raise LLMProviderError(
+                "请求 DeepSeek 超时，请稍后重试或调大 DEEPSEEK_TIMEOUT"
+            ) from exc
+        except APIStatusError as exc:
+            self._handle_api_status_error(exc, "DeepSeek HTTP 请求失败")
+        except APIConnectionError as exc:
+            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+        except OpenAIError as exc:
+            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+
+        try:
+            content = response.choices[0].message.content or ""
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise LLMProviderError(
+                f"DeepSeek 返回结构异常或非 JSON 对象: {response.model_dump()}"
+            ) from exc
+
+        usage_data = response.usage
+        usage = LLMUsage(
+            prompt_tokens=usage_data.prompt_tokens if usage_data else 0,
+            completion_tokens=usage_data.completion_tokens if usage_data else 0,
+            total_tokens=usage_data.total_tokens if usage_data else 0,
+        )
+
+        return LLMResponse(
+            content=content,
+            provider=self.name,
+            model=response.model or selected_model,
+            usage=usage,
+        )
+
     def stream_chat(
         self,
         message: list[dict[str, str]],
