@@ -10,6 +10,7 @@ from src.app.agent_trace_store import create_agent_event, create_agent_step
 from src.app.config import get_agent_tool_timeout_seconds
 from src.app.services.agent.state import AgentObservation, AgentState, AgentStep
 from src.app.services.agent.planner import RuleBasedPlanner
+from src.app.services.agent.llm_planner import LLMPlanner
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.safety import limit_tool_result
 
@@ -54,9 +55,12 @@ def _build_observation(step: AgentStep) -> AgentObservation:
 
 
 class AgentLoop:
-    def __init__(self, tool_registry: ToolRegistry) -> None:
+    def __init__(self, tool_registry: ToolRegistry, planner_type: str = "llm") -> None:
         self.tool_registry = tool_registry
-        self.planner = RuleBasedPlanner()
+        if planner_type == "llm":
+            self.planner = LLMPlanner(tool_registry=tool_registry)
+        else:
+            self.planner = RuleBasedPlanner()
 
     def run(self, state: AgentState) -> AgentState:
         for index in range(state.max_steps):

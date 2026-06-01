@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     rag_rrf_k: int = Field(default=60, alias="RAG_RRF_K")
     rag_mmr_enabled: bool = Field(default=True, alias="RAG_MMR_ENABLED")
     rag_mmr_lambda: float = Field(default=0.7, alias="RAG_MMR_LAMBDA")
+    agent_planner_type: str = Field(default="llm", alias="AGENT_PLANNER_TYPE")
+    agent_planner_temperature: float = Field(
+        default=0.0, alias="AGENT_PLANNER_TEMPERATURE"
+    )
+    agent_planner_timeout_seconds: int = Field(
+        default=8, alias="AGENT_PLANNER_TIMEOUT_SECONDS"
+    )
 
     # Agent 工具调用相关配置
     agent_allowed_tools: str = Field(
@@ -280,3 +287,15 @@ def get_agent_tool_timeout_seconds() -> int:
 
 def get_agent_max_tool_result_chars() -> int:
     return get_settings().agent_max_tool_result_chars
+
+
+def get_agent_planner_type() -> str:
+    return get_settings().agent_planner_type.lower().strip()
+
+
+def get_agent_planner_temperature() -> float:
+    return get_settings().agent_planner_temperature
+
+
+def get_agent_planner_timeout_seconds() -> int:
+    return get_settings().agent_planner_timeout_seconds

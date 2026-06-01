@@ -9,7 +9,11 @@ from src.app.agent_trace_store import (
     update_agent_run,
 )
 
-from src.app.config import get_llm_provider_name, resolve_llm_model
+from src.app.config import (
+    get_llm_provider_name,
+    resolve_llm_model,
+    get_agent_planner_type,
+)
 from src.app.conversation_store import (
     create_message,
     get_conversation,
@@ -37,7 +41,10 @@ class AgentService:
         registry.register(SearchDocsTool())
         registry.register(ReadDocTool())
 
-        self.agent_loop = AgentLoop(tool_registry=registry)
+        self.agent_loop = AgentLoop(
+            tool_registry=registry,
+            planner_type=get_agent_planner_type(),
+        )
 
     def chat(
         self,
