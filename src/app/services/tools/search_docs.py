@@ -1,6 +1,7 @@
 from typing import Any
 from time import perf_counter
 
+from src.app.services.rag.hybrid_retriever import HybridRetriever
 from src.app.services.tools.result import tool_error, tool_success
 from src.app.services.tools.base import Tool
 from src.app.services.rag.retriever import RagRetriever
@@ -35,7 +36,7 @@ class SearchDocsTool(Tool):
     }
 
     def __init__(self) -> None:
-        self.retriever = RagRetriever()
+        self.retriever = HybridRetriever()
 
     def run(self, arguments: dict[str, Any]) -> dict[str, Any]:
         start = perf_counter()
@@ -54,11 +55,13 @@ class SearchDocsTool(Tool):
 
         result = self.retriever.search(
             query=query,
-            top_k=top_k,
+            vector_top_k=top_k,
             score_threshold=score_threshold,
         )
 
         latency_ms = int((perf_counter() - start) * 1000)
+
+        trace = result.get("trace", {})
 
         return tool_success(
             tool_name=self.name,
@@ -68,5 +71,6 @@ class SearchDocsTool(Tool):
                 "query": query,
                 "top_k": top_k,
                 "score_threshold": score_threshold,
+                "trace": trace,
             },
         )
