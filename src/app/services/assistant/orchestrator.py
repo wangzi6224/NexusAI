@@ -8,13 +8,16 @@ from src.app.config import resolve_llm_model
 from src.app.conversation_store import (
     create_message,
     get_conversation,
+    list_recent_messages,
     update_conversation,
 )
 from src.app.logger import get_logger
-from src.app.schemas.assistant import AssistantStreamRequest, RouteDecision
+from src.app.schemas.assistant import AssistantStreamRequest
 from src.app.services.agent.agent_service import AgentService
 from src.app.services.assistant.event import sse_event
-from src.app.services.assistant.mode_router import ModeRouter
+from src.app.services.assistant.llm_router import ModeRouter
+from src.app.services.assistant.mode_router import RouterContext
+from src.app.services.assistant.route_decision import RouteDecision
 from src.app.services.assistant.run_store import AssistantRunStore
 from src.app.services.context_builder import ContextBuilder
 from src.app.services.llm.factory import get_llm_provider
@@ -75,13 +78,17 @@ class AssistantOrchestrator:
             yield sse_event("done", "[DONE]")
             return
 
-        route_decision = self.mode_router.route(request)
-
         selected_model = resolve_llm_model(
             model=request.model,
             stored_model=conversation.get("model"),
             stored_provider=conversation.get("provider"),
             provider=request.provider,
+        )
+
+        route_decision = self._route(
+            conversation_id=conversation_id,
+            request=request,
+            selected_model=selected_model,
         )
 
         assistant_run = self.run_store.create_run(
@@ -278,6 +285,30 @@ class AssistantOrchestrator:
             },
         )
         yield sse_event("done", "[DONE]")
+
+    def _route(
+        self,
+        *,
+        conversation_id: str,
+        request: AssistantStreamRequest,
+        selected_model: str,
+    ) -> RouteDecision:
+        if request.mode != "auto":
+            return RouteDecision(
+                mode=request.mode,
+                confidence=1.0,
+                source="rule",
+                reason="用户显式指定 Assistant 模式",
+            )
+
+        recent_messages = list_recent_messages(conversation_id, limit=6)
+        context = RouterContext(
+            conversation_id=conversation_id,
+            message=request.message,
+            recent_messages=recent_messages,
+            options=request.options.model_dump(),
+        )
+        return self.mode_router.route(context, model=selected_model)
 
     def _stream_agent(
         self,

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 from pydantic import BaseModel, Field
-
-AssistantMode = Literal["chat", "agent", "auto"]
-ResolvedAssistantMode = Literal["chat", "agent"]
+from src.app.services.assistant.mode import AssistantMode, ResolvedAssistantMode
 
 
 class AssistantOptions(BaseModel):
@@ -26,7 +24,9 @@ class AssistantOptions(BaseModel):
 
 class AssistantStreamRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户当前输入")
-    mode: AssistantMode = Field(default="auto", description="chat / agent / auto")
+    mode: AssistantMode = Field(
+        default="auto", description="chat / agent / rag / mcp / auto"
+    )
     model: str | None = None
     provider: str | None = None
     options: AssistantOptions = Field(default_factory=AssistantOptions)

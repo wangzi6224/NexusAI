@@ -10,6 +10,7 @@ idna==3.11
 iniconfig==2.3.0
 packaging==26.1
 pluggy==1.6.0
+openai>=1.0.0
 pydantic==2.13.3
 pydantic_core==2.46.3
 Pygments==2.20.0
@@ -20,6 +21,7 @@ setuptools==82.0.1
 starlette==1.0.0
 typing-inspection==0.4.2
 numpy<2
+socksio>=1.0.0
 FlagEmbedding==1.2.11
 peft==0.11.1
 transformers==4.41.0
