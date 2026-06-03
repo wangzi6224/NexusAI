@@ -4,7 +4,7 @@ from typing import Any
 
 from src.app.services.agent.state import AgentState
 
-LLM_PLANNER_PROMPT_VERSION = "llm-planner-v1"
+LLM_PLANNER_PROMPT_VERSION = "llm-planner-v2"
 
 
 class LLMPlannerPromptBuilder:
