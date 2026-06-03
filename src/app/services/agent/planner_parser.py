@@ -16,9 +16,12 @@ class PlannerParseError(ValueError):
 
 
 class PlannerDecisionParser:
+    """解析 LLM 输出的决策 JSON，并进行 schema 和模型校验。"""
+
     _validator = Draft202012Validator(PLANNER_DECISION_SCHEMA)
 
     def parse(self, content: str) -> AgentDecision:
+        """解析 LLM 输出的决策 JSON，并进行 schema 和模型校验。"""
         payload = self._load_json(content)
         try:
             self._validator.validate(payload)
@@ -31,11 +34,10 @@ class PlannerDecisionParser:
         try:
             return AgentDecision.model_validate(payload)
         except Exception as exc:
-            raise PlannerParseError(
-                f"Planner decision model invalid: {exc}"
-            ) from exc
+            raise PlannerParseError(f"Planner decision model invalid: {exc}") from exc
 
     def _load_json(self, content: str) -> dict[str, Any]:
+        """尝试从文本中提取 JSON 对象，支持纯 JSON 或者包含 JSON 的文本。"""
         clean = content.strip()
 
         if clean.startswith("```"):
@@ -54,6 +56,7 @@ class PlannerDecisionParser:
         return value
 
     def _try_extract_json_object(self, text: str) -> dict[str, Any]:
+        """尝试从文本中提取第一个 JSON 对象，适用于模型输出中包含解释文字的情况。"""
         start = text.find("{")
         end = text.rfind("}")
         if start < 0 or end <= start:

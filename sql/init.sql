@@ -234,3 +234,80 @@ CREATE TABLE IF NOT EXISTS conversation_states (
 
 CREATE INDEX IF NOT EXISTS idx_conversation_states_updated_at
 ON conversation_states(updated_at DESC);
+
+-- =====================================================
+-- memory_items：跨会话长期记忆
+-- =====================================================
+CREATE TABLE IF NOT EXISTS memory_items (
+    id TEXT PRIMARY KEY,
+
+    user_id TEXT NOT NULL DEFAULT 'default_user',
+    workspace_id TEXT,
+
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+    source_message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+    source_run_id TEXT,
+
+    memory_type TEXT NOT NULL,
+
+    content TEXT NOT NULL,
+    normalized_content TEXT,
+
+    embedding vector(768),
+    embedding_model TEXT,
+    embedding_status TEXT NOT NULL DEFAULT 'pending',
+    embedding_error TEXT,
+    embedding_updated_at TIMESTAMPTZ,
+
+    importance NUMERIC NOT NULL DEFAULT 0.5 CHECK (importance >= 0 AND importance <= 1),
+    confidence NUMERIC NOT NULL DEFAULT 0.5 CHECK (confidence >= 0 AND confidence <= 1),
+
+    access_count INTEGER NOT NULL DEFAULT 0,
+    last_accessed_at TIMESTAMPTZ,
+
+    expires_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'active',
+
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT memory_items_type_check CHECK (
+        memory_type IN (
+            'user_profile',
+            'semantic',
+            'episodic',
+            'tool_preference',
+            'project'
+        )
+    ),
+
+    CONSTRAINT memory_items_status_check CHECK (
+        status IN ('active', 'archived', 'deleted')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_user_type_status
+ON memory_items(user_id, memory_type, status);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_workspace
+ON memory_items(workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_conversation_id
+ON memory_items(conversation_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_source_message_id
+ON memory_items(source_message_id);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_embedding_hnsw
+ON memory_items USING hnsw (embedding vector_cosine_ops);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_normalized_content_trgm
+ON memory_items USING GIN (normalized_content gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_updated_at
+ON memory_items(updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_memory_items_importance
+ON memory_items(importance DESC);
