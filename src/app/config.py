@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -40,7 +40,9 @@ class Settings(BaseSettings):
         default="https://api.deepseek.com",
         alias="DEEPSEEK_BASE_URL",
     )
-    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_api_key: str = Field(
+        default=os.getenv("DEEPSEEK_API_KEY", ""), alias="DEEPSEEK_API_KEY"
+    )
     deepseek_model: str = Field(
         default="deepseek-v4-flash",
         alias="DEEPSEEK_MODEL",
