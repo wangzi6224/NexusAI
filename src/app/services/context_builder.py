@@ -2,6 +2,7 @@ from typing import Any
 
 from src.app.conversation_store import get_conversation, list_recent_messages
 from src.app.exceptions import ConversationError
+from src.app.services.memory.short_term_store import ShortTermMemoryStore
 
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
@@ -23,6 +24,7 @@ class ContextBuilder:
         self.max_recent_messages = max_recent_messages
         self.max_context_chars = max_context_chars
         self.system_prompt = system_prompt
+        self.state_store = ShortTermMemoryStore()
 
     # 确保会话存在，如果不存在则抛出异常
     def _ensure_conversation_exists(self, conversation_id: str) -> dict[str, Any]:
@@ -53,7 +55,71 @@ class ContextBuilder:
     def _messages_chars(self, messages: list[dict[str, str]]) -> int:
         return sum(len(message["content"]) for message in messages)
 
-    def build_messages(self, conversation_id: str) -> list[dict[str, str]]:
+    def _format_conversation_state(self, conversation_id: str) -> str | None:
+        """
+        把当前会话的结构化短期状态格式化成文本，方便放到 system prompt 里。
+
+        返回一个可直接追加为 system 消息的文本内容，包含：
+            当前会话结构化状态：
+            - 当前目标：xxx
+            - 当前主题：xxx
+            - 已确认事实：
+                - xxx
+                - xxx
+            - 已确认约束：
+                - xxx
+                - xxx
+            - 当前会话偏好：
+                - xxx
+                - xxx
+            - 待解决问题：
+                - xxx
+                - xxx
+
+        如果当前会话没有短期状态，则返回 None。
+        build_messages() 会将这个文本作为 system 消息追加到上下文中，
+        让模型在理解用户问题时同时感知当前会话的状态信息。
+        """
+        state = self.state_store.get_state(conversation_id)
+
+        if state is None:
+            return None
+
+        lines = [
+            "当前会话结构化状态：",
+            f"- 当前目标：{state.current_goal or '未知'}",
+            f"- 当前主题：{state.current_topic or '未知'}",
+        ]
+
+        if state.confirmed_facts:
+            lines.append("- 已确认事实：")
+            for item in state.confirmed_facts[:8]:
+                lines.append(f"  - {item}")
+
+        if state.confirmed_constraints:
+            lines.append("- 已确认约束：")
+            for item in state.confirmed_constraints[:8]:
+                lines.append(f"  - {item}")
+
+        if state.user_preferences:
+            lines.append("- 当前会话偏好：")
+            for item in state.user_preferences[:6]:
+                lines.append(f"  - {item}")
+
+        if state.open_questions:
+            lines.append("- 待解决问题：")
+            for item in state.open_questions[:5]:
+                lines.append(f"  - {item}")
+
+        return "\n".join(lines)
+
+    def build_messages(
+        self,
+        conversation_id: str,
+        long_term_memory_items: (
+            list[dict[str, Any]] | None
+        ) = None,  # 预留参数，当前不使用
+    ) -> list[dict[str, str]]:
         """
         核心流程：
         1. 先放 system prompt
@@ -78,6 +144,15 @@ class ContextBuilder:
                 {
                     "role": "system",
                     "content": f"当前会话摘要：{summary}",
+                }
+            )
+
+        conversation_state_text = self._format_conversation_state(conversation_id)
+        if conversation_state_text:
+            base_messages.append(
+                {
+                    "role": "system",
+                    "content": conversation_state_text,
                 }
             )
 

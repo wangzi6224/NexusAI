@@ -167,21 +167,21 @@ ON agent_events (run_id, created_at ASC);
 -- 记录调用状态、输入输出、耗时和调用细节
 -- =====================================================
 CREATE TABLE IF NOT EXISTS assistant_runs (
-  id TEXT PRIMARY KEY,
-  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  user_message_id TEXT,
-  assistant_message_id TEXT,
-  mode TEXT NOT NULL,
-  status TEXT NOT NULL,
-  input TEXT NOT NULL,
-  final_answer TEXT,
-  model TEXT,
-  provider TEXT,
-  latency_ms INTEGER,
-  trace JSONB NOT NULL DEFAULT '{}'::jsonb,
-  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    user_message_id TEXT,
+    assistant_message_id TEXT,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    input TEXT NOT NULL,
+    final_answer TEXT,
+    model TEXT,
+    provider TEXT,
+    latency_ms INTEGER,
+    trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- =====================================================
@@ -207,3 +207,30 @@ ON assistant_runs(created_at DESC);
 -- 状态索引，便于统计不同状态的调用数量和性能分析
 CREATE INDEX IF NOT EXISTS idx_assistant_runs_status
 ON assistant_runs(status);
+
+-- =====================================================
+-- conversation_states：当前会话的结构化短期记忆
+-- 一条 conversation 对应一条 state
+-- =====================================================
+CREATE TABLE IF NOT EXISTS conversation_states (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+
+    current_goal TEXT,
+    current_topic TEXT,
+
+    confirmed_facts JSONB NOT NULL DEFAULT '[]'::jsonb,
+    confirmed_constraints JSONB NOT NULL DEFAULT '[]'::jsonb,
+    user_preferences JSONB NOT NULL DEFAULT '[]'::jsonb,
+    open_questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+
+    task_state JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    source TEXT NOT NULL DEFAULT 'assistant_auto_extract',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_states_updated_at
+ON conversation_states(updated_at DESC);
