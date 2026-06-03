@@ -27,11 +27,11 @@ class LLMPlannerPromptBuilder:
 
 输出格式：
 {
-  "type": "tool_call|final",
-  "tool_name": "工具名或 null",
-  "arguments": {},
-  "reason": "不超过150字的可审计原因",
-  "confidence": 0.0
+    "type": "tool_call|final",
+    "tool_name": "工具名或 null",
+    "arguments": {},
+    "reason": "不超过150字的可审计原因",
+    "confidence": 0.0
 }
 
 工具选择原则：
@@ -57,6 +57,12 @@ class LLMPlannerPromptBuilder:
 
 【可用工具】
 {tools}
+
+【当前目标】
+{state.working_memory.goal}
+
+【当前任务状态】
+{state.working_memory.task_status}
 
 【已执行步骤】
 {[step.model_dump() for step in state.steps]}
