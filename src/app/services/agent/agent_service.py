@@ -31,6 +31,7 @@ from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.list_docs import ListDocsTool
 from src.app.services.tools.search_docs import SearchDocsTool
 from src.app.services.tools.read_doc import ReadDocTool
+from src.app.services.memory.working_memory import WorkingMemory
 
 
 class AgentService:
@@ -57,6 +58,8 @@ class AgentService:
         score_threshold: float = 0.3,
         max_steps: int = 3,
         model: str | None = None,
+        memory_context: list[dict[str, Any]] | None = None,
+        conversation_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
 
@@ -120,6 +123,16 @@ class AgentService:
 
         recent_messages = list_messages(conversation_id)[-10:]
 
+        working_memory = WorkingMemory(
+            goal=clean_question,
+            task_status="planning",
+            memory_context=memory_context or [],
+            constraints=(conversation_state or {}).get("confirmed_constraints", []),
+            metadata={
+                "conversation_state": conversation_state,
+            },
+        )
+
         state = AgentState(
             run_id=run_id,
             conversation_id=conversation_id,
@@ -136,6 +149,7 @@ class AgentService:
                 if self.planner_type == "llm"
                 else self.planner_type
             ),
+            working_memory=working_memory,
         )
 
         state: AgentState = self.agent_loop.run(state)
@@ -202,6 +216,7 @@ class AgentService:
                 "decision_count": state.planner_decision_count,
             },
             "observations": [item.model_dump() for item in state.observations],
+            "working_memory": state.working_memory.model_dump(mode="json"),
             "model": response.model,
             "provider": response.provider,
         }

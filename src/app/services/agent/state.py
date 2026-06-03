@@ -1,5 +1,6 @@
 from typing import Any, Literal
 from pydantic import BaseModel, Field
+from src.app.services.memory.working_memory import WorkingMemory
 
 
 class AgentObservation(BaseModel):
@@ -75,3 +76,5 @@ class AgentState(BaseModel):
     planner_decision_count: int = 0
     # Planner 异常后使用兜底决策次数
     planner_fallback_count: int = 0
+    # 工作记忆
+    working_memory: WorkingMemory = Field(default_factory=WorkingMemory)

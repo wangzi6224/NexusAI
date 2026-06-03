@@ -77,6 +77,7 @@ class AgentLoop:
             state.planner_decision_count += 1
 
             if decision["type"] == "final":
+                # 计划结束，记录最终步骤和事件，准备生成回答。
                 step = AgentStep(
                     step=step_index,
                     type="final",
@@ -84,7 +85,7 @@ class AgentLoop:
                 )
                 state.steps.append(step)
                 state.finish_reason = "planner_final"
-
+                state.working_memory.task_status = "ready_to_answer"
                 create_agent_step(
                     run_id=state.run_id,
                     step_index=step_index,
@@ -121,7 +122,7 @@ class AgentLoop:
                         "arguments": arguments,
                     },
                 }
-
+                # 记录重复工具调用错误步骤，虽然这个步骤没有真正执行工具，但记录下来可以让 Trace 更完整，方便后续分析和优化。
                 step = AgentStep(
                     step=step_index,
                     type="error",
@@ -136,6 +137,7 @@ class AgentLoop:
                 state.steps.append(step)
                 state.finish_reason = "duplicate_tool_call_blocked"
 
+                # 记录重复工具调用错误步骤和事件
                 create_agent_step(
                     run_id=state.run_id,
                     step_index=step_index,
@@ -173,6 +175,9 @@ class AgentLoop:
                 },
             )
 
+            # 第一次工具调用时，将任务状态更新为 running，反映 Agent 已经开始执行任务。
+            state.working_memory.task_status = "running"
+
             # 解析工具调用步骤，执行工具，并记录步骤结果和事件
             step = self._execute_tool_step(
                 state=state,
@@ -183,14 +188,34 @@ class AgentLoop:
             )
 
             # 将步骤结果转换为observation，添加到状态中，为下一轮 planner 提供输入。
+            observation = _build_observation(step)
             state.steps.append(step)
-            state.observations.append(_build_observation(step))
+            state.observations.append(observation)
+
+            # 将工具调用结果保存在 WorkMemory 中，供后续决策和回应的上下文补充。
+            state.working_memory.add_tool_observation(
+                observation.model_dump(mode="json")
+            )
+
+            if step.success:
+                # 成功的工具调用会被添加到已确认事实中，供后续决策和回应使用。
+                state.working_memory.add_fact(f"工具 {step.tool_name} 已成功执行。")
+            else:
+                # 失败的工具调用会被添加到待解决问题中，提醒后续需要处理这个问题。
+                state.working_memory.add_open_question(
+                    f"工具 {step.tool_name} 执行失败：{step.error_code or 'UNKNOWN_ERROR'}"
+                )
 
             # 工具调用后不 return，继续下一轮 planner 决策。
             continue
 
         # 超过最大步骤限制，强制结束 Agent 运行。
         state.finish_reason = "max_steps_reached"
+        state.working_memory.task_status = "failed"
+        state.working_memory.add_open_question(
+            "Agent 达到最大步骤限制，最终回答可能不完整。"
+        )
+
         create_agent_event(
             run_id=state.run_id,
             event_type=EVENT_AGENT_MAX_STEPS_REACHED,
