@@ -10,6 +10,7 @@ from src.app.api.routers import (
     embeddings,
     history_models,
     rag,
+    memory,
 )
 
 ROUTERS = (
@@ -22,6 +23,7 @@ ROUTERS = (
     embeddings.router,
     rag.router,
     agent.router,
+    memory.router,
 )
 
 __all__ = [
@@ -35,4 +37,5 @@ __all__ = [
     "embeddings",
     "history_models",
     "rag",
+    "memory",
 ]

@@ -2,6 +2,7 @@ from typing import Any
 
 from src.app.conversation_store import get_conversation, list_recent_messages
 from src.app.exceptions import ConversationError
+from src.app.services.memory.short_term_schemas import ConversationState
 from src.app.services.memory.short_term_store import ShortTermMemoryStore
 from src.app.services.memory.long_term_schemas import RetrievedLongTermMemory
 
@@ -56,7 +57,11 @@ class ContextBuilder:
     def _messages_chars(self, messages: list[dict[str, str]]) -> int:
         return sum(len(message["content"]) for message in messages)
 
-    def _format_conversation_state(self, conversation_id: str) -> str | None:
+    def _format_conversation_state(
+        self,
+        conversation_id: str,
+        conversation_state: dict[str, Any] | ConversationState | None = None,
+    ) -> str | None:
         """
         把当前会话的结构化短期状态格式化成文本，方便放到 system prompt 里。
 
@@ -81,7 +86,12 @@ class ContextBuilder:
         build_messages() 会将这个文本作为 system 消息追加到上下文中，
         让模型在理解用户问题时同时感知当前会话的状态信息。
         """
-        state = self.state_store.get_state(conversation_id)
+        if isinstance(conversation_state, ConversationState):
+            state = conversation_state
+        elif isinstance(conversation_state, dict):
+            state = ConversationState(**conversation_state)
+        else:
+            state = self.state_store.get_state(conversation_id)
 
         if state is None:
             return None
@@ -139,6 +149,8 @@ class ContextBuilder:
     def build_messages(
         self,
         conversation_id: str,
+        conversation_state: dict[str, Any] | ConversationState | None = None,
+        include_conversation_state: bool = True,
         long_term_memory_items: list[RetrievedLongTermMemory] | None = None,
     ) -> list[dict[str, str]]:
         """
@@ -168,7 +180,12 @@ class ContextBuilder:
                 }
             )
 
-        conversation_state_text = self._format_conversation_state(conversation_id)
+        conversation_state_text = None
+        if include_conversation_state:
+            conversation_state_text = self._format_conversation_state(
+                conversation_id,
+                conversation_state=conversation_state,
+            )
         if conversation_state_text:
             base_messages.append(
                 {

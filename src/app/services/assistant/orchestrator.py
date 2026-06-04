@@ -25,7 +25,9 @@ from src.app.services.assistant.event import (
     EVENT_TOOL_CALL_START,
     EVENT_LONG_TERM_MEMORY_ITEM,
     EVENT_LONG_TERM_MEMORY_RETRIEVAL_START,
+    EVENT_LONG_TERM_MEMORY_WRITE,
     EVENT_SHORT_TERM_MEMORY_LOADED,
+    EVENT_WORKING_MEMORY_UPDATED,
     sse_event,
 )
 from src.app.services.assistant.llm_router import ModeRouter
@@ -45,6 +47,7 @@ from src.app.services.memory.long_term_writer import LongTermMemoryWriter
 from src.app.services.memory.long_term_schemas import (
     LongTermMemoryRetrievalResult,
     LongTermMemorySearchRequest,
+    LongTermMemoryWriteResult,
     RetrievedLongTermMemory,
 )
 
@@ -258,6 +261,7 @@ class AssistantOrchestrator:
                     route_ms=route_ms,
                     start=start,
                     short_term_memory=short_term_memory,
+                    long_term_memory=long_term_memory,
                     long_term_memory_items=long_term_memory_items,
                 )
                 return
@@ -325,6 +329,7 @@ class AssistantOrchestrator:
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        long_term_memory: LongTermMemoryRetrievalResult | None,
         long_term_memory_items: list[RetrievedLongTermMemory],
         short_term_memory: dict[str, Any] | None,
     ) -> Iterable[str]:
@@ -342,6 +347,10 @@ class AssistantOrchestrator:
         context_builder = ContextBuilder()
         llm_messages = context_builder.build_messages(
             conversation_id,
+            conversation_state=(
+                short_term_memory.get("state") if short_term_memory else None
+            ),
+            include_conversation_state=request.options.enable_short_term_memory,
             long_term_memory_items=long_term_memory_items,
         )
 
@@ -362,6 +371,7 @@ class AssistantOrchestrator:
         latency_ms = int((perf_counter() - start) * 1000)
 
         conversation_state_write = None
+        long_term_memory_write = None
         if request.options.update_conversation_state:
             conversation_state_write = self._write_conversation_state_from_turn(
                 conversation_id=conversation_id,
@@ -371,6 +381,23 @@ class AssistantOrchestrator:
                     short_term_memory.get("state") if short_term_memory else None
                 ),
                 model=selected_model,
+            )
+
+        if (
+            request.options.enable_long_term_memory
+            and request.options.enable_long_term_memory_write
+        ):
+            long_term_memory_write = self.long_term_writer.write_from_turn(
+                user_message=clean_message,
+                assistant_answer=full_answer,
+                conversation_id=conversation_id,
+                source_message_id=user_message["id"],
+                source_run_id=assistant_run_id,
+                model=selected_model,
+            )
+            yield sse_event(
+                EVENT_LONG_TERM_MEMORY_WRITE,
+                long_term_memory_write.trace,
             )
 
         trace = {
@@ -391,15 +418,20 @@ class AssistantOrchestrator:
             },
             "context_message_count": len(llm_messages),
             "memory": {
-                "short_term": {
-                    "loaded": (
-                        short_term_memory.get("trace") if short_term_memory else None
-                    ),
-                    "state": (
-                        short_term_memory.get("state") if short_term_memory else None
-                    ),
-                    "write": conversation_state_write,
-                },
+                "short_term": self._build_short_term_memory_trace(
+                    enabled=request.options.enable_short_term_memory,
+                    short_term_memory=short_term_memory,
+                    conversation_state_write=conversation_state_write,
+                ),
+                "working": self._build_working_memory_trace(
+                    enabled=request.options.enable_working_memory,
+                    working_memory=None,
+                ),
+                "long_term": self._build_long_term_memory_trace(
+                    enabled=request.options.enable_long_term_memory,
+                    long_term_memory=long_term_memory,
+                    long_term_memory_write=long_term_memory_write,
+                ),
             },
         }
 
@@ -506,9 +538,16 @@ class AssistantOrchestrator:
             score_threshold=request.options.score_threshold,
             max_steps=request.options.max_steps,
             model=selected_model,
-            memory_context=long_term_memory_items,
+            enable_working_memory=request.options.enable_working_memory,
+            memory_context=(
+                long_term_memory_items
+                if request.options.enable_working_memory
+                else []
+            ),
             conversation_state=(
-                short_term_memory.get("state") if short_term_memory else None
+                short_term_memory.get("state")
+                if request.options.enable_working_memory and short_term_memory
+                else None
             ),
         )
         agent_ms = int((perf_counter() - agent_start) * 1000)
@@ -534,7 +573,10 @@ class AssistantOrchestrator:
                 model=selected_model,
             )
 
-        if request.options.enable_long_term_memory_write:
+        if (
+            request.options.enable_long_term_memory
+            and request.options.enable_long_term_memory_write
+        ):
             long_term_memory_write = self.long_term_writer.write_from_turn(
                 user_message=clean_message,
                 assistant_answer=answer,
@@ -542,6 +584,17 @@ class AssistantOrchestrator:
                 source_message_id=user_message_id,
                 source_run_id=assistant_run_id,
                 model=selected_model,
+            )
+            yield sse_event(
+                EVENT_LONG_TERM_MEMORY_WRITE,
+                long_term_memory_write.trace,
+            )
+
+        working_memory = trace.get("working_memory")
+        if request.options.enable_working_memory_trace and working_memory is not None:
+            yield sse_event(
+                EVENT_WORKING_MEMORY_UPDATED,
+                working_memory,
             )
 
         for tool_call in tool_calls:
@@ -589,36 +642,24 @@ class AssistantOrchestrator:
                 "total_ms": latency_ms,
             },
             "memory": {
-                "short_term": {
-                    "loaded": (
-                        short_term_memory.get("trace") if short_term_memory else None
+                "short_term": self._build_short_term_memory_trace(
+                    enabled=request.options.enable_short_term_memory,
+                    short_term_memory=short_term_memory,
+                    conversation_state_write=conversation_state_write,
+                ),
+                "working": self._build_working_memory_trace(
+                    enabled=request.options.enable_working_memory,
+                    working_memory=(
+                        working_memory
+                        if request.options.enable_working_memory_trace
+                        else None
                     ),
-                    "state": (
-                        short_term_memory.get("state") if short_term_memory else None
-                    ),
-                    "write": conversation_state_write,
-                },
-                "long_term": {
-                    "retrieval": long_term_memory.trace if long_term_memory else None,
-                    "items": (
-                        [
-                            {
-                                "id": item.item.id,
-                                "type": item.item.memory_type,
-                                "score": item.score,
-                                "content": item.item.content,
-                                "importance": item.item.importance,
-                                "confidence": item.item.confidence,
-                            }
-                            for item in long_term_memory.items
-                        ]
-                        if long_term_memory
-                        else []
-                    ),
-                    "write": (
-                        long_term_memory_write.trace if long_term_memory_write else None
-                    ),
-                },
+                ),
+                "long_term": self._build_long_term_memory_trace(
+                    enabled=request.options.enable_long_term_memory,
+                    long_term_memory=long_term_memory,
+                    long_term_memory_write=long_term_memory_write,
+                ),
             },
         }
 
@@ -677,6 +718,60 @@ class AssistantOrchestrator:
         )
 
         return conversation_state.model_dump(mode="json")
+
+    def _build_short_term_memory_trace(
+        self,
+        *,
+        enabled: bool,
+        short_term_memory: dict[str, Any] | None,
+        conversation_state_write: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return {
+            "enabled": enabled,
+            "loaded": short_term_memory.get("trace") if short_term_memory else None,
+            "state": short_term_memory.get("state") if short_term_memory else None,
+            "write": conversation_state_write,
+        }
+
+    def _build_working_memory_trace(
+        self,
+        *,
+        enabled: bool,
+        working_memory: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return {
+            "enabled": enabled,
+            "trace_enabled": enabled and bool(working_memory),
+            "state": working_memory,
+        }
+
+    def _build_long_term_memory_trace(
+        self,
+        *,
+        enabled: bool,
+        long_term_memory: LongTermMemoryRetrievalResult | None,
+        long_term_memory_write: LongTermMemoryWriteResult | None,
+    ) -> dict[str, Any]:
+        return {
+            "enabled": enabled,
+            "retrieval": long_term_memory.trace if long_term_memory else None,
+            "items": (
+                [
+                    {
+                        "id": item.item.id,
+                        "type": item.item.memory_type,
+                        "score": item.score,
+                        "content": item.item.content,
+                        "importance": item.item.importance,
+                        "confidence": item.item.confidence,
+                    }
+                    for item in long_term_memory.items
+                ]
+                if long_term_memory
+                else []
+            ),
+            "write": long_term_memory_write.trace if long_term_memory_write else None,
+        }
 
     def _try_update_summary(
         self, conversation_id: str, model: str | None = None

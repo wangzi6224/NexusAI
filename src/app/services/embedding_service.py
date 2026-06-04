@@ -3,7 +3,6 @@ from typing import Any, Literal
 
 from src.app.config import (
     get_embedding_batch_size,
-    get_embedding_dimension,
     get_embedding_model,
 )
 

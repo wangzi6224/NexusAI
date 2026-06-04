@@ -59,6 +59,7 @@ class AgentService:
         score_threshold: float = 0.3,
         max_steps: int = 3,
         model: str | None = None,
+        enable_working_memory: bool = True,
         memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -126,15 +127,26 @@ class AgentService:
         serialized_memory_context = [
             item.model_dump(mode="json") for item in (memory_context or [])
         ]
+        working_memory_context = (
+            serialized_memory_context if enable_working_memory else []
+        )
+        working_memory_constraints = (
+            (conversation_state or {}).get("confirmed_constraints", [])
+            if enable_working_memory
+            else []
+        )
+        working_memory_metadata = (
+            {"conversation_state": conversation_state}
+            if enable_working_memory
+            else {"conversation_state": None}
+        )
 
         working_memory = WorkingMemory(
             goal=clean_question,
             task_status="planning",
-            memory_context=serialized_memory_context,
-            constraints=(conversation_state or {}).get("confirmed_constraints", []),
-            metadata={
-                "conversation_state": conversation_state,
-            },
+            memory_context=working_memory_context,
+            constraints=working_memory_constraints,
+            metadata=working_memory_metadata,
         )
 
         state = AgentState(

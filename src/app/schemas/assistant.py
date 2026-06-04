@@ -24,6 +24,7 @@ class AssistantOptions(BaseModel):
     enable_short_term_memory: bool = True
     update_conversation_state: bool = True
 
+    enable_working_memory: bool = True
     enable_working_memory_trace: bool = True
 
     enable_long_term_memory: bool = True

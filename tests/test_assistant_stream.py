@@ -19,11 +19,14 @@ from src.app.services.assistant.event import (
     sse_event,
 )
 from src.app.schemas.assistant import AssistantStreamRequest
+import src.app.services.context_builder as context_builder_module
 import src.app.services.assistant.orchestrator as orchestrator_module
 from src.app.services.assistant.orchestrator import AssistantOrchestrator
 from src.app.services.context_builder import ContextBuilder
 from src.app.services.memory.long_term_schemas import (
     LongTermMemoryItem,
+    LongTermMemoryRetrievalResult,
+    LongTermMemoryWriteResult,
     RetrievedLongTermMemory,
 )
 from src.app.services.memory.working_memory import WorkingMemory
@@ -215,6 +218,53 @@ class TestAssistantTraceHelpers:
             }
         ]
 
+    def test_builds_three_layer_memory_trace(self) -> None:
+        memory = RetrievedLongTermMemory(
+            item=LongTermMemoryItem(
+                id="mem-1",
+                memory_type="project",
+                content="用户偏好最小范围修改。",
+                importance=0.8,
+                confidence=0.9,
+            ),
+            score=0.72,
+            rank=1,
+        )
+        retrieval = LongTermMemoryRetrievalResult(
+            query="怎么改？",
+            items=[memory],
+            latency_ms=12,
+            trace={"candidate_count": 1},
+        )
+        write_result = LongTermMemoryWriteResult(
+            trace={"candidate_count": 1, "created_count": 1}
+        )
+
+        trace = {
+            "short_term": self.orchestrator._build_short_term_memory_trace(
+                enabled=True,
+                short_term_memory={
+                    "trace": {"has_state": True},
+                    "state": {"conversation_id": "conv-1"},
+                },
+                conversation_state_write={"conversation_id": "conv-1"},
+            ),
+            "working": self.orchestrator._build_working_memory_trace(
+                enabled=True,
+                working_memory={"memory_context": [memory.model_dump(mode="json")]},
+            ),
+            "long_term": self.orchestrator._build_long_term_memory_trace(
+                enabled=True,
+                long_term_memory=retrieval,
+                long_term_memory_write=write_result,
+            ),
+        }
+
+        assert trace["short_term"]["loaded"]["has_state"] is True
+        assert trace["working"]["state"]["memory_context"][0]["item"]["id"] == "mem-1"
+        assert trace["long_term"]["items"][0]["id"] == "mem-1"
+        assert trace["long_term"]["write"]["created_count"] == 1
+
     def test_stream_returns_sse_error_when_route_fails(self, monkeypatch) -> None:
         monkeypatch.setattr(
             orchestrator_module,
@@ -276,6 +326,32 @@ class TestLongTermMemoryContext:
         assert "长期记忆检索结果" in text
         assert "project" in text
         assert "用户偏好最小范围修改。" in text
+
+    def test_context_builder_can_skip_short_term_state(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            context_builder_module,
+            "list_recent_messages",
+            lambda conversation_id, limit: [],
+        )
+        builder = ContextBuilder.__new__(ContextBuilder)
+        builder.max_recent_messages = 10
+        builder.max_context_chars = 12000
+        builder.system_prompt = "system"
+        builder._ensure_conversation_exists = lambda conversation_id: {
+            "id": conversation_id,
+            "summary": None,
+        }
+
+        messages = builder.build_messages(
+            "conv-1",
+            conversation_state={
+                "conversation_id": "conv-1",
+                "current_topic": "短期记忆",
+            },
+            include_conversation_state=False,
+        )
+
+        assert all("当前会话结构化状态" not in item["content"] for item in messages)
 
     def test_working_memory_accepts_serialized_long_term_memory_context(self) -> None:
         memory = RetrievedLongTermMemory(
