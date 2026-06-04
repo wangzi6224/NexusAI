@@ -249,36 +249,29 @@ class AssistantOrchestrator:
                 )
 
         try:
+            params = {
+                "conversation_id": conversation_id,
+                "clean_message": clean_message,
+                "selected_model": selected_model,
+                "assistant_run_id": assistant_run_id,
+                "request": request,
+                "route_decision": route_decision,
+                "route_ms": route_ms,
+                "start": start,
+                "short_term_memory": short_term_memory,
+                "long_term_memory": long_term_memory,
+                "long_term_memory_items": long_term_memory_items,
+            }
             if route_decision.mode == "chat":
                 yield from self._stream_chat(
-                    conversation_id=conversation_id,
-                    clean_message=clean_message,
-                    selected_model=selected_model,
+                    **params,
                     provider=request.provider,
-                    assistant_run_id=assistant_run_id,
-                    request=request,
-                    route_decision=route_decision,
-                    route_ms=route_ms,
-                    start=start,
-                    short_term_memory=short_term_memory,
-                    long_term_memory=long_term_memory,
-                    long_term_memory_items=long_term_memory_items,
                 )
                 return
-
-            yield from self._stream_agent(
-                conversation_id=conversation_id,
-                clean_message=clean_message,
-                selected_model=selected_model,
-                assistant_run_id=assistant_run_id,
-                request=request,
-                route_decision=route_decision,
-                route_ms=route_ms,
-                start=start,
-                short_term_memory=short_term_memory,
-                long_term_memory=long_term_memory,
-                long_term_memory_items=long_term_memory_items,
-            )
+            if route_decision.mode == "agent":
+                yield from self._stream_agent(
+                    **params,
+                )
 
         except Exception as exc:
             latency_ms = int((perf_counter() - start) * 1000)
@@ -540,9 +533,7 @@ class AssistantOrchestrator:
             model=selected_model,
             enable_working_memory=request.options.enable_working_memory,
             memory_context=(
-                long_term_memory_items
-                if request.options.enable_working_memory
-                else []
+                long_term_memory_items if request.options.enable_working_memory else []
             ),
             conversation_state=(
                 short_term_memory.get("state")
