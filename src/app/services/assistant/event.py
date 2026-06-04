@@ -30,9 +30,20 @@ EVENT_AGENT_MAX_STEPS_REACHED: Final = (
     "agent_max_steps_reached"  # Agent 达到最大步骤限制。
 )
 
+EVENT_SHORT_TERM_MEMORY_LOADED: Final = "short_term_memory_loaded"
+EVENT_LONG_TERM_MEMORY_RETRIEVAL_START: Final = "long_term_memory_retrieval_start"
+EVENT_LONG_TERM_MEMORY_ITEM: Final = "long_term_memory_item"
+EVENT_LONG_TERM_MEMORY_WRITE: Final = "long_term_memory_write"
+EVENT_WORKING_MEMORY_UPDATED: Final = "working_memory_updated"
+
 AssistantStreamEvent = Literal[
     "assistant_start",
     "route_decision",
+    "short_term_memory_loaded",
+    "long_term_memory_retrieval_start",
+    "long_term_memory_item",
+    "long_term_memory_write",
+    "working_memory_updated",
     "tool_call_start",
     "tool_call_end",
     "delta",

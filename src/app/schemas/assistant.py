@@ -21,6 +21,16 @@ class AssistantOptions(BaseModel):
     enable_rag_tools: bool = True
     enable_mcp_tools: bool = False
 
+    enable_short_term_memory: bool = True
+    update_conversation_state: bool = True
+
+    enable_working_memory_trace: bool = True
+
+    enable_long_term_memory: bool = True
+    long_term_memory_top_k: int = Field(default=5, ge=0, le=20)
+    long_term_memory_min_score: float = Field(default=0.25, ge=0, le=1)
+    enable_long_term_memory_write: bool = True
+
 
 class AssistantStreamRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户当前输入")
