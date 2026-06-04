@@ -32,6 +32,7 @@ from src.app.services.tools.list_docs import ListDocsTool
 from src.app.services.tools.search_docs import SearchDocsTool
 from src.app.services.tools.read_doc import ReadDocTool
 from src.app.services.memory.working_memory import WorkingMemory
+from src.app.services.memory.long_term_schemas import RetrievedLongTermMemory
 
 
 class AgentService:
@@ -58,7 +59,7 @@ class AgentService:
         score_threshold: float = 0.3,
         max_steps: int = 3,
         model: str | None = None,
-        memory_context: list[dict[str, Any]] | None = None,
+        memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
@@ -122,11 +123,14 @@ class AgentService:
         )
 
         recent_messages = list_messages(conversation_id)[-10:]
+        serialized_memory_context = [
+            item.model_dump(mode="json") for item in (memory_context or [])
+        ]
 
         working_memory = WorkingMemory(
             goal=clean_question,
             task_status="planning",
-            memory_context=memory_context or [],
+            memory_context=serialized_memory_context,
             constraints=(conversation_state or {}).get("confirmed_constraints", []),
             metadata={
                 "conversation_state": conversation_state,

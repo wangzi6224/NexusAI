@@ -18,7 +18,15 @@ from src.app.services.assistant.event import (
     EVENT_DONE,
     sse_event,
 )
+from src.app.schemas.assistant import AssistantStreamRequest
+import src.app.services.assistant.orchestrator as orchestrator_module
 from src.app.services.assistant.orchestrator import AssistantOrchestrator
+from src.app.services.context_builder import ContextBuilder
+from src.app.services.memory.long_term_schemas import (
+    LongTermMemoryItem,
+    RetrievedLongTermMemory,
+)
+from src.app.services.memory.working_memory import WorkingMemory
 
 # ─── sse_event 格式测试 ────────────────────────────────────────────────────
 
@@ -155,3 +163,134 @@ class TestAssistantTraceHelpers:
             "fallback_count": 0,
             "decision_count": 0,
         }
+
+    def test_writes_conversation_state_from_turn(self) -> None:
+        class FakeExtractor:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def extract(self, **kwargs):
+                self.calls.append(kwargs)
+                return {"current_topic": "记忆"}
+
+        class FakeState:
+            def model_dump(self, mode: str):
+                assert mode == "json"
+                return {"current_topic": "记忆"}
+
+        class FakeStore:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def upsert_state(self, **kwargs):
+                self.calls.append(kwargs)
+                return FakeState()
+
+        extractor = FakeExtractor()
+        store = FakeStore()
+        self.orchestrator.conversation_state_extractor = extractor
+        self.orchestrator.short_term_store = store
+
+        result = self.orchestrator._write_conversation_state_from_turn(
+            conversation_id="conv-1",
+            user_message="你好",
+            assistant_answer="你好，有什么可以帮你？",
+            previous_state={"current_topic": "寒暄"},
+            model="deepseek-chat",
+        )
+
+        assert result == {"current_topic": "记忆"}
+        assert extractor.calls == [
+            {
+                "user_message": "你好",
+                "assistant_answer": "你好，有什么可以帮你？",
+                "previous_state": {"current_topic": "寒暄"},
+                "model": "deepseek-chat",
+            }
+        ]
+        assert store.calls == [
+            {
+                "conversation_id": "conv-1",
+                "patch": {"current_topic": "记忆"},
+            }
+        ]
+
+    def test_stream_returns_sse_error_when_route_fails(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            orchestrator_module,
+            "get_conversation",
+            lambda conversation_id: {
+                "id": conversation_id,
+                "model": "deepseek-chat",
+                "provider": "deepseek",
+            },
+        )
+        monkeypatch.setattr(
+            orchestrator_module,
+            "resolve_llm_model",
+            lambda **kwargs: "deepseek-chat",
+        )
+
+        class FakeRunStore:
+            def create_run(self, **kwargs):
+                raise AssertionError("create_run should not run after route failure")
+
+        orchestrator = AssistantOrchestrator.__new__(AssistantOrchestrator)
+        orchestrator.run_store = FakeRunStore()
+
+        def raise_route_error(**kwargs):
+            raise RuntimeError("route failed")
+
+        orchestrator._route = raise_route_error
+
+        events = list(
+            orchestrator.stream(
+                conversation_id="conv-1",
+                request=AssistantStreamRequest(message="你好"),
+            )
+        )
+
+        assert events[0].startswith("event: error\n")
+        assert "ASSISTANT_ROUTE_ERROR" in events[0]
+        assert events[-1] == "event: done\ndata: [DONE]\n\n"
+
+
+class TestLongTermMemoryContext:
+    def test_context_builder_formats_retrieved_long_term_memory(self) -> None:
+        builder = ContextBuilder.__new__(ContextBuilder)
+        memory = RetrievedLongTermMemory(
+            item=LongTermMemoryItem(
+                id="mem-1",
+                memory_type="project",
+                content="用户偏好最小范围修改。",
+                importance=0.8,
+                confidence=0.9,
+            ),
+            score=0.72,
+            rank=1,
+        )
+
+        text = builder._format_long_term_memory([memory])
+
+        assert text is not None
+        assert "长期记忆检索结果" in text
+        assert "project" in text
+        assert "用户偏好最小范围修改。" in text
+
+    def test_working_memory_accepts_serialized_long_term_memory_context(self) -> None:
+        memory = RetrievedLongTermMemory(
+            item=LongTermMemoryItem(
+                id="mem-1",
+                memory_type="semantic",
+                content="长期记忆会进入 Agent 工作记忆。",
+            ),
+            score=0.66,
+            rank=1,
+        )
+
+        working_memory = WorkingMemory(
+            memory_context=[memory.model_dump(mode="json")]
+        )
+
+        assert working_memory.memory_context[0]["item"]["id"] == "mem-1"
+        assert working_memory.memory_context[0]["score"] == 0.66

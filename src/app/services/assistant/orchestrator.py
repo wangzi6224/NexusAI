@@ -23,6 +23,9 @@ from src.app.services.assistant.event import (
     EVENT_ROUTE_DECISION,
     EVENT_TOOL_CALL_END,
     EVENT_TOOL_CALL_START,
+    EVENT_LONG_TERM_MEMORY_ITEM,
+    EVENT_LONG_TERM_MEMORY_RETRIEVAL_START,
+    EVENT_SHORT_TERM_MEMORY_LOADED,
     sse_event,
 )
 from src.app.services.assistant.llm_router import ModeRouter
@@ -32,6 +35,18 @@ from src.app.services.assistant.run_store import AssistantRunStore
 from src.app.services.context_builder import ContextBuilder
 from src.app.services.llm.factory import get_llm_provider
 from src.app.services.summarizer import Summarizer
+from src.app.services.memory.short_term_builder import ShortTermMemoryBuilder
+from src.app.services.memory.short_term_store import ShortTermMemoryStore
+from src.app.services.memory.conversation_state_extractor import (
+    ConversationStateExtractor,
+)
+from src.app.services.memory.long_term_retriever import LongTermMemoryRetriever
+from src.app.services.memory.long_term_writer import LongTermMemoryWriter
+from src.app.services.memory.long_term_schemas import (
+    LongTermMemoryRetrievalResult,
+    LongTermMemorySearchRequest,
+    RetrievedLongTermMemory,
+)
 
 logger = get_logger()
 
@@ -52,6 +67,13 @@ class AssistantOrchestrator:
         self.mode_router = ModeRouter()
         self.run_store = AssistantRunStore()
         self.agent_service = AgentService()
+
+        self.short_term_builder = ShortTermMemoryBuilder()
+        self.short_term_store = ShortTermMemoryStore()
+        self.conversation_state_extractor = ConversationStateExtractor()
+
+        self.long_term_retriever = LongTermMemoryRetriever()
+        self.long_term_writer = LongTermMemoryWriter()
 
     def stream(
         self,
@@ -95,27 +117,46 @@ class AssistantOrchestrator:
             provider=request.provider,
         )
 
-        route_start = perf_counter()
-        route_decision = self._route(
-            conversation_id=conversation_id,
-            request=request,
-            selected_model=selected_model,
-        )
-        route_ms = int((perf_counter() - route_start) * 1000)
+        try:
+            route_start = perf_counter()
+            route_decision = self._route(
+                conversation_id=conversation_id,
+                request=request,
+                selected_model=selected_model,
+            )
+            route_ms = int((perf_counter() - route_start) * 1000)
 
-        assistant_run = self.run_store.create_run(
-            conversation_id=conversation_id,
-            mode=route_decision.mode,
-            input_text=clean_message,
-            model=selected_model,
-            provider=request.provider or conversation.get("provider"),
-            metadata={
-                "requested_mode": request.mode,
-                "options": request.options.model_dump(),
-                "route_decision": route_decision.model_dump(),
-            },
-        )
-        assistant_run_id = assistant_run["id"]
+            assistant_run = self.run_store.create_run(
+                conversation_id=conversation_id,
+                mode=route_decision.mode,
+                input_text=clean_message,
+                model=selected_model,
+                provider=request.provider or conversation.get("provider"),
+                metadata={
+                    "requested_mode": request.mode,
+                    "options": request.options.model_dump(),
+                    "route_decision": route_decision.model_dump(),
+                },
+            )
+            assistant_run_id = assistant_run["id"]
+        except Exception as exc:
+            latency_ms = int((perf_counter() - start) * 1000)
+            logger.exception(
+                "Assistant route/start failed: conversation_id=%s error=%s",
+                conversation_id,
+                exc,
+            )
+            yield sse_event(
+                EVENT_ERROR,
+                {
+                    "code": "ASSISTANT_ROUTE_ERROR",
+                    "message": "Assistant 路由初始化失败",
+                    "detail": str(exc),
+                    "latency_ms": latency_ms,
+                },
+            )
+            yield sse_event(EVENT_DONE, "[DONE]")
+            return
 
         yield sse_event(
             EVENT_ASSISTANT_START,
@@ -136,6 +177,74 @@ class AssistantOrchestrator:
             },
         )
 
+        short_term_memory: dict[str, Any] | None = None
+        long_term_memory: LongTermMemoryRetrievalResult | None = None
+        long_term_memory_items: list[RetrievedLongTermMemory] = []
+
+        if request.options.enable_short_term_memory:
+            # 构建短期记忆，供后续 Agent 使用。目前仅包含最近的对话消息，后续可以增加更多类型的记忆。
+            short_term_memory = self.short_term_builder.build(
+                conversation_id=conversation_id,
+                recent_limit=10,
+            )
+
+        if (
+            request.options.enable_long_term_memory
+            and request.options.long_term_memory_top_k > 0
+        ):
+            # 构建长期记忆检索请求，供后续 Agent 使用。目前支持多种记忆类型的检索，后续可以增加更多选项。
+            long_term_memory = self.long_term_retriever.retrieve(
+                LongTermMemorySearchRequest(
+                    query=clean_message,
+                    user_id="default_user",
+                    top_k=request.options.long_term_memory_top_k,
+                    min_score=request.options.long_term_memory_min_score,
+                    memory_types=[
+                        "user_profile",
+                        "semantic",
+                        "episodic",
+                        "tool_preference",
+                        "project",
+                    ],
+                )
+            )
+            long_term_memory_items = long_term_memory.items
+        if short_term_memory:
+            yield sse_event(
+                EVENT_SHORT_TERM_MEMORY_LOADED,
+                {
+                    "conversation_id": conversation_id,
+                    "has_summary": bool(short_term_memory.get("summary")),
+                    "has_state": bool(short_term_memory.get("state")),
+                    "recent_message_count": len(
+                        short_term_memory.get("recent_messages") or []
+                    ),
+                },
+            )
+
+        if long_term_memory is not None:
+            yield sse_event(
+                EVENT_LONG_TERM_MEMORY_RETRIEVAL_START,
+                {
+                    "query": long_term_memory.query,
+                    "top_k": request.options.long_term_memory_top_k,
+                    "latency_ms": long_term_memory.latency_ms,
+                },
+            )
+
+            for memory in long_term_memory_items:
+                yield sse_event(
+                    EVENT_LONG_TERM_MEMORY_ITEM,
+                    {
+                        "memory_id": memory.item.id,
+                        "memory_type": memory.item.memory_type,
+                        "score": memory.score,
+                        "content": memory.item.content,
+                        "importance": memory.item.importance,
+                        "confidence": memory.item.confidence,
+                    },
+                )
+
         try:
             if route_decision.mode == "chat":
                 yield from self._stream_chat(
@@ -144,9 +253,12 @@ class AssistantOrchestrator:
                     selected_model=selected_model,
                     provider=request.provider,
                     assistant_run_id=assistant_run_id,
+                    request=request,
                     route_decision=route_decision,
                     route_ms=route_ms,
                     start=start,
+                    short_term_memory=short_term_memory,
+                    long_term_memory_items=long_term_memory_items,
                 )
                 return
 
@@ -159,6 +271,9 @@ class AssistantOrchestrator:
                 route_decision=route_decision,
                 route_ms=route_ms,
                 start=start,
+                short_term_memory=short_term_memory,
+                long_term_memory=long_term_memory,
+                long_term_memory_items=long_term_memory_items,
             )
 
         except Exception as exc:
@@ -206,9 +321,12 @@ class AssistantOrchestrator:
         selected_model: str,
         provider: str | None,
         assistant_run_id: str,
+        request: AssistantStreamRequest,
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        long_term_memory_items: list[RetrievedLongTermMemory],
+        short_term_memory: dict[str, Any] | None,
     ) -> Iterable[str]:
         user_message = create_message(
             conversation_id=conversation_id,
@@ -222,7 +340,10 @@ class AssistantOrchestrator:
         )
 
         context_builder = ContextBuilder()
-        llm_messages = context_builder.build_messages(conversation_id)
+        llm_messages = context_builder.build_messages(
+            conversation_id,
+            long_term_memory_items=long_term_memory_items,
+        )
 
         llm_provider = get_llm_provider(provider)
         full_answer_parts: list[str] = []
@@ -240,36 +361,17 @@ class AssistantOrchestrator:
         full_answer = "".join(full_answer_parts)
         latency_ms = int((perf_counter() - start) * 1000)
 
-        assistant_message = create_message(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=full_answer,
-            metadata={
-                "type": "assistant_answer",
-                "assistant_run_id": assistant_run_id,
-                "mode": "chat",
-                "model": selected_model,
-                "provider": llm_provider.name,
-                "latency_ms": latency_ms,
-                "context_message_count": len(llm_messages),
-                "is_stream": True,
-                "tool_calls": [],
-                "trace": {
-                    "route_decision": route_decision.model_dump(),
-                    "context_message_count": len(llm_messages),
-                },
-            },
-        )
-
-        self._try_update_summary(conversation_id, model=selected_model)
-
-        update_conversation(
-            conversation_id,
-            {
-                "model": selected_model,
-                "provider": llm_provider.name,
-            },
-        )
+        conversation_state_write = None
+        if request.options.update_conversation_state:
+            conversation_state_write = self._write_conversation_state_from_turn(
+                conversation_id=conversation_id,
+                user_message=clean_message,
+                assistant_answer=full_answer,
+                previous_state=(
+                    short_term_memory.get("state") if short_term_memory else None
+                ),
+                model=selected_model,
+            )
 
         trace = {
             "route_decision": route_decision.model_dump(),
@@ -288,7 +390,46 @@ class AssistantOrchestrator:
                 "total_ms": latency_ms,
             },
             "context_message_count": len(llm_messages),
+            "memory": {
+                "short_term": {
+                    "loaded": (
+                        short_term_memory.get("trace") if short_term_memory else None
+                    ),
+                    "state": (
+                        short_term_memory.get("state") if short_term_memory else None
+                    ),
+                    "write": conversation_state_write,
+                },
+            },
         }
+
+        assistant_message = create_message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=full_answer,
+            metadata={
+                "type": "assistant_answer",
+                "assistant_run_id": assistant_run_id,
+                "mode": "chat",
+                "model": selected_model,
+                "provider": llm_provider.name,
+                "latency_ms": latency_ms,
+                "context_message_count": len(llm_messages),
+                "is_stream": True,
+                "tool_calls": [],
+                "trace": trace,
+            },
+        )
+
+        self._try_update_summary(conversation_id, model=selected_model)
+
+        update_conversation(
+            conversation_id,
+            {
+                "model": selected_model,
+                "provider": llm_provider.name,
+            },
+        )
 
         self.run_store.update_run(
             assistant_run_id,
@@ -352,6 +493,9 @@ class AssistantOrchestrator:
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        short_term_memory: dict[str, Any] | None,
+        long_term_memory: LongTermMemoryRetrievalResult | None,
+        long_term_memory_items: list[RetrievedLongTermMemory],
     ) -> Iterable[str]:
         # 当前 AgentService.chat 是同步执行。
         agent_start = perf_counter()
@@ -362,6 +506,10 @@ class AssistantOrchestrator:
             score_threshold=request.options.score_threshold,
             max_steps=request.options.max_steps,
             model=selected_model,
+            memory_context=long_term_memory_items,
+            conversation_state=(
+                short_term_memory.get("state") if short_term_memory else None
+            ),
         )
         agent_ms = int((perf_counter() - agent_start) * 1000)
 
@@ -371,6 +519,30 @@ class AssistantOrchestrator:
         agent_run_id: str | None = result.get("run_id")
         user_message_id: str | None = result.get("user_message_id")
         assistant_message_id: str | None = result.get("assistant_message_id")
+
+        conversation_state_write = None
+        long_term_memory_write = None
+
+        if request.options.update_conversation_state:
+            conversation_state_write = self._write_conversation_state_from_turn(
+                conversation_id=conversation_id,
+                user_message=clean_message,
+                assistant_answer=answer,
+                previous_state=(
+                    short_term_memory.get("state") if short_term_memory else None
+                ),
+                model=selected_model,
+            )
+
+        if request.options.enable_long_term_memory_write:
+            long_term_memory_write = self.long_term_writer.write_from_turn(
+                user_message=clean_message,
+                assistant_answer=answer,
+                conversation_id=conversation_id,
+                source_message_id=user_message_id,
+                source_run_id=assistant_run_id,
+                model=selected_model,
+            )
 
         for tool_call in tool_calls:
             yield sse_event(
@@ -416,6 +588,38 @@ class AssistantOrchestrator:
                 "agent_ms": agent_ms,
                 "total_ms": latency_ms,
             },
+            "memory": {
+                "short_term": {
+                    "loaded": (
+                        short_term_memory.get("trace") if short_term_memory else None
+                    ),
+                    "state": (
+                        short_term_memory.get("state") if short_term_memory else None
+                    ),
+                    "write": conversation_state_write,
+                },
+                "long_term": {
+                    "retrieval": long_term_memory.trace if long_term_memory else None,
+                    "items": (
+                        [
+                            {
+                                "id": item.item.id,
+                                "type": item.item.memory_type,
+                                "score": item.score,
+                                "content": item.item.content,
+                                "importance": item.item.importance,
+                                "confidence": item.item.confidence,
+                            }
+                            for item in long_term_memory.items
+                        ]
+                        if long_term_memory
+                        else []
+                    ),
+                    "write": (
+                        long_term_memory_write.trace if long_term_memory_write else None
+                    ),
+                },
+            },
         }
 
         self.run_store.update_run(
@@ -450,6 +654,29 @@ class AssistantOrchestrator:
             },
         )
         yield sse_event(EVENT_DONE, "[DONE]")
+
+    def _write_conversation_state_from_turn(
+        self,
+        *,
+        conversation_id: str,
+        user_message: str,
+        assistant_answer: str,
+        previous_state: dict[str, Any] | None,
+        model: str | None,
+    ) -> dict[str, Any]:
+        state_patch = self.conversation_state_extractor.extract(
+            user_message=user_message,
+            assistant_answer=assistant_answer,
+            previous_state=previous_state,
+            model=model,
+        )
+
+        conversation_state = self.short_term_store.upsert_state(
+            conversation_id=conversation_id,
+            patch=state_patch,
+        )
+
+        return conversation_state.model_dump(mode="json")
 
     def _try_update_summary(
         self, conversation_id: str, model: str | None = None

@@ -3,6 +3,7 @@ from typing import Any
 from src.app.conversation_store import get_conversation, list_recent_messages
 from src.app.exceptions import ConversationError
 from src.app.services.memory.short_term_store import ShortTermMemoryStore
+from src.app.services.memory.long_term_schemas import RetrievedLongTermMemory
 
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个专业、耐心、严谨的 AI 开发学习助手。请使用简体中文回答。"
@@ -113,12 +114,32 @@ class ContextBuilder:
 
         return "\n".join(lines)
 
+    def _format_long_term_memory(
+        self,
+        long_term_memory_items: list[RetrievedLongTermMemory] | None,
+    ) -> str | None:
+        if not long_term_memory_items:
+            return None
+
+        lines = ["长期记忆检索结果："]
+
+        for memory in long_term_memory_items[:8]:
+            item = memory.item
+            lines.append(
+                (
+                    f"- [{memory.rank}] 类型：{item.memory_type}；"
+                    f"相关度：{memory.score:.3f}；"
+                    f"重要性：{item.importance:.2f}；"
+                    f"内容：{item.content}"
+                )
+            )
+
+        return "\n".join(lines)
+
     def build_messages(
         self,
         conversation_id: str,
-        long_term_memory_items: (
-            list[dict[str, Any]] | None
-        ) = None,  # 预留参数，当前不使用
+        long_term_memory_items: list[RetrievedLongTermMemory] | None = None,
     ) -> list[dict[str, str]]:
         """
         核心流程：
@@ -153,6 +174,15 @@ class ContextBuilder:
                 {
                     "role": "system",
                     "content": conversation_state_text,
+                }
+            )
+
+        long_term_memory_text = self._format_long_term_memory(long_term_memory_items)
+        if long_term_memory_text:
+            base_messages.append(
+                {
+                    "role": "system",
+                    "content": long_term_memory_text,
                 }
             )
 
