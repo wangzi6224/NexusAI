@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Iterator
+from gc import enable
 from typing import NoReturn, cast
 
 from openai import (
@@ -44,9 +45,14 @@ class CloudProvider(LLMProvider):
         if config["cloud_provider"] != "deepseek":
             return None
 
+        enable_thinking: bool = config["thinking_enabled"]
+
         return {
+            "enable_thinking": enable_thinking,
+            "enable_search": True,
+            "search_options": {"search_strategy": "agent_max"},
             "thinking": {
-                "type": "enabled" if config["thinking_enabled"] else "disabled",
+                "type": "enabled" if enable_thinking else "disabled",
             },
         }
 
