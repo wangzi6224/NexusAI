@@ -138,6 +138,11 @@ class Settings(BaseSettings):
         default=8, alias="AGENT_PLANNER_TIMEOUT_SECONDS"
     )
 
+    llm_router_model: str = Field(
+        default="deepseek-v4-flash",
+        alias="LLM_ROUTER_MODEL",
+    )
+
     # Agent 工具调用相关配置
     agent_allowed_tools: str = Field(
         default="list_docs,search_docs,read_doc",
@@ -419,3 +424,7 @@ def get_agent_planner_temperature() -> float:
 
 def get_agent_planner_timeout_seconds() -> int:
     return get_settings().agent_planner_timeout_seconds
+
+
+def get_llm_router_model() -> str:
+    return get_settings().llm_router_model

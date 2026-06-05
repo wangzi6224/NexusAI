@@ -4,11 +4,14 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from src.app.config import resolve_llm_model
+from src.app.logger import get_logger
+from src.app.config import get_llm_router_model
 from src.app.services.assistant.llm_route_prompt import build_route_messages
 from src.app.services.assistant.mode_router import RouterContext, RuleBasedModeRouter
 from src.app.services.assistant.route_decision import RouteDecision
 from src.app.services.llm.factory import get_llm_provider
+
+logger = get_logger()
 
 
 class LLMModeRouter:
@@ -23,14 +26,26 @@ class LLMModeRouter:
             recent_messages=context.recent_messages,
             options=context.options,
         )
-        selected_model = resolve_llm_model(model=model)
+        llm_router_model = get_llm_router_model()
         start = perf_counter()
 
+        logger.info(
+            "LLM Router 开始路由决策，model=%s, message=%s",
+            llm_router_model,
+            context.message,
+        )
         # 这里直接调用 LLM 进行路由决策
         response = self.llm_provider.structured_chat(
-            messages=messages, model=selected_model
+            messages=messages, model=llm_router_model
         )
         latency_ms = int((perf_counter() - start) * 1000)
+
+        logger.info(
+            "LLM Router 路由决策完成，model=%s 耗时 %s ms，响应内容: %s",
+            llm_router_model,
+            latency_ms,
+            response.content,
+        )
 
         try:
             payload = self._parse_json(response.content)
