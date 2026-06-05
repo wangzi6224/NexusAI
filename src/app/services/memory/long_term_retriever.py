@@ -94,6 +94,13 @@ class LongTermMemoryRetriever:
         query_embedding: list[float],
         candidate_k: int,
     ) -> list[dict[str, Any]]:
+        """在数据库中执行向量检索，返回候选记忆项列表
+        - 只检索状态为 active 的记忆项
+        - 只检索 embedding 不为空的记忆项
+        - 只检索未过期的记忆项（expires_at 为空或大于当前时间）
+        - 如果提供了 workspace_id，则检索 workspace_id 匹配或为 NULL 的记忆项
+        - 如果提供了 memory_types，则检索 memory_type 在指定列表中的记忆项
+        """
         conditions = [
             "user_id = %(user_id)s",
             "status = 'active'",

@@ -86,9 +86,9 @@ class AssistantOrchestrator:
     ) -> Iterable[str]:
         start = perf_counter()
         clean_message = request.message.strip()
-
+        # 校验部分
         if not clean_message:
-            # 消息内容不能为空，直接返回错误事件并结束流。
+            # 第一步：消息内容不能为空，直接返回错误事件并结束流。
             yield sse_event(
                 EVENT_ERROR,
                 {
@@ -101,7 +101,7 @@ class AssistantOrchestrator:
 
         conversation = get_conversation(conversation_id)
         if conversation is None:
-            # 会话不存在，直接返回错误事件并结束流。
+            # 第二步：会话不存在，直接返回错误事件并结束流。
             yield sse_event(
                 EVENT_ERROR,
                 {
@@ -113,6 +113,7 @@ class AssistantOrchestrator:
             yield sse_event(EVENT_DONE, "[DONE]")
             return
 
+        # 第三步：选择模型的优先级：请求参数 > 会话历史记录 > 系统默认配置。
         selected_model = resolve_llm_model(
             model=request.model,
             stored_model=conversation.get("model"),
@@ -122,6 +123,7 @@ class AssistantOrchestrator:
 
         try:
             route_start = perf_counter()
+            # 第四步：路由决策，决定后续使用 Chat 还是 Agent 处理请求，并记录路由耗时供后续分析。
             route_decision = self._route(
                 conversation_id=conversation_id,
                 request=request,
@@ -129,6 +131,7 @@ class AssistantOrchestrator:
             )
             route_ms = int((perf_counter() - route_start) * 1000)
 
+            # 第五步：创建 Assistant 运行记录，记录路由决策和相关元信息，供后续分析和追踪。
             assistant_run = self.run_store.create_run(
                 conversation_id=conversation_id,
                 mode=route_decision.mode,
@@ -203,16 +206,18 @@ class AssistantOrchestrator:
                     top_k=request.options.long_term_memory_top_k,
                     min_score=request.options.long_term_memory_min_score,
                     memory_types=[
-                        "user_profile",
-                        "semantic",
-                        "episodic",
-                        "tool_preference",
-                        "project",
+                        "user_profile",  # 用户画像
+                        "semantic",  # 语义记忆，基于向量检索的通用记忆类型
+                        "episodic",  # 事件记忆，记录用户的具体事件和经历
+                        "tool_preference",  # 工具偏好记忆，记录用户对工具使用的偏好和习惯
+                        "project",  # 项目记忆，记录用户参与的项目相关信息
                     ],
                 )
             )
             long_term_memory_items = long_term_memory.items
+
         if short_term_memory:
+            # 第六步：加载短期记忆
             yield sse_event(
                 EVENT_SHORT_TERM_MEMORY_LOADED,
                 {
@@ -226,6 +231,7 @@ class AssistantOrchestrator:
             )
 
         if long_term_memory is not None:
+            # 第七步：加载长期记忆，并逐条返回检索到的记忆项，供前端展示和后续分析。
             yield sse_event(
                 EVENT_LONG_TERM_MEMORY_RETRIEVAL_START,
                 {
@@ -322,9 +328,9 @@ class AssistantOrchestrator:
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        short_term_memory: dict[str, Any] | None,
         long_term_memory: LongTermMemoryRetrievalResult | None,
         long_term_memory_items: list[RetrievedLongTermMemory],
-        short_term_memory: dict[str, Any] | None,
     ) -> Iterable[str]:
         user_message = create_message(
             conversation_id=conversation_id,
@@ -365,7 +371,9 @@ class AssistantOrchestrator:
 
         conversation_state_write = None
         long_term_memory_write = None
+
         if request.options.update_conversation_state:
+
             conversation_state_write = self._write_conversation_state_from_turn(
                 conversation_id=conversation_id,
                 user_message=clean_message,

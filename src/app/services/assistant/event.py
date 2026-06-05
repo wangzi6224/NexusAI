@@ -30,11 +30,15 @@ EVENT_AGENT_MAX_STEPS_REACHED: Final = (
     "agent_max_steps_reached"  # Agent 达到最大步骤限制。
 )
 
-EVENT_SHORT_TERM_MEMORY_LOADED: Final = "short_term_memory_loaded"
-EVENT_LONG_TERM_MEMORY_RETRIEVAL_START: Final = "long_term_memory_retrieval_start"
-EVENT_LONG_TERM_MEMORY_ITEM: Final = "long_term_memory_item"
-EVENT_LONG_TERM_MEMORY_WRITE: Final = "long_term_memory_write"
-EVENT_WORKING_MEMORY_UPDATED: Final = "working_memory_updated"
+EVENT_SHORT_TERM_MEMORY_LOADED: Final = "short_term_memory_loaded"  # 短期记忆加载完成。
+EVENT_LONG_TERM_MEMORY_RETRIEVAL_START: Final = (
+    "long_term_memory_retrieval_start"  # 长期记忆检索开始。
+)
+EVENT_LONG_TERM_MEMORY_ITEM: Final = (
+    "long_term_memory_item"  # 长期记忆检索到单条记忆项。
+)
+EVENT_LONG_TERM_MEMORY_WRITE: Final = "long_term_memory_write"  # 长期记忆写入完成。
+EVENT_WORKING_MEMORY_UPDATED: Final = "working_memory_updated"  # 工作记忆更新完成。
 
 AssistantStreamEvent = Literal[
     "assistant_start",
