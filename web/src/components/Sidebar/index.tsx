@@ -5,7 +5,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { Badge, Button, Popconfirm, Select, Typography } from 'antd';
-import React from 'react';
+import React, { useMemo } from 'react';
 import styles from './index.module.less';
 
 const { Text } = Typography;
@@ -15,7 +15,9 @@ const Sidebar: React.FC = () => {
     health,
     healthError,
     models,
+    modelSwitching,
     currentProvider,
+    currentCloudProvider,
     currentModel,
     conversations,
     activeConversationId,
@@ -26,27 +28,64 @@ const Sidebar: React.FC = () => {
     selectConversation,
     startNewConversation,
     handleSelectProvider,
+    handleSelectCloudProvider,
     handleSelectModel,
   } = useChatContext();
 
-  const providerOptions =
-    models?.providers?.map((item) => ({
-      label: item.provider,
-      value: item.provider,
-    })) ?? [];
-
-  const selectedProviderModels = models?.providers?.find(
-    (item) => item.provider === currentProvider,
+  const providerOptions = useMemo(
+    () =>
+      models?.providers?.map((item) => ({
+        label: item.provider,
+        value: item.provider,
+      })) ?? [],
+    [models?.providers],
   );
 
-  const modelOptions = (
-    selectedProviderModels?.available_models ||
-    models?.available_models ||
-    []
-  ).map((m) => ({
-    label: m,
-    value: m,
-  }));
+  const selectedProviderModels = useMemo(
+    () => models?.providers?.find((item) => item.provider === currentProvider),
+    [currentProvider, models?.providers],
+  );
+  const selectedCloudProviderModels = useMemo(
+    () =>
+      models?.cloud_providers?.find(
+        (item) => item.provider === currentCloudProvider,
+      ),
+    [currentCloudProvider, models?.cloud_providers],
+  );
+
+  const modelOptions = useMemo(
+    () =>
+      (
+        (currentProvider === 'cloud'
+          ? selectedCloudProviderModels?.available_models
+          : selectedProviderModels?.available_models) ||
+        models?.available_models ||
+        []
+      ).map((m) => ({
+        label: m,
+        value: m,
+      })),
+    [
+      currentProvider,
+      models?.available_models,
+      selectedCloudProviderModels?.available_models,
+      selectedProviderModels?.available_models,
+    ],
+  );
+
+  const cloudProviderOptions = useMemo(
+    () =>
+      models?.cloud_providers?.map((item) => ({
+        label:
+          item.provider === 'deepseek'
+            ? 'DeepSeek'
+            : item.provider === 'qwen'
+            ? 'Qwen'
+            : 'GLM',
+        value: item.provider,
+      })) ?? [],
+    [models?.cloud_providers],
+  );
 
   return (
     <div className={styles.sidebar}>
@@ -100,7 +139,22 @@ const Sidebar: React.FC = () => {
             value={currentProvider || undefined}
             options={providerOptions}
             onChange={handleSelectProvider}
+            disabled={modelSwitching}
             placeholder="选择 Provider"
+          />
+        </div>
+      )}
+
+      {currentProvider === 'cloud' && cloudProviderOptions.length > 0 && (
+        <div className={styles.sectionPad}>
+          <Text className={styles.sectionLabel}>选择 Cloud</Text>
+          <Select
+            className={styles.modelSelect}
+            value={currentCloudProvider || undefined}
+            options={cloudProviderOptions}
+            onChange={handleSelectCloudProvider}
+            disabled={modelSwitching}
+            placeholder="选择 Cloud"
           />
         </div>
       )}
@@ -112,7 +166,14 @@ const Sidebar: React.FC = () => {
             className={styles.modelSelect}
             value={currentModel || undefined}
             options={modelOptions}
-            onChange={(model) => handleSelectModel(model, currentProvider)}
+            disabled={modelSwitching}
+            onChange={(model) =>
+              handleSelectModel(
+                model,
+                currentProvider,
+                currentProvider === 'cloud' ? currentCloudProvider : null,
+              )
+            }
             placeholder="选择模型"
           />
         </div>
@@ -126,11 +187,11 @@ const Sidebar: React.FC = () => {
       </div>
 
       <div className={styles.conversationList}>
-        {conversationsLoading ? (
+        {conversationsLoading && conversations.length === 0 ? (
           <div className={styles.emptyTip}>
             <Text className={styles.emptyText}>加载中…</Text>
           </div>
-        ) : conversationsError ? (
+        ) : conversationsError && conversations.length === 0 ? (
           <div className={styles.emptyTip}>
             <Text className={styles.emptyText}>{conversationsError}</Text>
           </div>

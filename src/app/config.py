@@ -1,6 +1,8 @@
 from functools import lru_cache
 import os
-from pydantic import Field
+from typing import Any
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,8 +34,9 @@ class Settings(BaseSettings):
         alias="OLLAMA_KEEP_ALIVE",
     )
 
-    # LLM Provider 选择：默认保持 Ollama，可通过 .env 切到 DeepSeek
+    # LLM Provider 选择：顶层只区分本地 Ollama 与云端 OpenAI 兼容服务
     llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")
+    cloud_provider: str = Field(default="deepseek", alias="CLOUD_PROVIDER")
 
     # DeepSeek 线上 API 配置，兼容 OpenAI Chat Completions 接口
     deepseek_base_url: str = Field(
@@ -41,7 +44,8 @@ class Settings(BaseSettings):
         alias="DEEPSEEK_BASE_URL",
     )
     deepseek_api_key: str = Field(
-        default=os.getenv("ANTHROPIC_AUTH_TOKEN", ""), alias="ANTHROPIC_AUTH_TOKEN"
+        default=os.getenv("ANTHROPIC_AUTH_TOKEN", ""),
+        validation_alias=AliasChoices("DEEPSEEK_API_KEY", "ANTHROPIC_AUTH_TOKEN"),
     )
     deepseek_model: str = Field(
         default="deepseek-v4-flash",
@@ -51,6 +55,36 @@ class Settings(BaseSettings):
     deepseek_thinking_enabled: bool = Field(
         default=False,
         alias="DEEPSEEK_THINKING_ENABLED",
+    )
+    qwen_base_url: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        alias="QWEN_BASE_URL",
+    )
+    qwen_api_key: str = Field(
+        default=os.getenv("QWEN_API_KEY", ""),
+    )
+    qwen_model: str = Field(default="qwen3.7-max", alias="QWEN_MODEL")
+    qwen_timeout: int = Field(default=120, alias="QWEN_TIMEOUT")
+    glm_base_url: str = Field(
+        default="https://api.z.ai/api/paas/v4",
+        validation_alias=AliasChoices("GLM_BASE_URL", "GML_BASE_URL"),
+    )
+    glm_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "GLM_API_KEY",
+            "ZAI_API_KEY",
+            "ZHIPUAI_API_KEY",
+            "GML_API_KEY",
+        ),
+    )
+    glm_model: str = Field(
+        default="GLM-5.1",
+        validation_alias=AliasChoices("GLM_MODEL", "GML_MODEL"),
+    )
+    glm_timeout: int = Field(
+        default=120,
+        validation_alias=AliasChoices("GLM_TIMEOUT", "GML_TIMEOUT"),
     )
 
     # PostgreSQL 数据库配置
@@ -154,7 +188,28 @@ def get_ollama_keep_alive() -> str:
 
 def get_supported_llm_providers() -> list[str]:
     """返回当前代码支持的 LLM Provider 列表。"""
-    return ["ollama", "deepseek"]
+    return ["ollama", "cloud"]
+
+
+def get_supported_cloud_providers() -> list[str]:
+    """返回云端 OpenAI 兼容模型供应商列表。"""
+    return ["deepseek", "qwen", "glm"]
+
+
+def normalize_llm_provider(provider: str | None) -> str:
+    """归一化顶层 Provider 名称，并兼容旧的 deepseek 选项。"""
+    provider_name = (provider or "ollama").lower().strip()
+    if provider_name in {"deepseek", "qwen", "gml", "glm"}:
+        return "cloud"
+    return provider_name
+
+
+def normalize_cloud_provider(cloud_provider: str | None) -> str:
+    """归一化云端模型供应商名称。"""
+    provider_name = (cloud_provider or "deepseek").lower().strip()
+    if provider_name == "gml":
+        return "glm"
+    return provider_name
 
 
 def get_llm_provider_name() -> str:
@@ -164,18 +219,81 @@ def get_llm_provider_name() -> str:
 
         return get_selected_provider()
     except Exception:
-        return get_settings().llm_provider.lower().strip()
+        return normalize_llm_provider(get_settings().llm_provider)
 
 
-def get_default_llm_model(provider: str | None = None) -> str:
+def get_cloud_provider_name() -> str:
+    """返回当前 Cloud 下选中的供应商名称。"""
+    try:
+        from src.app.runtime_config import get_selected_cloud_provider
+
+        return get_selected_cloud_provider()
+    except Exception:
+        return normalize_cloud_provider(get_settings().cloud_provider)
+
+
+def get_default_llm_model(
+    provider: str | None = None,
+    cloud_provider: str | None = None,
+) -> str:
     """返回当前 Provider 对应的默认模型名称。"""
     settings = get_settings()
-    provider_name = (provider or settings.llm_provider).lower().strip()
+    provider_name = normalize_llm_provider(provider or settings.llm_provider)
 
-    if provider_name == "deepseek":
+    if provider_name == "cloud":
+        cloud_provider_name = normalize_cloud_provider(
+            cloud_provider or settings.cloud_provider
+        )
+        if cloud_provider_name == "qwen":
+            return settings.qwen_model
+        if cloud_provider_name == "glm":
+            return settings.glm_model
         return settings.deepseek_model
 
     return settings.ollama_model
+
+
+def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, Any]:
+    """返回指定云端供应商的 OpenAI SDK 连接配置。"""
+    settings = get_settings()
+    provider_name = normalize_cloud_provider(
+        cloud_provider or get_cloud_provider_name()
+    )
+
+    if provider_name == "qwen":
+        return {
+            "cloud_provider": "qwen",
+            "display_name": "Qwen",
+            "base_url": settings.qwen_base_url.rstrip("/"),
+            "api_key": settings.qwen_api_key,
+            "api_key_env": "QWEN_API_KEY",
+            "model": settings.qwen_model,
+            "timeout": settings.qwen_timeout,
+            "thinking_enabled": False,
+        }
+
+    if provider_name == "glm":
+        return {
+            "cloud_provider": "glm",
+            "display_name": "GLM",
+            "base_url": settings.glm_base_url.rstrip("/"),
+            "api_key": settings.glm_api_key,
+            "api_key_env": "GLM_API_KEY",
+            "model": settings.glm_model,
+            "timeout": settings.glm_timeout,
+            "thinking_enabled": False,
+        }
+
+    return {
+        "cloud_provider": "deepseek",
+        "display_name": "DeepSeek",
+        "base_url": settings.deepseek_base_url.rstrip("/"),
+        "api_key": settings.deepseek_api_key,
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "model": settings.deepseek_model,
+        "timeout": settings.deepseek_timeout,
+        "thinking_enabled": settings.deepseek_thinking_enabled,
+    }
 
 
 def resolve_llm_model(
@@ -188,7 +306,7 @@ def resolve_llm_model(
     if model:
         return model
 
-    current_provider = (provider or get_llm_provider_name()).lower().strip()
+    current_provider = normalize_llm_provider(provider or get_llm_provider_name())
     if stored_model and (not stored_provider or stored_provider == current_provider):
         return stored_model
 

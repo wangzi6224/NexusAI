@@ -29,6 +29,18 @@ class DeepSeekConfig(TypedDict):
 
 
 @dataclass
+class CloudConfig(TypedDict):
+    cloud_provider: str
+    display_name: str
+    base_url: str
+    api_key: str
+    api_key_env: str
+    model: str
+    timeout: int
+    thinking_enabled: bool
+
+
+@dataclass
 class LLMResponse:
     content: str
     provider: str

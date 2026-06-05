@@ -12,6 +12,11 @@ export type RoutesTypes = Array<
 
 const routes: RoutesTypes = [
   {
+    path: '/conversations/:conversationId',
+    component: './Home',
+    layout: false,
+  },
+  {
     path: '/',
     component: './Home',
     layout: false,
