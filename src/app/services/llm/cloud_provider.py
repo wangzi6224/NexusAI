@@ -68,6 +68,11 @@ class CloudProvider(LLMProvider):
         messages: list[dict[str, str]],
         model: str | None = None,
     ) -> LLMResponse:
+        """
+        非流式聊天接口，适用于一次性获取完整回复的场景。
+        当前应用场景：
+            - LLM Router 需要快速获取多个候选模型的回复内容以进行路由决策
+        """
         config = self._get_cloud_config()
         selected_model = model or config["model"]
         client = self._client(config)

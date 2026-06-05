@@ -9,10 +9,7 @@ from src.app.agent_trace_store import create_agent_event
 from src.app.config import resolve_llm_model
 from src.app.services.agent.decision_schema import AgentDecision
 from src.app.services.agent.planner import RuleBasedPlanner
-from src.app.services.agent.planner_parser import (
-    PlannerDecisionParser,
-    PlannerParseError,
-)
+from src.app.services.agent.planner_parser import PlannerDecisionParser
 from src.app.services.agent.planner_prompt_builder import LLMPlannerPromptBuilder
 from src.app.services.agent.state import AgentState
 from src.app.services.assistant.event import (
@@ -46,7 +43,9 @@ class LLMPlanner:
         selected_model = resolve_llm_model(model=state.model)
 
         try:
-            response = self.llm_provider.chat(messages=messages, model=selected_model)
+            response = self.llm_provider.structured_chat(
+                messages=messages, model=selected_model
+            )
             decision = self.parser.parse(response.content)
             decision = self._validate_decision(state=state, decision=decision)
 
