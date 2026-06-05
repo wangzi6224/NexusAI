@@ -49,6 +49,13 @@ class LLMModeRouter:
 
         try:
             payload = self._parse_json(response.content)
+            if payload.get("mode") == "rag":
+                payload["mode"] = "agent"
+                reason = (
+                    f"{payload.get('reason') or '知识库请求'}；"
+                    "知识库请求通过 Agent tools 执行"
+                )
+                payload["reason"] = reason[:300]
             decision = RouteDecision(
                 **payload,
                 source="llm",

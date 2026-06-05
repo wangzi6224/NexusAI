@@ -21,6 +21,8 @@ from src.app.services.assistant.event import (
 from src.app.schemas.assistant import AssistantStreamRequest
 import src.app.services.context_builder as context_builder_module
 import src.app.services.assistant.orchestrator as orchestrator_module
+from src.app.services.assistant.llm_route_prompt import build_route_messages
+from src.app.services.assistant.mode_router import RouterContext, RuleBasedModeRouter
 from src.app.services.assistant.orchestrator import AssistantOrchestrator
 from src.app.services.context_builder import ContextBuilder
 from src.app.services.memory.long_term_schemas import (
@@ -303,6 +305,34 @@ class TestAssistantTraceHelpers:
         assert events[0].startswith("event: error\n")
         assert "ASSISTANT_ROUTE_ERROR" in events[0]
         assert events[-1] == "event: done\ndata: [DONE]\n\n"
+
+
+class TestAssistantModeRouting:
+    def test_knowledge_query_routes_to_agent(self) -> None:
+        router = RuleBasedModeRouter()
+
+        decision = router.route(
+            RouterContext(
+                conversation_id="conv-1",
+                message="根据知识库回答这个问题",
+                recent_messages=[],
+                options={},
+            )
+        )
+
+        assert decision is not None
+        assert decision.mode == "agent"
+
+    def test_llm_route_prompt_does_not_expose_rag_mode(self) -> None:
+        messages = build_route_messages(
+            message="我都有什么文档",
+            recent_messages=[],
+            options={},
+        )
+
+        system_prompt = messages[0]["content"]
+        assert '"mode": "chat|agent|mcp"' in system_prompt
+        assert '"mode": "chat|rag|agent|mcp"' not in system_prompt
 
 
 class TestLongTermMemoryContext:

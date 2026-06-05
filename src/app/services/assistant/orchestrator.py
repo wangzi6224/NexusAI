@@ -278,6 +278,9 @@ class AssistantOrchestrator:
                 yield from self._stream_agent(
                     **params,
                 )
+                return
+
+            raise RuntimeError(f"不支持的 Assistant 模式: {route_decision.mode}")
 
         except Exception as exc:
             latency_ms = int((perf_counter() - start) * 1000)
@@ -499,11 +502,13 @@ class AssistantOrchestrator:
         selected_model: str,
     ) -> RouteDecision:
         if request.mode != "auto":
-            return RouteDecision(
-                mode=request.mode,
-                confidence=1.0,
-                source="rule",
-                reason="用户显式指定 Assistant 模式",
+            return self._normalize_route_decision(
+                RouteDecision(
+                    mode=request.mode,
+                    confidence=1.0,
+                    source="rule",
+                    reason="用户显式指定 Assistant 模式",
+                )
             )
 
         recent_messages = list_recent_messages(conversation_id, limit=6)
@@ -513,7 +518,20 @@ class AssistantOrchestrator:
             recent_messages=recent_messages,
             options=request.options.model_dump(),
         )
-        return self.mode_router.route(context, model=selected_model)
+        return self._normalize_route_decision(
+            self.mode_router.route(context, model=selected_model)
+        )
+
+    def _normalize_route_decision(self, decision: RouteDecision) -> RouteDecision:
+        if decision.mode == "mcp":
+            return decision.model_copy(
+                update={
+                    "mode": "agent",
+                    "reason": f"{decision.reason}；mcp 已通过 Agent tools 执行",
+                }
+            )
+
+        return decision
 
     def _stream_agent(
         self,

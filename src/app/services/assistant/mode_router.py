@@ -55,12 +55,12 @@ class RuleBasedModeRouter:
                 reason="用户是普通闲聊或问候，不需要检索和工具调用",
             )
 
-        if self._is_explicit_rag(text):
+        if self._is_explicit_knowledge_query(text):
             return RouteDecision(
-                mode="rag",
+                mode="agent",
                 confidence=0.95,
                 source="rule",
-                reason="用户明确要求根据知识库、文档或资料回答",
+                reason="用户明确要求根据知识库、文档或资料回答，通过 Agent tools 处理",
                 should_rewrite_query=True,
                 retrieval_mode=context.options.get("retrieval_mode") or "hybrid",
                 enable_rerank=context.options.get("enable_rerank", True),
@@ -91,7 +91,7 @@ class RuleBasedModeRouter:
         return any(item in text for item in keywords)
 
     # 下面的规则示例仅供参考，实际生产中需要根据具体业务场景和用户输入特点进行调整和优化。
-    def _is_explicit_rag(self, text: str) -> bool:
+    def _is_explicit_knowledge_query(self, text: str) -> bool:
         keywords = [
             "根据知识库",
             "根据文档",

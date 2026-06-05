@@ -9,7 +9,7 @@ class AssistantOptions(BaseModel):
     """统一 Assistant 入口的可选参数。
 
     注意：这里不再出现 retrieval_mode 作为顶层 routing 参数。
-    因为 RAG 已经通过 tools 被 Agent 使用。
+    因为知识库检索已经通过 Agent tools 使用。
     """
 
     top_k: int = Field(default=5, ge=1, le=20)
@@ -36,7 +36,7 @@ class AssistantOptions(BaseModel):
 class AssistantStreamRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户当前输入")
     mode: AssistantMode = Field(
-        default="auto", description="chat / agent / rag / mcp / auto"
+        default="auto", description="chat / agent / mcp / auto"
     )
     model: str | None = None
     provider: str | None = None
