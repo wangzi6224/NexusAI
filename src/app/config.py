@@ -66,21 +66,13 @@ class Settings(BaseSettings):
     qwen_model: str = Field(default="qwen3.7-max", alias="QWEN_MODEL")
     qwen_timeout: int = Field(default=120, alias="QWEN_TIMEOUT")
     glm_base_url: str = Field(
-        default="https://api.z.ai/api/paas/v4",
+        default="https://open.bigmodel.cn/api/paas/v4",
         validation_alias=AliasChoices("GLM_BASE_URL", "GML_BASE_URL"),
     )
-    glm_api_key: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "GLM_API_KEY",
-            "ZAI_API_KEY",
-            "ZHIPUAI_API_KEY",
-            "GML_API_KEY",
-        ),
-    )
+    glm_api_key: str = Field(default=os.getenv("GLM_API_KEY", ""))
     glm_model: str = Field(
-        default="GLM-5.1",
-        validation_alias=AliasChoices("GLM_MODEL", "GML_MODEL"),
+        default="glm-5.1",
+        validation_alias=AliasChoices("GLM_MODEL"),
     )
     glm_timeout: int = Field(
         default=120,
@@ -299,6 +291,28 @@ def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, An
         "timeout": settings.deepseek_timeout,
         "thinking_enabled": settings.deepseek_thinking_enabled,
     }
+
+
+def get_cloud_provider_name_for_model(model: str | None) -> str | None:
+    """按模型名称推断云端供应商，无法判断时返回 None。"""
+    if not model:
+        return None
+
+    model_name = model.lower().strip()
+    if model_name.startswith("deepseek"):
+        return "deepseek"
+    if model_name.startswith("qwen"):
+        return "qwen"
+    if model_name.startswith("glm"):
+        return "glm"
+
+    settings = get_settings()
+    configured_models = {
+        settings.deepseek_model.lower().strip(): "deepseek",
+        settings.qwen_model.lower().strip(): "qwen",
+        settings.glm_model.lower().strip(): "glm",
+    }
+    return configured_models.get(model_name)
 
 
 def resolve_llm_model(

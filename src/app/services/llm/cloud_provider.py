@@ -1,5 +1,4 @@
 from collections.abc import Iterable, Iterator
-from gc import enable
 from typing import NoReturn, cast
 
 from openai import (
@@ -11,7 +10,7 @@ from openai import (
 )
 from openai.types.chat import ChatCompletionMessageParam
 
-from src.app.config import get_cloud_provider_config
+from src.app.config import get_cloud_provider_config, get_cloud_provider_name_for_model
 from src.app.exceptions import LLMProviderError
 from src.app.services.llm.base import (
     CloudConfig,
@@ -25,8 +24,9 @@ from src.app.services.llm.base import (
 class CloudProvider(LLMProvider):
     name = "cloud"
 
-    def _get_cloud_config(self) -> CloudConfig:
-        return cast(CloudConfig, get_cloud_provider_config())
+    def _get_cloud_config(self, model: str | None = None) -> CloudConfig:
+        cloud_provider = get_cloud_provider_name_for_model(model)
+        return cast(CloudConfig, get_cloud_provider_config(cloud_provider))
 
     def _client(self, config: CloudConfig) -> OpenAI:
         api_key = config["api_key"]
@@ -79,7 +79,7 @@ class CloudProvider(LLMProvider):
         当前应用场景：
             - LLM Router 需要快速获取多个候选模型的回复内容以进行路由决策
         """
-        config = self._get_cloud_config()
+        config = self._get_cloud_config(model)
         selected_model = model or config["model"]
         client = self._client(config)
         display_name = config["display_name"]
@@ -127,7 +127,7 @@ class CloudProvider(LLMProvider):
         messages: list[dict[str, str]],
         model: str | None = None,
     ) -> LLMResponse:
-        config = self._get_cloud_config()
+        config = self._get_cloud_config(model)
         selected_model = model or config["model"]
         client = self._client(config)
         display_name = config["display_name"]
@@ -176,7 +176,7 @@ class CloudProvider(LLMProvider):
         message: list[dict[str, str]],
         model: str | None = None,
     ) -> Iterator[LLMStreamChunk]:
-        config = self._get_cloud_config()
+        config = self._get_cloud_config(model)
         selected_model = model or config["model"]
         client = self._client(config)
         display_name = config["display_name"]
