@@ -179,8 +179,8 @@ class AgentService:
 
         final_answer_start = perf_counter()
 
-        response = self.llm_provider.stream_chat(
-            message=final_messages,
+        response = self.llm_provider.chat(
+            messages=final_messages,
             model=selected_model,
         )
 
