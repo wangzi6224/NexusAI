@@ -41,13 +41,18 @@ class AgentService:
         self.prompt_builder = AgentPromptBuilder()
         self.planner_type = get_agent_planner_type()
 
-        registry = ToolRegistry()
-        registry.register(ListDocsTool())
-        registry.register(SearchDocsTool())
-        registry.register(ReadDocTool())
+        tool_registry = ToolRegistry()
+        tools_list = (
+            ListDocsTool(),
+            SearchDocsTool(),
+            ReadDocTool(),
+        )
+
+        for tool in tools_list:
+            tool_registry.register(tool)
 
         self.agent_loop = AgentLoop(
-            tool_registry=registry,
+            tool_registry=tool_registry,
             planner_type=self.planner_type,
         )
 
@@ -174,8 +179,8 @@ class AgentService:
 
         final_answer_start = perf_counter()
 
-        response = self.llm_provider.chat(
-            messages=final_messages,
+        response = self.llm_provider.stream_chat(
+            message=final_messages,
             model=selected_model,
         )
 
