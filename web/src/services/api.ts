@@ -237,9 +237,15 @@ export interface ClearHistoryResponse {
 
 export interface ModelsResponse {
   current_provider: string;
+  current_cloud_provider?: string | null;
   current_model: string;
   available_models: string[];
   providers?: {
+    provider: string;
+    current_model: string;
+    available_models: string[];
+  }[];
+  cloud_providers?: {
     provider: string;
     current_model: string;
     available_models: string[];
@@ -249,6 +255,7 @@ export interface ModelsResponse {
 export interface SelectModelResponse {
   success: boolean;
   selected_provider: string;
+  selected_cloud_provider?: string | null;
   selected_model: string;
   message: string;
 }
@@ -700,9 +707,11 @@ export async function getModels(): Promise<ModelsResponse> {
 export async function selectModel(
   model: string,
   provider?: string,
+  cloudProvider?: string | null,
 ): Promise<SelectModelResponse> {
   const { data } = await http.post<SelectModelResponse>('/model/select', {
     provider,
+    cloud_provider: cloudProvider,
     model,
   });
   return data;

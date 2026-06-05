@@ -10,10 +10,10 @@ from openai import (
 )
 from openai.types.chat import ChatCompletionMessageParam
 
-from src.app.config import get_settings
+from src.app.config import get_cloud_provider_config
 from src.app.exceptions import LLMProviderError
 from src.app.services.llm.base import (
-    DeepSeekConfig,
+    CloudConfig,
     LLMProvider,
     LLMResponse,
     LLMStreamChunk,
@@ -21,24 +21,17 @@ from src.app.services.llm.base import (
 )
 
 
-class DeepSeekProvider(LLMProvider):
-    name = "deepseek"
+class CloudProvider(LLMProvider):
+    name = "cloud"
 
-    def _get_deepseek_config(self) -> DeepSeekConfig:
-        settings = get_settings()
-        return {
-            "base_url": settings.deepseek_base_url.rstrip("/"),
-            "api_key": settings.deepseek_api_key,
-            "model": settings.deepseek_model,
-            "timeout": settings.deepseek_timeout,
-            "thinking_enabled": settings.deepseek_thinking_enabled,
-        }
+    def _get_cloud_config(self) -> CloudConfig:
+        return cast(CloudConfig, get_cloud_provider_config())
 
-    def _client(self, config: DeepSeekConfig) -> OpenAI:
+    def _client(self, config: CloudConfig) -> OpenAI:
         api_key = config["api_key"]
         if not api_key:
             raise LLMProviderError(
-                "DeepSeek API Key 未配置，请在 .env 中填写 DEEPSEEK_API_KEY"
+                f"{config['display_name']} API Key 未配置，请在 .env 中填写 {config['api_key_env']}"
             )
 
         return OpenAI(
@@ -47,10 +40,13 @@ class DeepSeekProvider(LLMProvider):
             timeout=config["timeout"],
         )
 
-    def _extra_body(self, thinking_enabled: bool) -> dict[str, object]:
+    def _extra_body(self, config: CloudConfig) -> dict[str, object] | None:
+        if config["cloud_provider"] != "deepseek":
+            return None
+
         return {
             "thinking": {
-                "type": "enabled" if thinking_enabled else "disabled",
+                "type": "enabled" if config["thinking_enabled"] else "disabled",
             },
         }
 
@@ -72,32 +68,33 @@ class DeepSeekProvider(LLMProvider):
         messages: list[dict[str, str]],
         model: str | None = None,
     ) -> LLMResponse:
-        config = self._get_deepseek_config()
+        config = self._get_cloud_config()
         selected_model = model or config["model"]
         client = self._client(config)
+        display_name = config["display_name"]
 
         try:
             response = client.chat.completions.create(
                 model=selected_model,
                 messages=self._messages(messages),
-                extra_body=self._extra_body(config["thinking_enabled"]),
+                extra_body=self._extra_body(config),
             )
         except APITimeoutError as exc:
             raise LLMProviderError(
-                "请求 DeepSeek 超时，请稍后重试或调大 DEEPSEEK_TIMEOUT"
+                f"请求 {display_name} 超时，请稍后重试或调大对应 TIMEOUT"
             ) from exc
         except APIStatusError as exc:
-            self._handle_api_status_error(exc, "DeepSeek HTTP 请求失败")
+            self._handle_api_status_error(exc, f"{display_name} HTTP 请求失败")
         except APIConnectionError as exc:
-            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+            raise LLMProviderError(f"请求 {display_name} 失败: {exc}") from exc
         except OpenAIError as exc:
-            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+            raise LLMProviderError(f"请求 {display_name} 失败: {exc}") from exc
 
         try:
             content = response.choices[0].message.content or ""
         except (AttributeError, IndexError, TypeError) as exc:
             raise LLMProviderError(
-                f"DeepSeek 返回结构异常: {response.model_dump()}"
+                f"{display_name} 返回结构异常: {response.model_dump()}"
             ) from exc
 
         usage_data = response.usage
@@ -119,33 +116,34 @@ class DeepSeekProvider(LLMProvider):
         messages: list[dict[str, str]],
         model: str | None = None,
     ) -> LLMResponse:
-        config = self._get_deepseek_config()
+        config = self._get_cloud_config()
         selected_model = model or config["model"]
         client = self._client(config)
+        display_name = config["display_name"]
 
         try:
             response = client.chat.completions.create(
                 model=selected_model,
                 messages=self._messages(messages),
-                extra_body=self._extra_body(config["thinking_enabled"]),
+                extra_body=self._extra_body(config),
                 response_format={"type": "json_object"},
             )
         except APITimeoutError as exc:
             raise LLMProviderError(
-                "请求 DeepSeek 超时，请稍后重试或调大 DEEPSEEK_TIMEOUT"
+                f"请求 {display_name} 超时，请稍后重试或调大对应 TIMEOUT"
             ) from exc
         except APIStatusError as exc:
-            self._handle_api_status_error(exc, "DeepSeek HTTP 请求失败")
+            self._handle_api_status_error(exc, f"{display_name} HTTP 请求失败")
         except APIConnectionError as exc:
-            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+            raise LLMProviderError(f"请求 {display_name} 失败: {exc}") from exc
         except OpenAIError as exc:
-            raise LLMProviderError(f"请求 DeepSeek 失败: {exc}") from exc
+            raise LLMProviderError(f"请求 {display_name} 失败: {exc}") from exc
 
         try:
             content = response.choices[0].message.content or ""
         except (AttributeError, IndexError, TypeError) as exc:
             raise LLMProviderError(
-                f"DeepSeek 返回结构异常或非 JSON 对象: {response.model_dump()}"
+                f"{display_name} 返回结构异常或非 JSON 对象: {response.model_dump()}"
             ) from exc
 
         usage_data = response.usage
@@ -167,16 +165,17 @@ class DeepSeekProvider(LLMProvider):
         message: list[dict[str, str]],
         model: str | None = None,
     ) -> Iterator[LLMStreamChunk]:
-        config = self._get_deepseek_config()
+        config = self._get_cloud_config()
         selected_model = model or config["model"]
         client = self._client(config)
+        display_name = config["display_name"]
 
         try:
             stream = client.chat.completions.create(
                 model=selected_model,
                 messages=self._messages(message),
                 stream=True,
-                extra_body=self._extra_body(config["thinking_enabled"]),
+                extra_body=self._extra_body(config),
             )
 
             for chunk in stream:
@@ -204,18 +203,18 @@ class DeepSeekProvider(LLMProvider):
                     break
         except APITimeoutError as exc:
             raise LLMProviderError(
-                message="DeepSeek 流式请求超时",
+                message=f"{display_name} 流式请求超时",
                 detail=str(exc),
             ) from exc
         except APIStatusError as exc:
-            self._handle_api_status_error(exc, "DeepSeek 流式 HTTP 请求失败")
+            self._handle_api_status_error(exc, f"{display_name} 流式 HTTP 请求失败")
         except APIConnectionError as exc:
             raise LLMProviderError(
-                message="DeepSeek 流式请求失败",
+                message=f"{display_name} 流式请求失败",
                 detail=str(exc),
             ) from exc
         except OpenAIError as exc:
             raise LLMProviderError(
-                message="DeepSeek 流式请求失败",
+                message=f"{display_name} 流式请求失败",
                 detail=str(exc),
             ) from exc

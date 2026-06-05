@@ -2,16 +2,21 @@ import requests
 from src.app.exceptions import LLMProviderError
 
 from src.app.config import (
+    get_default_llm_model,
     get_ollama_base_url,
     get_ollama_model,
     get_ollama_timeout,
     get_settings,
+    normalize_cloud_provider,
+    normalize_llm_provider,
 )
+
+MODEL_LIST_TIMEOUT_SECONDS = 3
 
 
 def check_ollama_server() -> tuple[bool, str]:
     base_url = get_ollama_base_url()
-    timeout = get_ollama_timeout()
+    timeout = min(get_ollama_timeout(), MODEL_LIST_TIMEOUT_SECONDS)
 
     try:
         response = requests.get(f"{base_url}/api/tags", timeout=timeout)
@@ -23,7 +28,7 @@ def check_ollama_server() -> tuple[bool, str]:
 
 def check_ollama_model_exists() -> tuple[bool, str]:
     base_url = get_ollama_base_url()
-    timeout = get_ollama_timeout()
+    timeout = min(get_ollama_timeout(), MODEL_LIST_TIMEOUT_SECONDS)
     model = get_ollama_model()
 
     try:
@@ -42,11 +47,19 @@ def check_ollama_model_exists() -> tuple[bool, str]:
         return False, f"检查模型失败: {exc}"
 
 
-def get_available_models(provider: str | None = None) -> list[str]:
-    provider_name = (provider or "ollama").lower().strip()
+def get_available_models(
+    provider: str | None = None,
+    cloud_provider: str | None = None,
+) -> list[str]:
+    provider_name = normalize_llm_provider(provider or "ollama")
 
-    if provider_name == "deepseek":
-        return [get_settings().deepseek_model]
+    if provider_name == "cloud":
+        return [
+            get_default_llm_model(
+                "cloud",
+                normalize_cloud_provider(cloud_provider or get_settings().cloud_provider),
+            )
+        ]
 
     if provider_name != "ollama":
         raise LLMProviderError(
@@ -55,7 +68,7 @@ def get_available_models(provider: str | None = None) -> list[str]:
         )
 
     base_url = get_ollama_base_url()
-    timeout = get_ollama_timeout()
+    timeout = min(get_ollama_timeout(), MODEL_LIST_TIMEOUT_SECONDS)
 
     try:
         response = requests.get(f"{base_url}/api/tags", timeout=timeout)

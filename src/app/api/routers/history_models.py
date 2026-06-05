@@ -64,6 +64,10 @@ def models() -> ModelsResponse:
 )
 def select_model_api(request: SelectModelRequest) -> SelectModelResponse:
     try:
-        return select_model(request.model, provider=request.provider)
+        return select_model(
+            request.model,
+            provider=request.provider,
+            cloud_provider=request.cloud_provider,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

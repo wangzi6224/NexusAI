@@ -52,21 +52,31 @@ class ProviderModels(BaseModel):
     available_models: list[str]
 
 
+class CloudProviderModels(BaseModel):
+    provider: str
+    current_model: str
+    available_models: list[str]
+
+
 class ModelsResponse(BaseModel):
     current_provider: str
+    current_cloud_provider: str | None = None
     current_model: str
     available_models: list[str]
     providers: list[ProviderModels] = Field(default_factory=list)
+    cloud_providers: list[CloudProviderModels] = Field(default_factory=list)
 
 
 class SelectModelRequest(BaseModel):
     provider: str | None = None
+    cloud_provider: str | None = None
     model: str
 
 
 class SelectModelResponse(BaseModel):
     success: bool
     selected_provider: str
+    selected_cloud_provider: str | None = None
     selected_model: str
     message: str
 

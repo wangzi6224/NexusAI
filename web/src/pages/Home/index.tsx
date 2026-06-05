@@ -2,11 +2,14 @@ import { COLOR_PRIMARY } from '@/constants';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { XProvider } from '@ant-design/x';
 import xZhCN from '@ant-design/x/locale/zh_CN';
+import { useParams } from '@umijs/max';
 import { ConfigProvider, theme } from 'antd';
 import React from 'react';
 import ChatLayout from '../../components/ChatLayout';
 
 const HomePage: React.FC = () => {
+  const params = useParams<{ conversationId?: string }>();
+
   return (
     <ConfigProvider
       theme={{
@@ -36,7 +39,7 @@ const HomePage: React.FC = () => {
           },
         }}
       >
-        <ChatProvider>
+        <ChatProvider routeConversationId={params.conversationId}>
           <ChatLayout />
         </ChatProvider>
       </XProvider>

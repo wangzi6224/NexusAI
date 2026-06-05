@@ -15,12 +15,14 @@ import {
   getModels,
   sendAssistantMessageStream,
 } from '@/services/api';
+import { history } from '@umijs/max';
 import { message } from 'antd';
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -61,7 +63,9 @@ interface ChatContextType {
   healthError: string | null;
   models: ModelsResponse | null;
   modelsError: string | null;
+  modelSwitching: boolean;
   currentProvider: string;
+  currentCloudProvider: string;
   currentModel: string;
   conversations: ConversationItem[];
   activeConversationId: string | null;
@@ -80,7 +84,12 @@ interface ChatContextType {
   startNewConversation: () => void;
   loadModels: () => Promise<void>;
   handleSelectProvider: (provider: string) => Promise<void>;
-  handleSelectModel: (model: string, provider?: string) => Promise<void>;
+  handleSelectCloudProvider: (cloudProvider: string) => Promise<void>;
+  handleSelectModel: (
+    model: string,
+    provider?: string,
+    cloudProvider?: string | null,
+  ) => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -192,8 +201,14 @@ function getModeLabel(mode?: AssistantMode | 'chat' | 'agent'): string {
   return '自动';
 }
 
-export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
+interface ChatProviderProps {
+  children: React.ReactNode;
+  routeConversationId?: string;
+}
+
+export const ChatProvider: React.FC<ChatProviderProps> = ({
   children,
+  routeConversationId,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -203,7 +218,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [healthError, setHealthError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelsResponse | null>(null);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [modelSwitching, setModelSwitching] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<string>('');
+  const [currentCloudProvider, setCurrentCloudProvider] =
+    useState<string>('deepseek');
   const [currentModel, setCurrentModel] = useState<string>('');
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
@@ -214,15 +232,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const [conversationsError, setConversationsError] = useState<string | null>(
     null,
   );
+  const conversationsLoadedRef = useRef(false);
 
   const activeConversation =
     conversations.find((item) => item.id === activeConversationId) || null;
+
+  const navigateToConversation = useCallback((conversationId: string) => {
+    const nextPath = `/conversations/${conversationId}`;
+    if (history.location.pathname !== nextPath) {
+      history.push(nextPath);
+    }
+  }, []);
+
+  const navigateToHome = useCallback(() => {
+    if (history.location.pathname !== '/') {
+      history.push('/');
+    }
+  }, []);
 
   const loadModels = useCallback(async () => {
     try {
       const data = await getModels();
       setModels(data);
       setCurrentProvider(data.current_provider);
+      setCurrentCloudProvider(data.current_cloud_provider || 'deepseek');
       setCurrentModel(data.current_model);
       setModelsError(null);
     } catch {
@@ -236,8 +269,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     [models],
   );
 
+  const getCloudProviderModels = useCallback(
+    (provider: string) =>
+      models?.cloud_providers?.find((item) => item.provider === provider),
+    [models],
+  );
+
   const loadConversations = useCallback(async () => {
-    setConversationsLoading(true);
+    const shouldShowLoading = !conversationsLoadedRef.current;
+    if (shouldShowLoading) {
+      setConversationsLoading(true);
+    }
+
     try {
       const data = await getConversations();
       setConversations(data.items);
@@ -245,7 +288,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (err: any) {
       setConversationsError(getErrorMessage(err, '会话列表加载失败'));
     } finally {
-      setConversationsLoading(false);
+      conversationsLoadedRef.current = true;
+      if (shouldShowLoading) {
+        setConversationsLoading(false);
+      }
     }
   }, []);
 
@@ -253,6 +299,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveConversationId(conversationId);
     setMessages([]);
     setMessagesLoading(true);
+    navigateToConversation(conversationId);
 
     try {
       const data = await getConversationMessages(conversationId);
@@ -267,7 +314,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setMessagesLoading(false);
     }
-  }, []);
+  }, [navigateToConversation]);
+
+  useEffect(() => {
+    if (routeConversationId) {
+      if (routeConversationId !== activeConversationId) {
+        selectConversation(routeConversationId);
+      }
+      return;
+    }
+
+    if (activeConversationId) {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+  }, [activeConversationId, routeConversationId, selectConversation]);
 
   useEffect(() => {
     (async () => {
@@ -301,6 +362,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         setActiveConversationId(conversation.id);
         setMessages([]);
         setConversationsError(null);
+        navigateToConversation(conversation.id);
 
         return conversation;
       } catch (err: any) {
@@ -308,7 +370,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         return null;
       }
     },
-    [currentModel, currentProvider],
+    [currentModel, currentProvider, navigateToConversation],
   );
 
   const deleteConversation = useCallback(
@@ -323,6 +385,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         if (activeConversationId === conversationId) {
           setActiveConversationId(null);
           setMessages([]);
+          navigateToHome();
         }
 
         message.success('会话已删除');
@@ -330,36 +393,84 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         message.error(getErrorMessage(err, '删除会话失败'));
       }
     },
-    [activeConversationId],
+    [activeConversationId, navigateToHome],
   );
 
   const handleSelectModel = useCallback(
-    async (model: string, provider?: string) => {
+    async (
+      model: string,
+      provider?: string,
+      cloudProvider?: string | null,
+    ) => {
       const nextProvider = provider || currentProvider;
+      const nextCloudProvider =
+        nextProvider === 'cloud'
+          ? cloudProvider || currentCloudProvider || 'deepseek'
+          : null;
 
       try {
-        const res = await apiSelectModel(model, nextProvider);
+        setModelSwitching(true);
+        const res = await apiSelectModel(model, nextProvider, nextCloudProvider);
         if (res.success) {
-          setCurrentProvider(res.selected_provider || nextProvider);
+          const selectedProvider = res.selected_provider || nextProvider;
+          const selectedCloudProvider =
+            res.selected_cloud_provider || nextCloudProvider;
+
+          setCurrentProvider(selectedProvider);
+          if (selectedCloudProvider) {
+            setCurrentCloudProvider(selectedCloudProvider);
+          }
           setCurrentModel(res.selected_model);
+          setModels((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  current_provider: selectedProvider,
+                  current_cloud_provider: selectedCloudProvider,
+                  current_model: res.selected_model,
+                  available_models:
+                    selectedProvider === 'cloud'
+                      ? prev.cloud_providers?.find(
+                          (item) => item.provider === selectedCloudProvider,
+                        )?.available_models || prev.available_models
+                      : prev.providers?.find(
+                          (item) => item.provider === selectedProvider,
+                        )?.available_models || prev.available_models,
+                  providers: prev.providers?.map((item) =>
+                    item.provider === selectedProvider
+                      ? { ...item, current_model: res.selected_model }
+                      : item,
+                  ),
+                  cloud_providers: prev.cloud_providers?.map((item) =>
+                    selectedProvider === 'cloud' &&
+                    item.provider === selectedCloudProvider
+                      ? { ...item, current_model: res.selected_model }
+                      : item,
+                  ),
+                }
+              : prev,
+          );
           message.success(
             res.message ||
               `已切换模型：${res.selected_provider}/${res.selected_model}`,
           );
-          await loadModels();
         } else {
           message.error(res.message || '模型切换失败');
         }
       } catch (err: any) {
         message.error(getErrorMessage(err, '模型切换失败'));
+      } finally {
+        setModelSwitching(false);
       }
     },
-    [currentProvider, loadModels],
+    [currentCloudProvider, currentProvider],
   );
 
   const handleSelectProvider = useCallback(
     async (provider: string) => {
       const providerModels = getProviderModels(provider);
+      const nextCloudProvider =
+        provider === 'cloud' ? currentCloudProvider || 'deepseek' : null;
       const nextModel =
         providerModels?.current_model || providerModels?.available_models[0];
 
@@ -371,9 +482,29 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      await handleSelectModel(nextModel, provider);
+      await handleSelectModel(nextModel, provider, nextCloudProvider);
     },
-    [getProviderModels, handleSelectModel],
+    [currentCloudProvider, getProviderModels, handleSelectModel],
+  );
+
+  const handleSelectCloudProvider = useCallback(
+    async (cloudProvider: string) => {
+      const providerModels = getCloudProviderModels(cloudProvider);
+      const nextModel =
+        providerModels?.current_model || providerModels?.available_models[0];
+
+      setCurrentProvider('cloud');
+      setCurrentCloudProvider(cloudProvider);
+
+      if (!nextModel) {
+        setCurrentModel('');
+        message.error('该 Cloud 供应商暂无可用模型');
+        return;
+      }
+
+      await handleSelectModel(nextModel, 'cloud', cloudProvider);
+    },
+    [getCloudProviderModels, handleSelectModel],
   );
 
   const sendMessage = useCallback(
@@ -605,7 +736,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
                   ...m,
                   content: getErrorMessage(
                     err,
-                    '模型调用失败，请检查后端或 Ollama 服务',
+                    '模型调用失败，请检查后端或模型服务',
                   ),
                   loading: false,
                 }
@@ -634,7 +765,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
   const startNewConversation = useCallback(() => {
     setActiveConversationId(null);
     setMessages([]);
-  }, []);
+    navigateToHome();
+  }, [navigateToHome]);
 
   return (
     <ChatContext.Provider
@@ -645,7 +777,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         healthError,
         models,
         modelsError,
+        modelSwitching,
         currentProvider,
+        currentCloudProvider,
         currentModel,
         conversations,
         activeConversationId,
@@ -661,6 +795,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({
         startNewConversation,
         loadModels,
         handleSelectProvider,
+        handleSelectCloudProvider,
         handleSelectModel,
         clearMessages,
       }}
