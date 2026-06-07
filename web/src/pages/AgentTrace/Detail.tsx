@@ -10,6 +10,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CloseCircleOutlined,
+  MessageOutlined,
   ReloadOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -363,6 +364,9 @@ const AgentTraceDetailPage: React.FC = () => {
             onClick={() => history.push(backUrl)}
           >
             返回列表
+          </Button>
+          <Button icon={<MessageOutlined />} onClick={() => history.push('/')}>
+            返回聊天
           </Button>
           <Button
             icon={<ReloadOutlined />}

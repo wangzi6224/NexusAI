@@ -1,10 +1,7 @@
 .page {
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(circle at top right, rgba(43, 138, 255, 0.14), transparent 34%),
-    radial-gradient(circle at bottom left, rgba(22, 163, 74, 0.12), transparent 40%),
-    linear-gradient(180deg, #f7fafc 0%, #eef4f7 100%);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
 }
 
 .header {
@@ -25,9 +22,43 @@
   color: #64748b;
 }
 
+.summaryGrid {
+  margin-bottom: 16px;
+}
+
+.metric {
+  display: flex;
+  min-height: 82px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+
+  strong {
+    margin-top: 4px;
+    color: #0f172a;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+}
+
+.metricLabel {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.metricTime {
+  font-size: 15px !important;
+}
+
 .card {
   margin-bottom: 16px;
+  border: 1px solid #dde7f0;
   border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
 }
 
 .toolbar {
@@ -36,6 +67,14 @@
 
 .conversationSelect {
   min-width: 360px;
+}
+
+.searchInput {
+  width: 280px;
+}
+
+.statusSelect {
+  width: 150px;
 }
 
 :global(.ant-select-dropdown).conversationSelectDropdown {
@@ -259,6 +298,11 @@
 
   .conversationSelect {
     min-width: 100%;
+  }
+
+  .searchInput,
+  .statusSelect {
+    width: 100%;
   }
 
   .toolbar {

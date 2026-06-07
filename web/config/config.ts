@@ -50,8 +50,7 @@ export default defineConfig({
   alias: {
     '@/': path.resolve(__dirname, '../src'),
   },
-  tailwindcss: {},
-  mfsu: {},
+  mfsu: false,
   esbuildMinifyIIFE: true,
   favicons: [`${PUBLIC_PATH}favicon.ico`],
   proxy: {

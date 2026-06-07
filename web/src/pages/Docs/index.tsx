@@ -9,13 +9,28 @@ import {
   uploadDocument,
 } from '@/services';
 import {
+  CloudUploadOutlined,
+  EyeOutlined,
+  FileSearchOutlined,
+  FileTextOutlined,
+  MessageOutlined,
+  ReloadOutlined,
+  ScissorOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
+import { history } from '@umijs/max';
+import {
   Alert,
   Button,
   Card,
+  Col,
   Descriptions,
   Drawer,
   Empty,
+  Input,
   message,
+  Row,
   Space,
   Table,
   Tag,
@@ -124,11 +139,39 @@ const DocsPage: React.FC = () => {
   const [chunksLoading, setChunksLoading] = useState<boolean>(false);
   const [chunksError, setChunksError] = useState<string>('');
   const [chunks, setChunks] = useState<DocumentChunkItem[]>([]);
+  const [keyword, setKeyword] = useState<string>('');
 
   const selectedDocument = useMemo(
     () => documents.find((item) => item.id === selectedDocumentId),
     [documents, selectedDocumentId],
   );
+
+  const filteredDocuments = useMemo(() => {
+    const normalized = keyword.trim().toLowerCase();
+
+    if (!normalized) return documents;
+
+    return documents.filter((item) =>
+      [
+        item.id,
+        item.filename,
+        item.file_type,
+        item.status,
+        item.error_message || '',
+      ].some((value) => String(value || '').toLowerCase().includes(normalized)),
+    );
+  }, [documents, keyword]);
+
+  const documentStats = useMemo(() => {
+    return {
+      total: documents.length,
+      chunks: documents.reduce((sum, item) => sum + (item.chunk_count || 0), 0),
+      chars: documents.reduce((sum, item) => sum + (item.char_count || 0), 0),
+      failed: documents.filter(
+        (item) => statusColor(item.status) === 'error' || item.error_message,
+      ).length,
+    };
+  }, [documents]);
 
   const fetchDocuments = async (): Promise<void> => {
     setDocumentsLoading(true);
@@ -351,6 +394,7 @@ const DocsPage: React.FC = () => {
         <Space size={8}>
           <Button
             size="small"
+            icon={<EyeOutlined />}
             onClick={() => {
               setSelectedDocumentId(record.id);
               setDetailsDrawerOpen(true);
@@ -361,6 +405,7 @@ const DocsPage: React.FC = () => {
           <Button
             size="small"
             type="primary"
+            icon={<ScissorOutlined />}
             loading={splittingDocumentId === record.id}
             disabled={Boolean(splittingDocumentId)}
             onClick={() => {
@@ -443,6 +488,7 @@ const DocsPage: React.FC = () => {
       render: (_, record) => (
         <Button
           size="small"
+          icon={<FileTextOutlined />}
           onClick={() => {
             void navigator.clipboard.writeText(record.content || '');
             message.success('Chunk 内容已复制');
@@ -457,17 +503,68 @@ const DocsPage: React.FC = () => {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <Typography.Title level={2} className={styles.title}>
-          RAG 文档管理
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          当前后端允许的上传类型：{ALLOWED_EXTENSIONS.join('、')}（暂不支持
-          .pdf）
-        </Typography.Text>
+        <div>
+          <Typography.Title level={2} className={styles.title}>
+            RAG 文档管理
+          </Typography.Title>
+          <Typography.Text className={styles.subtitle}>
+            管理知识库文件、切分状态和 Chunk 内容。支持上传：
+            {ALLOWED_EXTENSIONS.join('、')}
+          </Typography.Text>
+        </div>
+        <Space wrap>
+          <Button
+            icon={<MessageOutlined />}
+            onClick={() => history.push('/')}
+          >
+            返回聊天
+          </Button>
+          <Button
+            icon={<FileSearchOutlined />}
+            onClick={() => history.push('/traces')}
+          >
+            Trace
+          </Button>
+        </Space>
       </div>
 
-      <Card title="上传区域" className={styles.card}>
-        <Space size={12} wrap>
+      <Row gutter={[16, 16]} className={styles.summaryGrid}>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>文档</span>
+            <strong>{documentStats.total}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Chunks</span>
+            <strong>{documentStats.chunks}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>字符</span>
+            <strong>{documentStats.chars.toLocaleString('zh-CN')}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>异常</span>
+            <strong>{documentStats.failed}</strong>
+          </div>
+        </Col>
+      </Row>
+
+      <Card
+        title="上传文档"
+        className={styles.card}
+        extra={
+          <Typography.Text type="secondary">
+            仅支持 .md / .txt，上传后自动入库
+          </Typography.Text>
+        }
+      >
+        <Space size={12} wrap className={styles.uploadActions}>
           <Upload
             accept={ACCEPT_ATTR}
             maxCount={1}
@@ -500,10 +597,11 @@ const DocsPage: React.FC = () => {
                 : []
             }
           >
-            <Button>选择文件</Button>
+            <Button icon={<UploadOutlined />}>选择文件</Button>
           </Upload>
           <Button
             type="primary"
+            icon={<CloudUploadOutlined />}
             loading={uploading}
             onClick={() => void handleUpload()}
           >
@@ -516,15 +614,25 @@ const DocsPage: React.FC = () => {
         title="文档列表"
         className={styles.card}
         extra={
-          <Space>
+          <Space wrap>
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              className={styles.searchInput}
+              placeholder="搜索文件名、ID、状态"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
             <Button
               type="primary"
+              icon={<CloudUploadOutlined />}
               loading={embeddingAll}
               onClick={() => void handleEmbedAllDocuments()}
             >
               全部向量化
             </Button>
             <Button
+              icon={<ReloadOutlined />}
               loading={documentsLoading}
               onClick={() => void fetchDocuments()}
             >
@@ -548,8 +656,8 @@ const DocsPage: React.FC = () => {
           size="middle"
           loading={documentsLoading}
           columns={documentColumns}
-          dataSource={documents}
-          pagination={{ pageSize: 6, showSizeChanger: false }}
+          dataSource={filteredDocuments}
+          pagination={false}
           scroll={{ x: 1300 }}
           locale={{
             emptyText: (
@@ -634,7 +742,7 @@ const DocsPage: React.FC = () => {
               loading={chunksLoading}
               columns={chunkColumns}
               dataSource={chunks}
-              pagination={{ pageSize: 8, showSizeChanger: false }}
+              pagination={false}
               scroll={{ x: 1500 }}
               locale={{
                 emptyText: chunksError

@@ -4,13 +4,22 @@ import {
   getAgentRuns,
   getConversations,
 } from '@/services';
-import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  EyeOutlined,
+  FileTextOutlined,
+  MessageOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
 import { history, useLocation } from '@umijs/max';
 import {
   Alert,
   Button,
   Card,
+  Col,
   Empty,
+  Input,
+  Row,
   Select,
   Space,
   Table,
@@ -101,6 +110,8 @@ const AgentTracePage: React.FC = () => {
   const [runs, setRuns] = useState<AgentRunItem[]>([]);
   const [runsLoading, setRunsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [keyword, setKeyword] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const queryConversationId = useMemo(() => {
     return new URLSearchParams(location.search).get('conversation_id') || '';
@@ -114,6 +125,57 @@ const AgentTracePage: React.FC = () => {
       })),
     [conversations],
   );
+
+  const filteredRuns = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+
+    return runs.filter((item) => {
+      const matchStatus =
+        statusFilter === 'all' || item.status === statusFilter;
+      const matchKeyword =
+        !normalizedKeyword ||
+        [
+          item.id,
+          item.conversation_id,
+          item.input,
+          item.final_answer || '',
+          item.model || '',
+          item.provider || '',
+          item.status,
+        ].some((value) =>
+          String(value || '').toLowerCase().includes(normalizedKeyword),
+        );
+
+      return matchStatus && matchKeyword;
+    });
+  }, [keyword, runs, statusFilter]);
+
+  const statusOptions = useMemo(() => {
+    const uniqueStatuses = Array.from(new Set(runs.map((item) => item.status)))
+      .filter(Boolean)
+      .sort();
+
+    return [
+      { label: '全部状态', value: 'all' },
+      ...uniqueStatuses.map((status) => ({
+        label: status,
+        value: status,
+      })),
+    ];
+  }, [runs]);
+
+  const runStats = useMemo(() => {
+    const failed = runs.filter((item) => statusColor(item.status) === 'error');
+    const steps = runs.reduce((sum, item) => sum + (item.step_count || 0), 0);
+    const latest = runs[0]?.created_at ? formatDateTime(runs[0].created_at) : '-';
+
+    return {
+      total: runs.length,
+      failed: failed.length,
+      steps,
+      latest,
+    };
+  }, [runs]);
 
   const fetchRuns = async (conversationId: string): Promise<void> => {
     if (!conversationId) {
@@ -260,14 +322,48 @@ const AgentTracePage: React.FC = () => {
             Agent Trace
           </Title>
           <Paragraph className={styles.subtitle}>
-            按会话查看 Agent Run、工具步骤和事件链路，用于排查执行过程。
+            按会话查看 Agent Run、工具步骤和事件链路。
           </Paragraph>
         </div>
         <Space wrap>
-          <Button onClick={() => history.push('/')}>返回聊天</Button>
-          <Button onClick={() => history.push('/docs')}>文档管理</Button>
+          <Button icon={<MessageOutlined />} onClick={() => history.push('/')}>
+            返回聊天
+          </Button>
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={() => history.push('/docs')}
+          >
+            文档管理
+          </Button>
         </Space>
       </div>
+
+      <Row gutter={[16, 16]} className={styles.summaryGrid}>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Runs</span>
+            <strong>{runStats.total}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Steps</span>
+            <strong>{runStats.steps}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>异常</span>
+            <strong>{runStats.failed}</strong>
+          </div>
+        </Col>
+        <Col xs={12} lg={6}>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>最近执行</span>
+            <strong className={styles.metricTime}>{runStats.latest}</strong>
+          </div>
+        </Col>
+      </Row>
 
       <Card className={styles.card}>
         <Space className={styles.toolbar} wrap>
@@ -281,6 +377,20 @@ const AgentTracePage: React.FC = () => {
             onChange={handleConversationChange}
             showSearch
             optionFilterProp="label"
+          />
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            className={styles.searchInput}
+            placeholder="搜索问题、Run ID、模型"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Select
+            className={styles.statusSelect}
+            options={statusOptions}
+            value={statusFilter}
+            onChange={setStatusFilter}
           />
           <Button
             icon={<ReloadOutlined />}
@@ -305,10 +415,10 @@ const AgentTracePage: React.FC = () => {
       <Card className={styles.card} title="Run 列表">
         <Table<AgentRunItem>
           columns={columns}
-          dataSource={runs}
+          dataSource={filteredRuns}
           loading={runsLoading}
           rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={false}
           scroll={{ x: 960 }}
           locale={{
             emptyText: selectedConversationId ? (

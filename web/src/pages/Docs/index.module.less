@@ -1,16 +1,14 @@
 .page {
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(circle at top right, #f3ffe3 0%, transparent 36%),
-    radial-gradient(circle at bottom left, #e9f2ff 0%, transparent 42%),
-    linear-gradient(180deg, #f7fafc 0%, #eef4f7 100%);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
 }
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
@@ -18,9 +16,54 @@
   margin: 0 !important;
 }
 
+.subtitle {
+  display: block;
+  max-width: 720px;
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.summaryGrid {
+  margin-bottom: 16px;
+}
+
+.metric {
+  display: flex;
+  min-height: 82px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+
+  strong {
+    margin-top: 4px;
+    color: #0f172a;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+}
+
+.metricLabel {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .card {
   margin-bottom: 16px;
-  border-radius: 12px;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.uploadActions {
+  width: 100%;
+}
+
+.searchInput {
+  width: 260px;
 }
 
 .alert {
@@ -66,5 +109,13 @@
 @media (max-width: 768px) {
   .page {
     padding: 14px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .searchInput {
+    width: 100%;
   }
 }
