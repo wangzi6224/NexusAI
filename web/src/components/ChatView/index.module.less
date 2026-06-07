@@ -9,27 +9,36 @@
   background: var(--bg-main);
   position: relative;
 
-  &::before {
+     &::before {
     content: '';
     position: absolute;
     inset: 0;
     background: linear-gradient(125deg, transparent 0%, rgba(255, 61, 154, 0.08) 22%, transparent 46%, rgba(0, 229, 255, 0.06) 74%, transparent 100%);
     pointer-events: none;
-  }
+      }
 }
 
 .chatHeader {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   position: relative;
-  height: 60px;
+  height: 56px;
   padding: 0 24px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   background: linear-gradient(90deg, rgba(255, 61, 154, 0.08), rgba(0, 229, 255, 0.045));
-  -webkit-backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+}
+
+.chatHeaderTitle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 48px;
+  min-width: 0;
 }
 
 .chatTitle {
@@ -38,8 +47,8 @@
   font-weight: 700 !important;
   letter-spacing: 0;
   text-align: center;
-  max-width: 600px;
   display: block;
+  max-width: 100%;
 }
 
 .messagesArea {
@@ -54,9 +63,42 @@
   z-index: 1;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.headerActionBtn {
+  color: var(--text-dim) !important;
+  font-size: 16px !important;
+  cursor: pointer;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s, transform 0.2s;
+
+    &:hover {
+    color: var(--color-secondary) !important;
+    background: rgba(255, 61, 154, 0.1);
+    transform: scale(1.1);
+      }
+}
+
+@media (max-width: 768px) {
+   .chatHeader {
+    height: 48px;
+    padding: 0 12px;
+      }
+
+     .chatTitle {
+    font-size: 13px !important;
+      }
+}
+
 @media (max-width: 960px) {
-  .chatHeader {
-    height: 52px;
-    padding: 0 14px;
-  }
+   .appLayout {
+    flex-direction: column;
+    height: 100dvh;
+      }
 }
