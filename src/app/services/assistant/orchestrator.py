@@ -52,6 +52,7 @@ from src.app.services.memory.long_term_schemas import (
 )
 from src.app.services.context_engineering.context_assembler import ContextAssembler
 from src.app.services.context_engineering.schemas import ContextBuildRequest
+from src.app.exceptions import ConversationError
 
 logger = get_logger()
 
@@ -321,6 +322,70 @@ class AssistantOrchestrator:
                 },
             )
             yield sse_event(EVENT_DONE, "[DONE]")
+
+    def debug_context(
+        self,
+        *,
+        conversation_id: str,
+        request: AssistantStreamRequest,
+    ) -> dict[str, Any]:
+        conversation = get_conversation(conversation_id)
+        if conversation is None:
+            raise ConversationError(
+                message="会话不存在",
+                detail=f"conversation_id={conversation_id}",
+                status_code=404,
+            )
+
+        short_term_memory = None
+        if request.options.enable_short_term_memory:
+            short_term_memory = self.short_term_builder.build(
+                conversation_id=conversation_id,
+                recent_limit=10,
+            )
+
+        long_term_memory_items = []
+        if (
+            request.options.enable_long_term_memory
+            and request.options.long_term_memory_top_k > 0
+        ):
+            long_term_memory = self.long_term_retriever.retrieve(
+                LongTermMemorySearchRequest(
+                    query=request.message,
+                    user_id="default_user",
+                    top_k=request.options.long_term_memory_top_k,
+                    min_score=request.options.long_term_memory_min_score,
+                )
+            )
+            long_term_memory_items = long_term_memory.items
+
+        route_decision = self._route(
+            conversation_id=conversation_id,
+            request=request,
+            selected_model=resolve_llm_model(
+                model=request.model,
+                stored_model=conversation.get("model"),
+                stored_provider=conversation.get("provider"),
+                provider=request.provider,
+            ),
+        )
+
+        context_package = ContextAssembler().build(
+            ContextBuildRequest(
+                conversation_id=conversation_id,
+                user_message=request.message,
+                mode="agent" if route_decision.mode == "agent" else "chat",
+                conversation_summary=conversation.get("summary"),
+                conversation_state=(
+                    short_term_memory.get("state") if short_term_memory else None
+                ),
+                recent_messages=list_recent_messages(conversation_id, limit=10),
+                long_term_memory_items=long_term_memory_items,
+                max_context_tokens=request.options.max_context_tokens,
+            )
+        )
+
+        return context_package.model_dump(mode="json")
 
     def _stream_chat(
         self,

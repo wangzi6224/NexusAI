@@ -40,3 +40,14 @@ def stream_assistant_message(
 def get_assistant_run(run_id: str) -> dict[str, Any]:
     """查询单条 AssistantRun 详情。"""
     return get_assistant_orchestrator().run_store.get_run(run_id)
+
+
+@router.post("/conversations/{conversation_id}/assistant/context/debug")
+def debug_assistant_context(
+    conversation_id: str,
+    request: AssistantStreamRequest,
+) -> dict[str, Any]:
+    return get_assistant_orchestrator().debug_context(
+        conversation_id=conversation_id,
+        request=request,
+    )
