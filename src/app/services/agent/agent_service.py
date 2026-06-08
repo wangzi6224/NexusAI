@@ -175,7 +175,15 @@ class AgentService:
 
         state: AgentState = self.agent_loop.run(state)
 
-        final_messages = self.prompt_builder.build_final_messages(state)
+        context_package = self.prompt_builder.build_final_context_package(
+            state=state,
+            conversation_summary=conversation.get("summary"),
+            conversation_state=conversation_state,
+            long_term_memory_items=memory_context or [],
+            max_context_tokens=8192,
+        )
+
+        final_messages = context_package.messages
 
         final_answer_start = perf_counter()
 
@@ -237,6 +245,7 @@ class AgentService:
                 "decision_count": state.planner_decision_count,
             },
             "observations": [item.model_dump() for item in state.observations],
+            "context": context_package.trace,
             "working_memory": state.working_memory.model_dump(mode="json"),
             "model": response.model,
             "provider": response.provider,
@@ -267,5 +276,6 @@ class AgentService:
             "question": clean_question,
             "answer": assistant_message["content"],
             "tool_calls": tool_calls,
+            "context_package": context_package.model_dump(mode="json"),
             "trace": trace,
         }

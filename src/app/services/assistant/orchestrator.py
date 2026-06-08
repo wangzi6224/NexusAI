@@ -681,6 +681,7 @@ class AssistantOrchestrator:
                 "agent_ms": agent_ms,
                 "total_ms": latency_ms,
             },
+            "context": trace.get("context"),
             "memory": {
                 "short_term": self._build_short_term_memory_trace(
                     enabled=request.options.enable_short_term_memory,
