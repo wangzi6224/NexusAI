@@ -258,9 +258,8 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
         className={styles.drawer}
         open={open}
         onClose={() => setOpen(false)}
-        width={760}
+        width={1200}
         loading={loading}
-        destroyOnClose={false}
       >
         <Tabs
           items={[
