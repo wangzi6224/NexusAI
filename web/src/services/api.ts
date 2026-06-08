@@ -218,6 +218,7 @@ export interface AssistantRunItem {
   model?: string | null;
   provider?: string | null;
   latency_ms?: number | null;
+  agent_run_id?: string | null;
   trace: Record<string, unknown>;
   metadata: Record<string, unknown>;
   created_at: string;
