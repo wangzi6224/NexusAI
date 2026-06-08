@@ -39,6 +39,9 @@ EVENT_LONG_TERM_MEMORY_ITEM: Final = (
 )
 EVENT_LONG_TERM_MEMORY_WRITE: Final = "long_term_memory_write"  # 长期记忆写入完成。
 EVENT_WORKING_MEMORY_UPDATED: Final = "working_memory_updated"  # 工作记忆更新完成。
+EVENT_CONTEXT_ASSEMBLED: Final = (
+    "context_assembled"  # 上下文组装完成，包含最终进入模型的上下文摘要信息。
+)
 
 AssistantStreamEvent = Literal[
     "assistant_start",
@@ -48,6 +51,7 @@ AssistantStreamEvent = Literal[
     "long_term_memory_item",
     "long_term_memory_write",
     "working_memory_updated",
+    "context_assembled",
     "tool_call_start",
     "tool_call_end",
     "delta",
@@ -85,6 +89,7 @@ ASSISTANT_STREAM_EVENTS: tuple[AssistantStreamEvent, ...] = (
     EVENT_LONG_TERM_MEMORY_ITEM,
     EVENT_LONG_TERM_MEMORY_WRITE,
     EVENT_WORKING_MEMORY_UPDATED,
+    EVENT_CONTEXT_ASSEMBLED,
     EVENT_TOOL_CALL_START,
     EVENT_TOOL_CALL_END,
     EVENT_DELTA,

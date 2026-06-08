@@ -28,13 +28,13 @@ from src.app.services.assistant.event import (
     EVENT_LONG_TERM_MEMORY_WRITE,
     EVENT_SHORT_TERM_MEMORY_LOADED,
     EVENT_WORKING_MEMORY_UPDATED,
+    EVENT_CONTEXT_ASSEMBLED,
     sse_event,
 )
 from src.app.services.assistant.llm_router import ModeRouter
 from src.app.services.assistant.mode_router import RouterContext
 from src.app.services.assistant.route_decision import RouteDecision
 from src.app.services.assistant.run_store import AssistantRunStore
-from src.app.services.context_builder import ContextBuilder
 from src.app.services.llm.factory import get_llm_provider
 from src.app.services.summarizer import Summarizer
 from src.app.services.memory.short_term_builder import ShortTermMemoryBuilder
@@ -50,6 +50,8 @@ from src.app.services.memory.long_term_schemas import (
     LongTermMemoryWriteResult,
     RetrievedLongTermMemory,
 )
+from src.app.services.context_engineering.context_assembler import ContextAssembler
+from src.app.services.context_engineering.schemas import ContextBuildRequest
 
 logger = get_logger()
 
@@ -77,6 +79,7 @@ class AssistantOrchestrator:
 
         self.long_term_retriever = LongTermMemoryRetriever()
         self.long_term_writer = LongTermMemoryWriter()
+        self.context_assembler = ContextAssembler()
 
     def stream(
         self,
@@ -346,14 +349,33 @@ class AssistantOrchestrator:
             },
         )
 
-        context_builder = ContextBuilder()
-        llm_messages = context_builder.build_messages(
-            conversation_id,
-            conversation_state=(
-                short_term_memory.get("state") if short_term_memory else None
-            ),
-            include_conversation_state=request.options.enable_short_term_memory,
-            long_term_memory_items=long_term_memory_items,
+        context_package = self.context_assembler.build(
+            ContextBuildRequest(
+                conversation_id=conversation_id,
+                user_message=clean_message,
+                mode="chat",
+                conversation_summary=(
+                    short_term_memory.get("summary") if short_term_memory else None
+                ),
+                conversation_state=(
+                    short_term_memory.get("state") if short_term_memory else None
+                ),
+                recent_messages=list_recent_messages(conversation_id, limit=10),
+                long_term_memory_items=long_term_memory_items,
+                max_context_tokens=request.options.max_context_tokens,
+            )
+        )
+
+        llm_messages = context_package.messages
+
+        yield sse_event(
+            EVENT_CONTEXT_ASSEMBLED,
+            {
+                "total_estimated_tokens": context_package.total_estimated_tokens,
+                "max_context_tokens": context_package.max_context_tokens,
+                "selected_count": len(context_package.items),
+                "dropped_count": len(context_package.dropped_items),
+            },
         )
 
         llm_provider = get_llm_provider(provider)
@@ -421,6 +443,7 @@ class AssistantOrchestrator:
                 "total_ms": latency_ms,
             },
             "context_message_count": len(llm_messages),
+            "context": context_package.trace,
             "memory": {
                 "short_term": self._build_short_term_memory_trace(
                     enabled=request.options.enable_short_term_memory,

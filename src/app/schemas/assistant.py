@@ -15,6 +15,13 @@ class AssistantOptions(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.3, ge=0, le=1)
     max_steps: int = Field(default=3, ge=1, le=8)
+    max_context_tokens: int = Field(
+        default=8192,
+        ge=1024,
+        le=32768,
+        description="进入模型的上下文最大 token 数，超过部分将被截断",
+    )
+    enable_context_debug: bool = True
 
     # 预留开关：当前主要用于 auto 路由和后续 MCP。
     enable_tools: bool = True
@@ -35,9 +42,7 @@ class AssistantOptions(BaseModel):
 
 class AssistantStreamRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户当前输入")
-    mode: AssistantMode = Field(
-        default="auto", description="chat / agent / mcp / auto"
-    )
+    mode: AssistantMode = Field(default="auto", description="chat / agent / mcp / auto")
     model: str | None = None
     provider: str | None = None
     options: AssistantOptions = Field(default_factory=AssistantOptions)
