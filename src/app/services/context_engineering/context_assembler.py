@@ -58,6 +58,7 @@ class ContextAssembler:
         ]
 
         messages = self._to_messages(selected, request.user_message)
+        risk_flags = self._risk_flags(selected)
 
         return ContextPackage(
             items=selected,
@@ -79,11 +80,13 @@ class ContextAssembler:
                     {
                         "id": dropped.item.id,
                         "type": dropped.item.type,
+                        "source": dropped.item.source,
                         "reason": dropped.reason,
                         "detail": dropped.detail,
                     }
                     for dropped in dropped_items
                 ],
+                "risk_flags": risk_flags,
             },
         )
 
@@ -342,4 +345,22 @@ class ContextAssembler:
             "estimated_tokens": item.estimated_tokens,
             "source_id": item.source_id,
             "metadata": item.metadata,
+        }
+
+    def _risk_flags(self, items: list[ContextItem]) -> dict[str, Any]:
+        matched_patterns: list[str] = []
+
+        for item in items:
+            if not isinstance(item.metadata.get("matched_patterns"), list):
+                continue
+
+            for pattern in item.metadata["matched_patterns"]:
+                if isinstance(pattern, str) and pattern not in matched_patterns:
+                    matched_patterns.append(pattern)
+
+        return {
+            "injection_risk": any(
+                item.metadata.get("injection_risk") is True for item in items
+            ),
+            "matched_patterns": matched_patterns,
         }

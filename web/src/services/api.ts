@@ -140,6 +140,7 @@ export interface ConversationStreamChunk {
 export type AssistantStreamEvent =
   | 'assistant_start'
   | 'route_decision'
+  | 'context_assembled'
   | 'tool_call_start'
   | 'tool_call_end'
   | 'delta'
@@ -172,6 +173,38 @@ export interface AssistantSourceItem {
   chunk_index?: number;
   content_preview?: string;
 }
+
+export type ContextTraceItem = {
+  id: string;
+  type: string;
+  source: string;
+  placement: string;
+  priority: number;
+  score: number;
+  estimated_tokens: number;
+  source_id?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type ContextTrace = {
+  candidate_count: number;
+  selected_count: number;
+  dropped_count: number;
+  total_estimated_tokens: number;
+  max_context_tokens: number;
+  selected_items: ContextTraceItem[];
+  dropped_items: Array<{
+    id: string;
+    type: string;
+    source?: string;
+    reason: string;
+    detail?: string;
+  }>;
+  risk_flags?: {
+    injection_risk?: boolean;
+    matched_patterns?: string[];
+  };
+};
 
 export interface AssistantRunItem {
   id: string;
@@ -208,6 +241,7 @@ export interface AssistantStreamChunk {
   tool_calls?: AssistantToolCallEvent[];
   sources?: AssistantSourceItem[];
   trace?: Record<string, unknown>;
+  context?: ContextTrace;
   tool_name?: string;
   arguments?: Record<string, unknown>;
   step?: number;
