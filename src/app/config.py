@@ -458,3 +458,20 @@ def get_agent_planner_timeout_seconds() -> int:
 
 def get_llm_router_model() -> str:
     return get_settings().llm_router_model
+
+
+def is_mcp_enabled() -> bool:
+    return get_settings().mcp_enabled
+
+
+def get_mcp_allowed_tools() -> list[str]:
+    raw = get_settings().mcp_allowed_tools
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def get_mcp_max_result_chars() -> int:
+    return get_settings().mcp_max_result_chars
+
+
+def get_mcp_default_timeout_seconds() -> int:
+    return get_settings().mcp_default_timeout_seconds

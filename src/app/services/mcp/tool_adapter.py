@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.app.config import get_settings
+from src.app.config import get_mcp_max_result_chars
 from src.app.services.mcp.audit_store import McpAuditStore
 from src.app.services.mcp.client import McpClient
 from src.app.services.mcp.permission import McpPermission
@@ -58,7 +58,7 @@ class McpToolAdapter(Tool):
             arguments=arguments,
         )
 
-        max_chars = getattr(get_settings(), "mcp_max_result_chars", 8000)
+        max_chars = get_mcp_max_result_chars()
         content = result.content[:max_chars]
         truncated = len(result.content) > max_chars
 

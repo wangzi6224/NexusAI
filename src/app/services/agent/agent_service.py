@@ -33,7 +33,7 @@ from src.app.services.tools.search_docs import SearchDocsTool
 from src.app.services.tools.read_doc import ReadDocTool
 from src.app.services.memory.working_memory import WorkingMemory
 from src.app.services.memory.long_term_schemas import RetrievedLongTermMemory
-from src.app.config import get_agent_allowed_tools, get_settings
+from src.app.config import get_agent_allowed_tools, get_mcp_allowed_tools
 from src.app.services.mcp.registry import McpRegistry
 
 
@@ -304,14 +304,12 @@ class AgentService:
         allowed_tools = get_agent_allowed_tools()
 
         if enable_mcp_tools:
-            mcp_allowed = getattr(get_settings(), "mcp_allowed_tools", "")
-            allowed_tools = [
-                *allowed_tools,
-                *[item.strip() for item in mcp_allowed.split(",") if item.strip()],
-            ]
+            mcp_allowed = get_mcp_allowed_tools()
+            allowed_tools = [*allowed_tools, *mcp_allowed]
 
         tool_registry = ToolRegistry(allowed_tools=allowed_tools)
 
+        # 注册本地工具
         for tool in (
             ListDocsTool(),
             SearchDocsTool(),
@@ -320,6 +318,7 @@ class AgentService:
             tool_registry.register(tool)
 
         if enable_mcp_tools:
+            # 注册 MCP 工具
             McpRegistry().register_to_tool_registry(tool_registry)
 
         return tool_registry
