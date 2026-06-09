@@ -1,6 +1,6 @@
 from functools import lru_cache
 import os
-from typing import Any
+from typing import Any, Final
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,9 +11,16 @@ class Settings(BaseSettings):
     # 应用级配置：运行环境、日志级别、聊天记录存储路径
     app_env: str = Field(default="development", alias="APP_ENV")
     app_log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
+    # 工具结果默认最大字符数，避免过长导致上下文超限或性能问题
+    tool_max_chars_default: Final = 40000
     chat_history_path: str = Field(
         default="chat_history.json",
         alias="CHAT_HISTORY_PATH",
+    )
+
+    nexusai_mcp_token: str = Field(default="", alias="NEXUSAI_MCP_TOKEN")
+    nexusai_mcp_max_result_chars: int = Field(
+        default=tool_max_chars_default, alias="NEXUSAI_MCP_MAX_RESULT_CHARS"
     )
 
     # Ollama 相关配置：LLM 服务地址、模型与请求行为
@@ -145,7 +152,7 @@ class Settings(BaseSettings):
         alias="AGENT_TOOL_TIMEOUT_SECONDS",
     )
     agent_max_tool_result_chars: int = Field(
-        default=8000,
+        default=tool_max_chars_default,
         alias="AGENT_MAX_TOOL_RESULT_CHARS",
     )
 

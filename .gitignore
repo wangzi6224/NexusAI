@@ -20,6 +20,9 @@ web/.pnpm-store/
 web/.yarn/
 web/.pnp.*
 
+mcp-server/node_modules/
+
+
 # Umi / Max cache and build output
 web/.umi/
 web/.umi-production/
