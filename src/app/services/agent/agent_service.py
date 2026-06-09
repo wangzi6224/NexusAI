@@ -33,6 +33,8 @@ from src.app.services.tools.search_docs import SearchDocsTool
 from src.app.services.tools.read_doc import ReadDocTool
 from src.app.services.memory.working_memory import WorkingMemory
 from src.app.services.memory.long_term_schemas import RetrievedLongTermMemory
+from src.app.config import get_agent_allowed_tools, get_settings
+from src.app.services.mcp.registry import McpRegistry
 
 
 class AgentService:
@@ -51,11 +53,6 @@ class AgentService:
         for tool in tools_list:
             tool_registry.register(tool)
 
-        self.agent_loop = AgentLoop(
-            tool_registry=tool_registry,
-            planner_type=self.planner_type,
-        )
-
     def chat(
         self,
         conversation_id: str,
@@ -65,6 +62,7 @@ class AgentService:
         max_steps: int = 3,
         model: str | None = None,
         enable_working_memory: bool = True,
+        enable_mcp_tools: bool = False,
         memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -173,7 +171,12 @@ class AgentService:
             working_memory=working_memory,
         )
 
-        state: AgentState = self.agent_loop.run(state)
+        agent_loop = AgentLoop(
+            tool_registry=self._build_tool_registry(enable_mcp_tools=enable_mcp_tools),
+            planner_type=self.planner_type,
+        )
+
+        state: AgentState = agent_loop.run(state)
 
         context_package = self.prompt_builder.build_final_context_package(
             state=state,
@@ -247,6 +250,23 @@ class AgentService:
             "observations": [item.model_dump() for item in state.observations],
             "context": context_package.trace,
             "working_memory": state.working_memory.model_dump(mode="json"),
+            "mcp": {
+                "enabled": enable_mcp_tools,
+                "used": any(
+                    str(step.tool_name or "").startswith("mcp__")
+                    for step in state.steps
+                ),
+                "tool_calls": [
+                    {
+                        "tool_name": step.tool_name,
+                        "success": step.success,
+                        "latency_ms": step.latency_ms,
+                        "source": "mcp",
+                    }
+                    for step in state.steps
+                    if str(step.tool_name or "").startswith("mcp__")
+                ],
+            },
             "model": response.model,
             "provider": response.provider,
         }
@@ -279,3 +299,27 @@ class AgentService:
             "context_package": context_package.model_dump(mode="json"),
             "trace": trace,
         }
+
+    def _build_tool_registry(self, *, enable_mcp_tools: bool) -> ToolRegistry:
+        allowed_tools = get_agent_allowed_tools()
+
+        if enable_mcp_tools:
+            mcp_allowed = getattr(get_settings(), "mcp_allowed_tools", "")
+            allowed_tools = [
+                *allowed_tools,
+                *[item.strip() for item in mcp_allowed.split(",") if item.strip()],
+            ]
+
+        tool_registry = ToolRegistry(allowed_tools=allowed_tools)
+
+        for tool in (
+            ListDocsTool(),
+            SearchDocsTool(),
+            ReadDocTool(),
+        ):
+            tool_registry.register(tool)
+
+        if enable_mcp_tools:
+            McpRegistry().register_to_tool_registry(tool_registry)
+
+        return tool_registry

@@ -1,12 +1,15 @@
+from __future__ import annotations
+
+from jsonschema import validate
+
 from src.app.config import get_agent_allowed_tools
 from src.app.services.tools.base import Tool
-from jsonschema import validate
 
 
 class ToolRegistry:
-    def __init__(self) -> None:
+    def __init__(self, allowed_tools: list[str] | None = None) -> None:
         self._tools: dict[str, Tool] = {}
-        self.allowed_tools = set(get_agent_allowed_tools())
+        self.allowed_tools = set(allowed_tools or get_agent_allowed_tools())
 
     def register(self, tool: Tool) -> None:
         if tool.name in self._tools:
@@ -22,7 +25,6 @@ class ToolRegistry:
             raise PermissionError(f"工具不在白名单中: {name}")
 
         tool = self._tools.get(name)
-
         if tool is None:
             raise ValueError(f"未知工具: {name}")
 
@@ -34,6 +36,8 @@ class ToolRegistry:
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": tool.parameters,
+                "source": getattr(tool, "source", "internal"),
+                "risk_level": getattr(tool, "risk_level", "low"),
             }
             for tool in self._tools.values()
         ]

@@ -156,6 +156,15 @@ class Settings(BaseSettings):
         alias="AGENT_MAX_TOOL_RESULT_CHARS",
     )
 
+    mcp_enabled: bool = Field(default=False, alias="MCP_ENABLED")
+    mcp_allowed_tools: str = Field(default="", alias="MCP_ALLOWED_TOOLS")
+    mcp_max_result_chars: int = Field(
+        default=tool_max_chars_default, alias="MCP_MAX_RESULT_CHARS"
+    )
+    mcp_default_timeout_seconds: int = Field(
+        default=15, alias="MCP_DEFAULT_TIMEOUT_SECONDS"
+    )
+
     model_config = SettingsConfigDict(
         env_file=[".env", ".env.api_keys"],
         env_file_encoding="utf-8",

@@ -646,6 +646,7 @@ class AssistantOrchestrator:
             max_steps=request.options.max_steps,
             model=selected_model,
             enable_working_memory=request.options.enable_working_memory,
+            enable_mcp_tools=request.options.enable_mcp_tools,
             memory_context=(
                 long_term_memory_items if request.options.enable_working_memory else []
             ),
@@ -747,6 +748,7 @@ class AssistantOrchestrator:
                 "total_ms": latency_ms,
             },
             "context": trace.get("context"),
+            "mcp": trace.get("mcp"),
             "memory": {
                 "short_term": self._build_short_term_memory_trace(
                     enabled=request.options.enable_short_term_memory,

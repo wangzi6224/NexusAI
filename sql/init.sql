@@ -311,3 +311,33 @@ ON memory_items(updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_memory_items_importance
 ON memory_items(importance DESC);
+
+
+CREATE TABLE IF NOT EXISTS mcp_tool_audit_logs (
+    id TEXT PRIMARY KEY,
+    assistant_run_id TEXT,
+    agent_run_id TEXT,
+    conversation_id TEXT,
+    server_name TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    full_tool_name TEXT NOT NULL,
+    arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
+    success BOOLEAN NOT NULL,
+    error_code TEXT,
+    error_message TEXT,
+    latency_ms INTEGER,
+    result_chars INTEGER NOT NULL DEFAULT 0,
+    risk_level TEXT NOT NULL DEFAULT 'low',
+    source TEXT NOT NULL DEFAULT 'mcp',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_logs_conversation
+ON mcp_tool_audit_logs(conversation_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_logs_agent_run
+ON mcp_tool_audit_logs(agent_run_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_logs_tool
+ON mcp_tool_audit_logs(server_name, tool_name, created_at DESC);
