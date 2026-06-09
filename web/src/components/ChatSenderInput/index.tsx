@@ -65,15 +65,16 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
             gap={8}
             className={styles.footer}
           >
-            <Tooltip title="自动会按问题类型选择普通聊天或工具增强 Agent">
+            <Tooltip title="自动会按问题类型选择；MCP = 使用外部工具，不是新的回答模式">
               <Segmented
                 size="small"
                 value={mode}
                 onChange={(value) => setMode(value as AssistantMode)}
                 options={[
                   { label: '自动', value: 'auto' },
-                  { label: '聊天', value: 'chat' },
+                  { label: '普通', value: 'chat' },
                   { label: 'Agent', value: 'agent' },
+                  { label: 'MCP 外部工具', value: 'mcp' },
                 ]}
                 className={styles.modeSegmented}
               />

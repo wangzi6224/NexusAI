@@ -47,7 +47,7 @@ export interface ChatMessage {
   assistantRunId?: string;
   agentRunId?: string;
   requestedMode?: AssistantMode;
-  resolvedMode?: 'chat' | 'agent';
+  resolvedMode?: 'chat' | 'agent' | 'mcp';
   routeReason?: string;
   matchedKeywords?: string[];
   toolCalls?: AssistantToolCallEvent[];
@@ -179,7 +179,9 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
     latency_ms:
       typeof metadata.latency_ms === 'number' ? metadata.latency_ms : undefined,
     resolvedMode:
-      metadata.mode === 'chat' || metadata.mode === 'agent'
+      metadata.mode === 'chat' ||
+      metadata.mode === 'agent' ||
+      metadata.mode === 'mcp'
         ? metadata.mode
         : undefined,
     assistantRunId:
@@ -195,9 +197,10 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
   };
 }
 
-function getModeLabel(mode?: AssistantMode | 'chat' | 'agent'): string {
+function getModeLabel(mode?: AssistantMode | 'chat' | 'agent' | 'mcp'): string {
   if (mode === 'agent') return 'Agent';
-  if (mode === 'chat') return '聊天';
+  if (mode === 'mcp') return 'MCP 外部工具';
+  if (mode === 'chat') return '普通';
   return '自动';
 }
 
@@ -554,6 +557,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
             mode: requestedMode,
             provider: currentProvider || null,
             model: currentModel || null,
+            options:
+              requestedMode === 'mcp'
+                ? {
+                    enable_mcp_tools: true,
+                    enable_tools: true,
+                    enable_working_memory: true,
+                    enable_long_term_memory: true,
+                    max_steps: 6,
+                  }
+                : undefined,
           },
           (chunk: AssistantStreamChunk) => {
             if (chunk.event === 'assistant_start') {

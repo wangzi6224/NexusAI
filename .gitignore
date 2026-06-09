@@ -21,6 +21,7 @@ web/.yarn/
 web/.pnp.*
 
 mcp-server/node_modules/
+mcp-server/dist/
 
 
 # Umi / Max cache and build output

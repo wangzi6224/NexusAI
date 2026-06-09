@@ -92,7 +92,7 @@ export interface SendMessageRequest {
   model?: string | null;
 }
 
-export type AssistantMode = 'auto' | 'chat' | 'agent';
+export type AssistantMode = 'auto' | 'chat' | 'agent' | 'mcp';
 
 export interface AssistantStreamRequest {
   message: string;
@@ -106,6 +106,8 @@ export interface AssistantStreamRequest {
     enable_tools?: boolean;
     enable_rag_tools?: boolean;
     enable_mcp_tools?: boolean;
+    enable_working_memory?: boolean;
+    enable_long_term_memory?: boolean;
   };
 }
 
@@ -158,6 +160,9 @@ export interface AssistantToolCallEvent {
   latency_ms?: number;
   error_code?: string | null;
   error_message?: string | null;
+  source?: 'internal' | 'mcp' | string;
+  server_name?: string | null;
+  risk_level?: 'low' | 'medium' | 'high' | string | null;
   result?: Record<string, unknown>;
 }
 
@@ -211,7 +216,7 @@ export interface AssistantRunItem {
   conversation_id: string;
   user_message_id?: string | null;
   assistant_message_id?: string | null;
-  mode: AssistantMode | 'chat' | 'agent';
+  mode: AssistantMode | 'chat' | 'agent' | 'mcp';
   status: string;
   input: string;
   final_answer?: string | null;
@@ -231,7 +236,7 @@ export interface AssistantStreamChunk {
   assistant_run_id?: string;
   conversation_id?: string;
   requested_mode?: AssistantMode;
-  mode?: 'chat' | 'agent';
+  mode?: 'chat' | 'agent' | 'mcp';
   reason?: string;
   matched_keywords?: string[];
   assistant_message_id?: string;

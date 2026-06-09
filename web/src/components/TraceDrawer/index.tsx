@@ -1,6 +1,7 @@
 import { ChatMessage } from '@/contexts/ChatContext';
 import type {
   AssistantRunItem,
+  AssistantToolCallEvent,
   ContextTrace,
   ContextTraceItem,
 } from '@/services/api';
@@ -33,8 +34,127 @@ type DroppedContextTraceItem = ContextTrace['dropped_items'][number] & {
   source?: string;
 };
 
+type McpTrace = {
+  enabled: boolean;
+  used: boolean;
+  server_list: string[];
+  allowed_tools: string[];
+  tool_calls: AssistantToolCallEvent[];
+  audit_ids: string[];
+  permission_denied_records: Array<Record<string, unknown>>;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function getNestedString(
+  value: Record<string, unknown> | undefined,
+  path: string[],
+): string | undefined {
+  let current: unknown = value;
+
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined;
+    }
+
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return typeof current === 'string' ? current : undefined;
+}
+
+function inferMcpServerName(toolName?: string): string | undefined {
+  if (!toolName?.startsWith('mcp__')) return undefined;
+
+  const [, serverName] = toolName.split('__');
+  return serverName || undefined;
+}
+
+function getToolSource(tc: AssistantToolCallEvent): string {
+  return (
+    tc.source ||
+    getNestedString(tc.result, ['metadata', 'source']) ||
+    (tc.tool_name?.startsWith('mcp__') ? 'mcp' : 'internal')
+  );
+}
+
+function getServerName(tc: AssistantToolCallEvent): string | undefined {
+  return (
+    tc.server_name ||
+    getNestedString(tc.result, ['metadata', 'server_name']) ||
+    getNestedString(tc.result, ['data', 'server_name']) ||
+    inferMcpServerName(tc.tool_name)
+  );
+}
+
+function getRiskLevel(tc: AssistantToolCallEvent): string {
+  return (
+    tc.risk_level ||
+    getNestedString(tc.result, ['metadata', 'risk_level']) ||
+    'low'
+  );
+}
+
+function getToolStatus(tc: AssistantToolCallEvent): string {
+  if (tc.error_code === 'MCP_PERMISSION_DENIED') return 'denied';
+  if (tc.success === undefined) return 'running';
+  return tc.success ? 'success' : 'failed';
+}
+
+function getStatusColor(status: string): string {
+  if (status === 'success') return 'success';
+  if (status === 'denied') return 'warning';
+  if (status === 'failed') return 'error';
+  return 'processing';
+}
+
+function getRiskColor(riskLevel: string): string {
+  if (riskLevel === 'high') return 'error';
+  if (riskLevel === 'medium') return 'warning';
+  return 'success';
+}
+
+function asMcpTrace(
+  value: unknown,
+  fallbackToolCalls: AssistantToolCallEvent[],
+): McpTrace {
+  const trace = isRecord(value) ? value : {};
+  const traceToolCalls = Array.isArray(trace.tool_calls)
+    ? (trace.tool_calls as AssistantToolCallEvent[])
+    : [];
+  const toolCalls =
+    traceToolCalls.length > 0
+      ? traceToolCalls
+      : fallbackToolCalls.filter((item) => getToolSource(item) === 'mcp');
+  const permissionDeniedRecords = Array.isArray(
+    trace.permission_denied_records,
+  )
+    ? (trace.permission_denied_records as Array<Record<string, unknown>>)
+    : toolCalls
+        .filter((item) => getToolStatus(item) === 'denied')
+        .map((item) => item as Record<string, unknown>);
+
+  return {
+    enabled:
+      typeof trace.enabled === 'boolean' ? trace.enabled : toolCalls.length > 0,
+    used: typeof trace.used === 'boolean' ? trace.used : toolCalls.length > 0,
+    server_list:
+      stringArray(trace.server_list).length > 0
+        ? stringArray(trace.server_list)
+        : stringArray(trace.servers),
+    allowed_tools: stringArray(trace.allowed_tools),
+    tool_calls: toolCalls,
+    audit_ids: stringArray(trace.audit_ids),
+    permission_denied_records: permissionDeniedRecords,
+  };
 }
 
 function asContextTrace(value: unknown): ContextTrace | null {
@@ -204,6 +324,74 @@ const droppedColumns: ColumnsType<DroppedContextTraceItem> = [
   },
 ];
 
+const mcpToolColumns: ColumnsType<AssistantToolCallEvent> = [
+  {
+    title: 'Tool',
+    dataIndex: 'tool_name',
+    key: 'tool_name',
+    width: 240,
+    render: (value?: string) =>
+      value ? (
+        <Text code className={styles.idText}>
+          {value}
+        </Text>
+      ) : (
+        '-'
+      ),
+  },
+  {
+    title: 'Source',
+    key: 'source',
+    width: 100,
+    render: (_, record) => <Tag color="purple">{getToolSource(record)}</Tag>,
+  },
+  {
+    title: 'Server',
+    key: 'server_name',
+    width: 150,
+    render: (_, record) => getServerName(record) || '-',
+  },
+  {
+    title: 'Risk',
+    key: 'risk_level',
+    width: 100,
+    render: (_, record) => {
+      const riskLevel = getRiskLevel(record);
+      return <Tag color={getRiskColor(riskLevel)}>{riskLevel}</Tag>;
+    },
+  },
+  {
+    title: 'Status',
+    key: 'status',
+    width: 110,
+    render: (_, record) => {
+      const status = getToolStatus(record);
+      return <Tag color={getStatusColor(status)}>{status}</Tag>;
+    },
+  },
+  {
+    title: 'Latency',
+    dataIndex: 'latency_ms',
+    key: 'latency_ms',
+    width: 100,
+    render: (value?: number) =>
+      typeof value === 'number' ? `${value}ms` : '-',
+  },
+  {
+    title: 'Error',
+    key: 'error',
+    render: (_, record) =>
+      record.error_message ? (
+        <Text type="danger">
+          {record.error_code ? `[${record.error_code}] ` : ''}
+          {record.error_message}
+        </Text>
+      ) : (
+        '-'
+      ),
+  },
+];
+
 const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
   const [open, setOpen] = useState(false);
   const [runDetail, setRunDetail] = useState<AssistantRunItem | null>(null);
@@ -240,6 +428,7 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
   const selectedItems = contextTrace?.selected_items || [];
   const droppedItems = (contextTrace?.dropped_items ||
     []) as DroppedContextTraceItem[];
+  const mcpTrace = asMcpTrace(trace.mcp, toolCalls);
 
   return (
     <>
@@ -290,10 +479,18 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
                       <Descriptions.Item label="Mode">
                         <Tag
                           color={
-                            resolvedMode === 'agent' ? 'processing' : 'cyan'
+                            resolvedMode === 'agent'
+                              ? 'processing'
+                              : resolvedMode === 'mcp'
+                              ? 'purple'
+                              : 'cyan'
                           }
                         >
-                          {resolvedMode === 'agent' ? 'Agent' : '聊天'}
+                          {resolvedMode === 'agent'
+                            ? 'Agent'
+                            : resolvedMode === 'mcp'
+                            ? 'MCP 外部工具'
+                            : '普通'}
                         </Tag>
                       </Descriptions.Item>
                     )}
@@ -527,6 +724,125 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description="暂无 Context Trace"
                 />
+              ),
+            },
+            {
+              key: 'mcp',
+              label: 'MCP',
+              children: (
+                <>
+                  <div className={styles.section}>
+                    <Text strong className={styles.sectionTitle}>
+                      Summary
+                    </Text>
+                    <Descriptions column={2} size="small" bordered>
+                      <Descriptions.Item label="enabled">
+                        <Tag color={mcpTrace.enabled ? 'success' : 'default'}>
+                          {String(mcpTrace.enabled)}
+                        </Tag>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="used">
+                        <Tag color={mcpTrace.used ? 'processing' : 'default'}>
+                          {String(mcpTrace.used)}
+                        </Tag>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="server list">
+                        {mcpTrace.server_list.length > 0 ? (
+                          <Space size={[4, 4]} wrap>
+                            {mcpTrace.server_list.map((server) => (
+                              <Tag key={server} color="geekblue">
+                                {server}
+                              </Tag>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Text type="secondary">-</Text>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="allowed tools">
+                        {mcpTrace.allowed_tools.length > 0 ? (
+                          <Space size={[4, 4]} wrap>
+                            {mcpTrace.allowed_tools.map((tool) => (
+                              <Tag key={tool} color="blue">
+                                {tool}
+                              </Tag>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Text type="secondary">-</Text>
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="audit ids">
+                        {mcpTrace.audit_ids.length > 0 ? (
+                          <Space direction="vertical" size={2}>
+                            {mcpTrace.audit_ids.map((auditId) => (
+                              <Text
+                                key={auditId}
+                                copyable
+                                code
+                                className={styles.idText}
+                              >
+                                {auditId}
+                              </Text>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Text type="secondary">-</Text>
+                        )}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </div>
+
+                  <div className={styles.section}>
+                    <Text strong className={styles.sectionTitle}>
+                      Tool Calls ({mcpTrace.tool_calls.length})
+                    </Text>
+                    {mcpTrace.tool_calls.length > 0 ? (
+                      <Table
+                        size="small"
+                        rowKey={(record, index) =>
+                          `${record.tool_name || 'mcp-tool'}-${
+                            record.step ?? index
+                          }`
+                        }
+                        columns={mcpToolColumns}
+                        dataSource={mcpTrace.tool_calls}
+                        pagination={false}
+                        scroll={{ x: 920 }}
+                      />
+                    ) : (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description="暂无 MCP 工具调用"
+                      />
+                    )}
+                  </div>
+
+                  <div className={styles.section}>
+                    <Text strong className={styles.sectionTitle}>
+                      Permission Denied Records (
+                      {mcpTrace.permission_denied_records.length})
+                    </Text>
+                    {mcpTrace.permission_denied_records.length > 0 ? (
+                      <List
+                        size="small"
+                        dataSource={mcpTrace.permission_denied_records}
+                        renderItem={(record, idx) => (
+                          <List.Item key={idx} className={styles.listItem}>
+                            <Text code className={styles.traceJsonInline}>
+                              {JSON.stringify(record, null, 2)}
+                            </Text>
+                          </List.Item>
+                        )}
+                      />
+                    ) : (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description="暂无权限拒绝记录"
+                      />
+                    )}
+                  </div>
+                </>
               ),
             },
             {

@@ -15,11 +15,83 @@ interface ToolCallTimelineProps {
   toolCalls?: AssistantToolCallEvent[];
 }
 
+function getNestedString(
+  value: Record<string, unknown> | undefined,
+  path: string[],
+): string | undefined {
+  let current: unknown = value;
+
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined;
+    }
+
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return typeof current === 'string' ? current : undefined;
+}
+
+function inferMcpServerName(toolName?: string): string | undefined {
+  if (!toolName?.startsWith('mcp__')) return undefined;
+
+  const [, serverName] = toolName.split('__');
+  return serverName || undefined;
+}
+
+function getToolSource(tc: AssistantToolCallEvent): string {
+  return (
+    tc.source ||
+    getNestedString(tc.result, ['metadata', 'source']) ||
+    (tc.tool_name?.startsWith('mcp__') ? 'mcp' : 'internal')
+  );
+}
+
+function getServerName(tc: AssistantToolCallEvent): string | undefined {
+  return (
+    tc.server_name ||
+    getNestedString(tc.result, ['metadata', 'server_name']) ||
+    getNestedString(tc.result, ['data', 'server_name']) ||
+    inferMcpServerName(tc.tool_name)
+  );
+}
+
+function getRiskLevel(tc: AssistantToolCallEvent): string {
+  return (
+    tc.risk_level ||
+    getNestedString(tc.result, ['metadata', 'risk_level']) ||
+    'low'
+  );
+}
+
+function getStatusLabel(tc: AssistantToolCallEvent): string {
+  if (tc.error_code === 'MCP_PERMISSION_DENIED') return 'denied';
+  if (tc.success === undefined) return 'running';
+  return tc.success ? 'success' : 'failed';
+}
+
+function getStatusColor(status: string): string {
+  if (status === 'success') return 'success';
+  if (status === 'denied') return 'warning';
+  if (status === 'failed') return 'error';
+  return 'processing';
+}
+
+function getRiskColor(riskLevel: string): string {
+  if (riskLevel === 'high') return 'error';
+  if (riskLevel === 'medium') return 'warning';
+  return 'success';
+}
+
 const ToolCallTimeline: React.FC<ToolCallTimelineProps> = ({ toolCalls }) => {
   if (!toolCalls || toolCalls.length === 0) return null;
 
   const items = toolCalls.map((tc, idx) => {
     const key = `${tc.tool_name ?? 'tool'}-${tc.step ?? idx}`;
+    const source = getToolSource(tc);
+    const serverName = getServerName(tc);
+    const riskLevel = getRiskLevel(tc);
+    const status = getStatusLabel(tc);
 
     // 状态图标
     let dot: React.ReactNode;
@@ -57,6 +129,10 @@ const ToolCallTimeline: React.FC<ToolCallTimelineProps> = ({ toolCalls }) => {
             <Text strong className={styles.toolName}>
               {tc.tool_name || '未知工具'}
             </Text>
+            <Tag color={source === 'mcp' ? 'purple' : 'blue'}>{source}</Tag>
+            {serverName && <Tag color="geekblue">{serverName}</Tag>}
+            <Tag color={getRiskColor(riskLevel)}>{riskLevel}</Tag>
+            <Tag color={getStatusColor(status)}>{status}</Tag>
             {tc.step !== undefined && (
               <Tag color="default" className={styles.stepTag}>
                 Step {tc.step}
@@ -64,7 +140,7 @@ const ToolCallTimeline: React.FC<ToolCallTimelineProps> = ({ toolCalls }) => {
             )}
             {tc.latency_ms !== undefined && (
               <Text type="secondary" className={styles.latency}>
-                {tc.latency_ms} ms
+                {tc.latency_ms}ms
               </Text>
             )}
           </div>
