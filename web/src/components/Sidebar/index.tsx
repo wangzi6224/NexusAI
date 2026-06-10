@@ -1,5 +1,6 @@
 import { useChatContext } from '@/contexts/ChatContext';
 import {
+  ApiOutlined,
   DeleteOutlined,
   FileTextOutlined,
   MessageOutlined,
@@ -257,7 +258,7 @@ const Sidebar: React.FC = () => {
              <Text className={styles.quickToolTitle}>文档管理</Text>
              <Text className={styles.quickToolArrow}>›</Text>
            </div>
-           <div
+          <div
             className={styles.quickToolItem}
             onClick={() => {
               window.location.href = '/traces';
@@ -265,6 +266,16 @@ const Sidebar: React.FC = () => {
            >
              <RadarChartOutlined className={styles.quickToolIcon} />
              <Text className={styles.quickToolTitle}>Agent Trace</Text>
+             <Text className={styles.quickToolArrow}>›</Text>
+           </div>
+           <div
+            className={styles.quickToolItem}
+            onClick={() => {
+              window.location.href = '/admin/mcp';
+             }}
+           >
+             <ApiOutlined className={styles.quickToolIcon} />
+             <Text className={styles.quickToolTitle}>MCP 管理</Text>
              <Text className={styles.quickToolArrow}>›</Text>
            </div>
          </div>

@@ -1,0 +1,172 @@
+.page {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f8 100%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 !important;
+}
+
+.subtitle {
+  display: block;
+  max-width: 720px;
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.summaryGrid {
+  margin-bottom: 16px;
+}
+
+.metric {
+  position: relative;
+  display: flex;
+  min-height: 92px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 16px 14px 54px;
+  background: #ffffff;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+
+  strong {
+    margin-top: 4px;
+    color: #0f172a;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+}
+
+.metricIcon,
+.metricIconDanger {
+  position: absolute;
+  top: 22px;
+  left: 16px;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  color: #1677ff;
+  background: #eef6ff;
+  border-radius: 8px;
+}
+
+.metricIconDanger {
+  color: #cf1322;
+  background: #fff1f0;
+}
+
+.metricLabel {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.card {
+  margin-bottom: 16px;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.alert {
+  margin-bottom: 12px;
+}
+
+.selectedRow {
+  td {
+    background: #f0f8ff !important;
+  }
+}
+
+.linkButton {
+  height: auto;
+  padding: 0;
+  font-weight: 600;
+}
+
+.tableParagraph {
+  margin-bottom: 0 !important;
+}
+
+.riskSelect {
+  width: 130px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.jsonTextArea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+}
+
+.fieldHint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.argList,
+.envEditor,
+.drawerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.argRow,
+.envRow {
+  width: 100%;
+
+  :global(.ant-form-item) {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
+
+.codeBlock {
+  max-height: 420px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  color: #0f172a;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f8fafc;
+  border: 1px solid #dde7f0;
+  border-radius: 8px;
+}
+
+.resultBox {
+  margin-top: 4px;
+}
+
+.resultContent {
+  max-height: 220px;
+  margin-bottom: 0 !important;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 14px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+}

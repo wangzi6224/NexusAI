@@ -36,6 +36,11 @@ const routes: RoutesTypes = [
     component: './AgentTrace/Detail',
     layout: false,
   },
+  {
+    path: '/admin/mcp',
+    component: './McpManagePage',
+    layout: false,
+  },
 ];
 
 export default routes;
