@@ -369,3 +369,35 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled
 ON mcp_servers(enabled);
+
+-- =====================================================
+-- mcp_tools：第三方 MCP Tool 动态注册配置
+-- =====================================================
+CREATE TABLE IF NOT EXISTS mcp_tools (
+    id TEXT PRIMARY KEY,
+    server_id TEXT NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+    server_name TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    full_name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    input_schema JSONB NOT NULL DEFAULT '{}'::jsonb,
+    risk_level TEXT NOT NULL DEFAULT 'low',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    discovered_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT mcp_tools_risk_level_check CHECK (
+        risk_level IN ('low', 'medium', 'high')
+    ),
+
+    UNIQUE (server_id, tool_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_tools_server_enabled
+ON mcp_tools(server_id, enabled);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_tools_full_name
+ON mcp_tools(full_name);
+
