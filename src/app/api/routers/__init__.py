@@ -11,6 +11,7 @@ from src.app.api.routers import (
     history_models,
     rag,
     memory,
+    mcp,
 )
 
 ROUTERS = (
@@ -24,6 +25,7 @@ ROUTERS = (
     rag.router,
     agent.router,
     memory.router,
+    mcp.router,
 )
 
 __all__ = [
@@ -38,4 +40,5 @@ __all__ = [
     "history_models",
     "rag",
     "memory",
+    "mcp",
 ]
