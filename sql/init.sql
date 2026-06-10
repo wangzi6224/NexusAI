@@ -341,3 +341,31 @@ ON mcp_tool_audit_logs(agent_run_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_audit_logs_tool
 ON mcp_tool_audit_logs(server_name, tool_name, created_at DESC);
+
+-- =====================================================
+-- mcp_servers：第三方 MCP Server 动态注册配置
+-- =====================================================
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    transport TEXT NOT NULL DEFAULT 'stdio',
+    command TEXT NOT NULL,
+    args JSONB NOT NULL DEFAULT '[]'::jsonb,
+    env JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    timeout_seconds INTEGER NOT NULL DEFAULT 15,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT mcp_servers_transport_check CHECK (
+        transport IN ('stdio')
+    ),
+
+    CONSTRAINT mcp_servers_timeout_check CHECK (
+        timeout_seconds >= 1 AND timeout_seconds <= 120
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled
+ON mcp_servers(enabled);
