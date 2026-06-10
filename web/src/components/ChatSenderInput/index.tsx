@@ -37,7 +37,8 @@ const ChatSenderInput: React.FC<ChatSenderInputProps> = ({
       !e.shiftKey &&
       !e.ctrlKey &&
       !e.altKey &&
-      !e.metaKey
+      !e.metaKey &&
+      !e.nativeEvent.isComposing
     ) {
       e.preventDefault();
       handleSubmit(inputValue);
