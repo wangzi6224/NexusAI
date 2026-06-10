@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
+from psycopg.types.json import Jsonb
+
 from src.app.db import get_connection
 from src.app.services.mcp.schemas import McpToolCallResult
 
@@ -68,14 +70,14 @@ class McpAuditStore:
                         "server_name": result.server_name,
                         "tool_name": result.tool_name,
                         "full_tool_name": result.full_name,
-                        "arguments": arguments,
+                        "arguments": Jsonb(arguments),
                         "success": result.success,
                         "error_code": result.error_code,
                         "error_message": result.error_message,
                         "latency_ms": result.latency_ms,
                         "result_chars": len(result.content or ""),
                         "risk_level": risk_level,
-                        "metadata": metadata or {},
+                        "metadata": Jsonb(metadata or {}),
                     },
                 )
                 row = cur.fetchone()

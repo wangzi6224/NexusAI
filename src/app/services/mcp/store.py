@@ -5,6 +5,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from psycopg import sql
+from psycopg.types.json import Jsonb
 
 from src.app.db import get_connection
 from src.app.services.mcp.client import McpClient
@@ -93,7 +94,14 @@ class McpStore:
                     """,
                     {
                         "id": server_id,
-                        **payload.model_dump(mode="json"),
+                        "name": payload.name,
+                        "transport": payload.transport,
+                        "command": payload.command,
+                        "args": Jsonb(payload.args),
+                        "env": Jsonb(payload.env),
+                        "enabled": payload.enabled,
+                        "timeout_seconds": payload.timeout_seconds,
+                        "metadata": Jsonb(payload.metadata),
                     },
                 )
                 row = cur.fetchone()
@@ -114,6 +122,9 @@ class McpStore:
         data = current.model_dump(mode="json")
         patch = payload.model_dump(exclude_unset=True, mode="json")
         data.update(patch)
+        data["args"] = Jsonb(data["args"])
+        data["env"] = Jsonb(data["env"])
+        data["metadata"] = Jsonb(data["metadata"])
 
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -265,10 +276,10 @@ class McpStore:
                         "tool_name": payload.tool_name,
                         "full_name": full_name,
                         "description": payload.description,
-                        "input_schema": payload.input_schema,
+                        "input_schema": Jsonb(payload.input_schema),
                         "risk_level": payload.risk_level,
                         "enabled": payload.enabled,
-                        "metadata": payload.metadata,
+                        "metadata": Jsonb(payload.metadata),
                     },
                 )
                 row = cur.fetchone()
@@ -289,6 +300,8 @@ class McpStore:
         data = current.model_dump(mode="json")
         patch = payload.model_dump(exclude_unset=True, mode="json")
         data.update(patch)
+        data["input_schema"] = Jsonb(data["input_schema"])
+        data["metadata"] = Jsonb(data["metadata"])
 
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -368,10 +381,10 @@ class McpStore:
                             "tool_name": tool.tool_name,
                             "full_name": tool.full_name,
                             "description": tool.description,
-                            "input_schema": tool.input_schema,
+                            "input_schema": Jsonb(tool.input_schema),
                             "risk_level": tool.risk_level,
                             "enabled": tool.enabled,
-                            "metadata": tool.metadata,
+                            "metadata": Jsonb(tool.metadata),
                         },
                     )
                     saved.append(self._tool_from_row(self._required_row(cur.fetchone())))
