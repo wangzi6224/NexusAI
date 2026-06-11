@@ -396,6 +396,10 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
   const [open, setOpen] = useState(false);
   const [runDetail, setRunDetail] = useState<AssistantRunItem | null>(null);
   const [loading, setLoading] = useState(false);
+  const hasLocalTrace = Boolean(msg.trace && Object.keys(msg.trace).length > 0);
+  const hasTraceTarget = Boolean(
+    msg.assistantRunId || msg.agentRunId || hasLocalTrace,
+  );
 
   const handleOpen = useCallback(async () => {
     setOpen(true);
@@ -417,7 +421,7 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
     }
   }, [msg.assistantRunId, runDetail]);
 
-  if (!msg.assistantRunId) return null;
+  if (!hasTraceTarget) return null;
 
   const resolvedMode = runDetail?.mode || msg.resolvedMode;
   const toolCalls = msg.toolCalls || [];
@@ -439,11 +443,11 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
         className={styles.traceBtn}
         onClick={handleOpen}
       >
-        查看 Trace
+        {msg.assistantRunId ? '查看 Trace' : '查看工具 Trace'}
       </Button>
 
       <Drawer
-        title="Assistant Trace"
+        title={msg.assistantRunId ? 'Assistant Trace' : 'Tool Trace'}
         className={styles.drawer}
         open={open}
         onClose={() => setOpen(false)}
@@ -463,11 +467,13 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
                     bordered
                     className={styles.descriptions}
                   >
-                    <Descriptions.Item label="Assistant Run ID">
-                      <Text copyable code className={styles.idText}>
-                        {msg.assistantRunId}
-                      </Text>
-                    </Descriptions.Item>
+                    {msg.assistantRunId && (
+                      <Descriptions.Item label="Assistant Run ID">
+                        <Text copyable code className={styles.idText}>
+                          {msg.assistantRunId}
+                        </Text>
+                      </Descriptions.Item>
+                    )}
                     {(runDetail?.agent_run_id || msg.agentRunId) && (
                       <Descriptions.Item label="Agent Run ID">
                         <Text copyable code className={styles.idText}>

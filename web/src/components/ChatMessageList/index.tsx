@@ -62,13 +62,17 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
             metaParts.push(`${msg.usage.total_tokens} tokens`);
 
           const toolCount = msg.toolCalls?.length || 0;
+          const hasTrace =
+            Boolean(msg.assistantRunId) ||
+            Boolean(msg.agentRunId) ||
+            Boolean(msg.trace && Object.keys(msg.trace).length > 0);
 
           if (
             msg.resolvedMode ||
             msg.statusText ||
             toolCount > 0 ||
             metaParts.length > 0 ||
-            msg.assistantRunId
+            hasTrace
           ) {
             item.footer = (
               <Space size={6} wrap className={styles.metaLine}>
@@ -95,7 +99,7 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     {metaParts.join(' · ')}
                   </Text>
                 ) : null}
-                {!isStreaming && msg.assistantRunId ? (
+                {!isStreaming && hasTrace ? (
                   <TraceDrawer msg={msg} />
                 ) : null}
               </Space>
