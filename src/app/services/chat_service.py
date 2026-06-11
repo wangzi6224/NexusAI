@@ -36,7 +36,11 @@ def handle_chat(
     ]
 
     start = perf_counter()
-    llm_response = llm_provider.chat(messages=messages, model=selected_model)
+    llm_response = llm_provider.chat(
+        messages=messages,
+        model=selected_model,
+        thinking_enabled=True,
+    )
     elapsed = perf_counter() - start
     latency_ms = int(elapsed * 1000)
 
@@ -95,7 +99,11 @@ def handle_chat_stream(
     start = perf_counter()
 
     try:
-        for chunk in llm_provider.stream_chat(message=msg, model=selected_model):
+        for chunk in llm_provider.stream_chat(
+            message=msg,
+            model=selected_model,
+            thinking_enabled=True,
+        ):
 
             # 如果当前 chunk 表示流结束（done=True），则跳出循环
             if chunk.done:

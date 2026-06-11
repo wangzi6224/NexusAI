@@ -120,6 +120,7 @@ def send_conversation_message(
     llm_response = llm_provider.chat(
         messages=llm_messages,
         model=selected_model,
+        thinking_enabled=True,
     )
     elapsed = perf_counter() - start
     latency_ms = int(elapsed * 1000)
@@ -221,6 +222,7 @@ def stream_conversation_message(
         for chunk in llm_provider.stream_chat(
             message=llm_messages,
             model=selected_model,
+            thinking_enabled=True,
         ):
             if chunk.done:
                 break

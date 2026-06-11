@@ -136,7 +136,11 @@ class LongTermMemoryWriter:
             },
         ]
 
-        response = self.llm_provider.chat(messages=messages, model=model)
+        response = self.llm_provider.chat(
+            messages=messages,
+            model=model,
+            thinking_enabled=False,
+        )
 
         try:
             payload = self._parse_json_array(response.content)

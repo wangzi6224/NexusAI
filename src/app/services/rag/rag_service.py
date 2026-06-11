@@ -113,6 +113,7 @@ class RagService:
         response: LLMResponse = self.llm_provider.chat(
             messages=messages,
             model=selected_model,
+            thinking_enabled=False,
         )
         latency_ms = int((perf_counter() - start) * 1000)
 

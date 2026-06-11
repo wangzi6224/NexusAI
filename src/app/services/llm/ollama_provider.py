@@ -21,7 +21,12 @@ class OllamaProvider(LLMProvider):
             "keep_alive": get_settings().ollama_keep_alive,
         }
 
-    def chat(self, messages: list[dict[str, str]], model: str | None = None) -> LLMResponse:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        thinking_enabled: bool = False,
+    ) -> LLMResponse:
         # 获取配置信息
         config = self._get_ollama_config()
         base_url = config["base_url"]
@@ -75,7 +80,12 @@ class OllamaProvider(LLMProvider):
             usage=usage,
         )
 
-    def stream_chat(self, message: list[dict[str, str]], model: str | None = None) -> Iterator[LLMStreamChunk]:
+    def stream_chat(
+        self,
+        message: list[dict[str, str]],
+        model: str | None = None,
+        thinking_enabled: bool = False,
+    ) -> Iterator[LLMStreamChunk]:
         config = self._get_ollama_config()
         base_url = config["base_url"]
         selected_model = model or config["model"]

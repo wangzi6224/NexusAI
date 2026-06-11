@@ -16,9 +16,9 @@ class AssistantOptions(BaseModel):
     score_threshold: float = Field(default=0.3, ge=0, le=1)
     max_steps: int = Field(default=3, ge=1, le=8)
     max_context_tokens: int = Field(
-        default=8192,
+        default=327680,
         ge=1024,
-        le=32768,
+        le=327680,
         description="进入模型的上下文最大 token 数，超过部分将被截断",
     )
     enable_context_debug: bool = True

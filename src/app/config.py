@@ -59,10 +59,6 @@ class Settings(BaseSettings):
         alias="DEEPSEEK_MODEL",
     )
     deepseek_timeout: int = Field(default=120, alias="DEEPSEEK_TIMEOUT")
-    deepseek_thinking_enabled: bool = Field(
-        default=False,
-        alias="DEEPSEEK_THINKING_ENABLED",
-    )
     qwen_base_url: str = Field(
         default="https://dashscope.aliyuncs.com/compatible-mode/v1",
         alias="QWEN_BASE_URL",
@@ -282,7 +278,6 @@ def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, An
             "api_key_env": "QWEN_API_KEY",
             "model": settings.qwen_model,
             "timeout": settings.qwen_timeout,
-            "thinking_enabled": False,
         }
 
     if provider_name == "glm":
@@ -294,7 +289,6 @@ def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, An
             "api_key_env": "GLM_API_KEY",
             "model": settings.glm_model,
             "timeout": settings.glm_timeout,
-            "thinking_enabled": False,
         }
 
     return {
@@ -305,7 +299,6 @@ def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, An
         "api_key_env": "DEEPSEEK_API_KEY",
         "model": settings.deepseek_model,
         "timeout": settings.deepseek_timeout,
-        "thinking_enabled": settings.deepseek_thinking_enabled,
     }
 
 

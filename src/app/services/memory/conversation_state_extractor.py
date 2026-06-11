@@ -62,7 +62,9 @@ class ConversationStateExtractor:
             },
         ]
 
-        response = self.llm_provider.structured_chat(messages=messages, model=model)
+        response = self.llm_provider.structured_chat(
+            messages=messages, model=model, thinking_enabled=False
+        )
 
         try:
             payload = self._parse_json(response.content)

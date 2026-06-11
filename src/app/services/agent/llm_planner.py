@@ -44,7 +44,7 @@ class LLMPlanner:
 
         try:
             response = self.llm_provider.structured_chat(
-                messages=messages, model=selected_model
+                messages=messages, model=selected_model, thinking_enabled=False
             )
             decision = self.parser.parse(response.content)
             decision = self._validate_decision(state=state, decision=decision)

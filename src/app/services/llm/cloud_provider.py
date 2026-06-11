@@ -41,18 +41,18 @@ class CloudProvider(LLMProvider):
             timeout=config["timeout"],
         )
 
-    def _extra_body(self, config: CloudConfig) -> dict[str, object] | None:
-        if config["cloud_provider"] != "deepseek":
-            return None
-
-        enable_thinking: bool = config["thinking_enabled"]
+    def _extra_body(
+        self,
+        *,
+        thinking_enabled: bool,
+    ) -> dict[str, object] | None:
 
         return {
-            "enable_thinking": enable_thinking,
-            "enable_search": True,
+            "enable_thinking": thinking_enabled,
+            "enable_search": False,
             "search_options": {"search_strategy": "agent_max"},
             "thinking": {
-                "type": "enabled" if enable_thinking else "disabled",
+                "type": "enabled" if thinking_enabled else "disabled",
             },
         }
 
@@ -73,6 +73,7 @@ class CloudProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> LLMResponse:
         """
         非流式聊天接口，适用于一次性获取完整回复的场景。
@@ -88,7 +89,9 @@ class CloudProvider(LLMProvider):
             response = client.chat.completions.create(
                 model=selected_model,
                 messages=self._messages(messages),
-                extra_body=self._extra_body(config),
+                extra_body=self._extra_body(
+                    thinking_enabled=thinking_enabled,
+                ),
             )
         except APITimeoutError as exc:
             raise LLMProviderError(
@@ -126,6 +129,7 @@ class CloudProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> LLMResponse:
         config = self._get_cloud_config(model)
         selected_model = model or config["model"]
@@ -136,7 +140,9 @@ class CloudProvider(LLMProvider):
             response = client.chat.completions.create(
                 model=selected_model,
                 messages=self._messages(messages),
-                extra_body=self._extra_body(config),
+                extra_body=self._extra_body(
+                    thinking_enabled=thinking_enabled,
+                ),
                 response_format={"type": "json_object"},
             )
         except APITimeoutError as exc:
@@ -175,6 +181,7 @@ class CloudProvider(LLMProvider):
         self,
         message: list[dict[str, str]],
         model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> Iterator[LLMStreamChunk]:
         config = self._get_cloud_config(model)
         selected_model = model or config["model"]
@@ -186,7 +193,9 @@ class CloudProvider(LLMProvider):
                 model=selected_model,
                 messages=self._messages(message),
                 stream=True,
-                extra_body=self._extra_body(config),
+                extra_body=self._extra_body(
+                    thinking_enabled=thinking_enabled,
+                ),
             )
 
             for chunk in stream:

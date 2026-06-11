@@ -4,7 +4,7 @@ from src.app.services.context_engineering.schemas import ContextItem
 
 
 class ContextBudget:
-    def __init__(self, max_context_tokens: int = 8192) -> None:
+    def __init__(self, max_context_tokens: int = 327680) -> None:
         self.max_context_tokens = max_context_tokens
 
     def budget_for_type(self, item_type: str) -> int:
@@ -50,17 +50,19 @@ class ContextBudget:
                 total_used += item.estimated_tokens
                 continue
 
-            type_budget = self.budget_for_type(item.type)
+            # type_budget = self.budget_for_type(item.type)
             next_type_used = used_by_type[item.type] + item.estimated_tokens
             next_total_used = total_used + item.estimated_tokens
 
-            if next_total_used > self.max_context_tokens:
-                dropped.append((item, "over_budget"))
-                continue
+            # TODO 临时注释掉预算限制，后续根据实际情况调整预算分配和限制策略。
 
-            if next_type_used > type_budget:
-                dropped.append((item, "type_budget_exceeded"))
-                continue
+            # if next_total_used > self.max_context_tokens:
+            #     dropped.append((item, "over_budget"))
+            #     continue
+
+            # if next_type_used > type_budget:
+            #     dropped.append((item, "type_budget_exceeded"))
+            #     continue
 
             selected.append(item)
             used_by_type[item.type] = next_type_used

@@ -36,7 +36,7 @@ class LLMModeRouter:
         )
         # 这里直接调用 LLM 进行路由决策
         response = self.llm_provider.structured_chat(
-            messages=messages, model=llm_router_model
+            messages=messages, model=llm_router_model, thinking_enabled=False
         )
         latency_ms = int((perf_counter() - start) * 1000)
 

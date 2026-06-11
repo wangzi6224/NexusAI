@@ -25,7 +25,6 @@ class DeepSeekConfig(TypedDict):
     api_key: str
     model: str
     timeout: int
-    thinking_enabled: bool
 
 
 @dataclass
@@ -37,7 +36,6 @@ class CloudConfig(TypedDict):
     api_key_env: str
     model: str
     timeout: int
-    thinking_enabled: bool
 
 
 @dataclass
@@ -61,20 +59,29 @@ class LLMProvider(ABC):
 
     @abstractmethod
     def chat(
-        self, messages: list[dict[str, str]], model: str | None = None
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> LLMResponse:
         """调用聊天模型并返回统一结构。"""
         raise NotImplementedError
 
     def structured_chat(
-        self, messages: list[dict[str, str]], model: str | None = None
+        self,
+        messages: list[dict[str, str]],
+        model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> LLMResponse:
         """调用聊天模型并返回结构化响应。"""
         raise NotImplementedError
 
     @abstractmethod
     def stream_chat(
-        self, message: list[dict[str, str]], model: str | None = None
+        self,
+        message: list[dict[str, str]],
+        model: str | None = None,
+        thinking_enabled: bool = False,
     ) -> Iterator[LLMStreamChunk]:
         """调用聊天模型并以流式方式返回响应。"""
         raise NotImplementedError

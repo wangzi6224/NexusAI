@@ -65,6 +65,7 @@ class AgentService:
         enable_mcp_tools: bool = False,
         memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
+        assistant_run_id: str | None = None,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
 
@@ -183,7 +184,7 @@ class AgentService:
             conversation_summary=conversation.get("summary"),
             conversation_state=conversation_state,
             long_term_memory_items=memory_context or [],
-            max_context_tokens=8192,
+            max_context_tokens=327680,
         )
 
         final_messages = context_package.messages
@@ -193,6 +194,7 @@ class AgentService:
         response = self.llm_provider.chat(
             messages=final_messages,
             model=selected_model,
+            thinking_enabled=False,
         )
 
         final_answer_latency_ms = int((perf_counter() - final_answer_start) * 1000)
@@ -277,6 +279,7 @@ class AgentService:
             content=response.content,
             metadata={
                 "type": "agent_answer",
+                "assistant_run_id": assistant_run_id,
                 "user_message_id": user_message["id"],
                 "run_id": run_id,
                 "tool_calls": tool_calls,

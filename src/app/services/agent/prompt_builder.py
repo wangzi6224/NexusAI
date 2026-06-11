@@ -19,7 +19,7 @@ class AgentPromptBuilder:
         conversation_summary: str | None,
         conversation_state: dict[str, Any] | None,
         long_term_memory_items: list[Any],
-        max_context_tokens: int = 8192,
+        max_context_tokens: int = 327680,
     ) -> ContextPackage:
         tool_steps = [step.model_dump(mode="json") for step in state.steps]
         observations = [item.model_dump(mode="json") for item in state.observations]

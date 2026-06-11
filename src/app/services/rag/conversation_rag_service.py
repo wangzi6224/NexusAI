@@ -169,6 +169,7 @@ class ConversationRagService:
         response = self.llm_provider.chat(
             messages=messages,
             model=selected_model,
+            thinking_enabled=False,
         )
         generation_latency_ms = int((perf_counter() - generation_start) * 1000)
 

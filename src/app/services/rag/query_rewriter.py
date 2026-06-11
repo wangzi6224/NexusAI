@@ -28,6 +28,7 @@ class QueryRewriter:
             response = self.llm_provider.chat(
                 messages=messages,
                 model=selected_model,
+                thinking_enabled=False,
             )
 
             rewritten_query = self._clean_output(response.content)

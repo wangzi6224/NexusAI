@@ -449,6 +449,7 @@ class AssistantOrchestrator:
         for chunk in llm_provider.stream_chat(
             message=llm_messages,
             model=selected_model,
+            thinking_enabled=True,
         ):
             if chunk.done:
                 break
@@ -647,6 +648,7 @@ class AssistantOrchestrator:
             model=selected_model,
             enable_working_memory=request.options.enable_working_memory,
             enable_mcp_tools=request.options.enable_mcp_tools,
+            assistant_run_id=assistant_run_id,
             memory_context=(
                 long_term_memory_items if request.options.enable_working_memory else []
             ),

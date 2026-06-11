@@ -99,7 +99,7 @@ class ContextBuildRequest(BaseModel):
     user_message: str
     mode: Literal["chat", "agent"]
 
-    max_context_tokens: int = 8192
+    max_context_tokens: int = 163840
 
     conversation_summary: str | None = None
     conversation_state: dict[str, Any] | None = None
