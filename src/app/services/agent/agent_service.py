@@ -13,6 +13,7 @@ from src.app.config import (
     get_llm_provider_name,
     resolve_llm_model,
     get_agent_planner_type,
+    resolve_max_context_tokens,
 )
 from src.app.conversation_store import (
     create_message,
@@ -66,6 +67,7 @@ class AgentService:
         memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
         assistant_run_id: str | None = None,
+        max_context_tokens: int | None = None,
     ) -> dict[str, Any]:
         conversation = get_conversation(conversation_id)
 
@@ -88,6 +90,10 @@ class AgentService:
             model=model,
             stored_model=conversation.get("model"),
             stored_provider=conversation.get("provider"),
+        )
+        resolved_max_context_tokens = resolve_max_context_tokens(
+            selected_model,
+            max_context_tokens,
         )
 
         user_message = create_message(
@@ -184,7 +190,7 @@ class AgentService:
             conversation_summary=conversation.get("summary"),
             conversation_state=conversation_state,
             long_term_memory_items=memory_context or [],
-            max_context_tokens=327680,
+            max_context_tokens=resolved_max_context_tokens,
         )
 
         final_messages = context_package.messages

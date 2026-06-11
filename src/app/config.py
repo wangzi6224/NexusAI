@@ -138,6 +138,19 @@ class Settings(BaseSettings):
         alias="LLM_ROUTER_MODEL",
     )
 
+    max_context_default_tokens: int = Field(
+        default=1048576, alias="MAX_CONTEXT_TOKENS_DEFAULT"
+    )
+    llm_max_context_tokens: str = Field(
+        default=(
+            "glm-5.1:198000,"
+            "deepseek-v4-flash:1048576,"
+            "deepseek-v4-pro:1048576,"
+            "qwen3.7-max:1048576"
+        ),
+        alias="LLM_MAX_CONTEXT_TOKENS",
+    )
+
     # Agent 工具调用相关配置
     agent_allowed_tools: str = Field(
         default="list_docs,search_docs,read_doc",
@@ -300,6 +313,66 @@ def get_cloud_provider_config(cloud_provider: str | None = None) -> dict[str, An
         "model": settings.deepseek_model,
         "timeout": settings.deepseek_timeout,
     }
+
+
+def _normalize_model_key(model: str | None) -> str:
+    return (model or "").strip().lower()
+
+
+def get_llm_max_context_token_map() -> dict[str, int]:
+    """返回按模型配置的最大上下文 token 数。
+
+    配置格式：
+    LLM_MAX_CONTEXT_TOKENS=glm-5.1:198000,deepseek-v4-flash:1048576
+    """
+    settings = get_settings()
+    result: dict[str, int] = {}
+
+    for item in settings.llm_max_context_tokens.split(","):
+        if ":" not in item:
+            continue
+
+        model, raw_tokens = item.split(":", 1)
+        model_key = _normalize_model_key(model)
+        if not model_key:
+            continue
+
+        try:
+            tokens = int(raw_tokens.strip())
+        except ValueError:
+            continue
+
+        if tokens > 0:
+            result[model_key] = tokens
+
+    return result
+
+
+def get_max_context_tokens_limit(model: str | None) -> int:
+    """按模型名称返回上下文窗口上限，未知模型回落到默认配置。"""
+    default_tokens = get_context_context_token_by_config()
+    model_key = _normalize_model_key(model)
+
+    if not model_key:
+        return default_tokens
+
+    return get_llm_max_context_token_map().get(model_key, default_tokens)
+
+
+def resolve_max_context_tokens(
+    model: str | None,
+    requested_tokens: int | None = None,
+) -> int:
+    """解析一次请求实际使用的上下文 token 上限。
+
+    模型配置是硬上限；请求参数只允许在该上限内进一步收紧。
+    """
+    model_limit = get_max_context_tokens_limit(model)
+
+    if requested_tokens is None:
+        return model_limit
+
+    return min(requested_tokens, model_limit)
 
 
 def get_cloud_provider_name_for_model(model: str | None) -> str | None:
@@ -468,3 +541,7 @@ def get_mcp_max_result_chars() -> int:
 
 def get_mcp_default_timeout_seconds() -> int:
     return get_settings().mcp_default_timeout_seconds
+
+
+def get_context_context_token_by_config() -> int:
+    return get_settings().max_context_default_tokens

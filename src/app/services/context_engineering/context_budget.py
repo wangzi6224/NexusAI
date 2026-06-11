@@ -1,10 +1,15 @@
 from collections import defaultdict
 
+from src.app.config import get_context_context_token_by_config
+
 from src.app.services.context_engineering.schemas import ContextItem
 
 
 class ContextBudget:
-    def __init__(self, max_context_tokens: int = 327680) -> None:
+    def __init__(self, max_context_tokens: int | None = None) -> None:
+        if max_context_tokens is None:
+            max_context_tokens = get_context_context_token_by_config()
+
         self.max_context_tokens = max_context_tokens
 
     def budget_for_type(self, item_type: str) -> int:
@@ -50,19 +55,17 @@ class ContextBudget:
                 total_used += item.estimated_tokens
                 continue
 
-            # type_budget = self.budget_for_type(item.type)
+            type_budget = self.budget_for_type(item.type)
             next_type_used = used_by_type[item.type] + item.estimated_tokens
             next_total_used = total_used + item.estimated_tokens
 
-            # TODO 临时注释掉预算限制，后续根据实际情况调整预算分配和限制策略。
+            if next_total_used > self.max_context_tokens:
+                dropped.append((item, "over_budget"))
+                continue
 
-            # if next_total_used > self.max_context_tokens:
-            #     dropped.append((item, "over_budget"))
-            #     continue
-
-            # if next_type_used > type_budget:
-            #     dropped.append((item, "type_budget_exceeded"))
-            #     continue
+            if next_type_used > type_budget:
+                dropped.append((item, "type_budget_exceeded"))
+                continue
 
             selected.append(item)
             used_by_type[item.type] = next_type_used

@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
+from src.app.config import get_context_context_token_by_config
+
 ContextItemType = Literal[
     "system_instruction",  # 系统指令，通常由开发者预设，或由系统自动生成（如安全策略）。优先级最高，通常不允许压缩。
     "safety_policy",  # 安全策略，通常由系统自动生成，或由开发者预设。优先级很高，通常不允许压缩。
@@ -99,7 +101,7 @@ class ContextBuildRequest(BaseModel):
     user_message: str
     mode: Literal["chat", "agent"]
 
-    max_context_tokens: int = 163840
+    max_context_tokens: int = Field(default_factory=get_context_context_token_by_config)
 
     conversation_summary: str | None = None
     conversation_state: dict[str, Any] | None = None
@@ -146,5 +148,6 @@ class DroppedContextItem(BaseModel):
         "empty_content",
         "policy_blocked",
         "compressed_replaced",
+        "type_budget_exceeded",
     ]
     detail: str | None = None

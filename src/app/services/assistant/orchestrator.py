@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from time import perf_counter
 from typing import Any
 
-from src.app.config import resolve_llm_model
+from src.app.config import resolve_llm_model, resolve_max_context_tokens
 from src.app.conversation_store import (
     create_message,
     get_conversation,
@@ -359,15 +359,21 @@ class AssistantOrchestrator:
             )
             long_term_memory_items = long_term_memory.items
 
+        selected_model = resolve_llm_model(
+            model=request.model,
+            stored_model=conversation.get("model"),
+            stored_provider=conversation.get("provider"),
+            provider=request.provider,
+        )
+        max_context_tokens = resolve_max_context_tokens(
+            selected_model,
+            request.options.max_context_tokens,
+        )
+
         route_decision = self._route(
             conversation_id=conversation_id,
             request=request,
-            selected_model=resolve_llm_model(
-                model=request.model,
-                stored_model=conversation.get("model"),
-                stored_provider=conversation.get("provider"),
-                provider=request.provider,
-            ),
+            selected_model=selected_model,
         )
 
         context_package = ContextAssembler().build(
@@ -381,7 +387,7 @@ class AssistantOrchestrator:
                 ),
                 recent_messages=list_recent_messages(conversation_id, limit=10),
                 long_term_memory_items=long_term_memory_items,
-                max_context_tokens=request.options.max_context_tokens,
+                max_context_tokens=max_context_tokens,
             )
         )
 
@@ -427,7 +433,10 @@ class AssistantOrchestrator:
                 ),
                 recent_messages=list_recent_messages(conversation_id, limit=10),
                 long_term_memory_items=long_term_memory_items,
-                max_context_tokens=request.options.max_context_tokens,
+                max_context_tokens=resolve_max_context_tokens(
+                    selected_model,
+                    request.options.max_context_tokens,
+                ),
             )
         )
 
@@ -649,6 +658,10 @@ class AssistantOrchestrator:
             enable_working_memory=request.options.enable_working_memory,
             enable_mcp_tools=request.options.enable_mcp_tools,
             assistant_run_id=assistant_run_id,
+            max_context_tokens=resolve_max_context_tokens(
+                selected_model,
+                request.options.max_context_tokens,
+            ),
             memory_context=(
                 long_term_memory_items if request.options.enable_working_memory else []
             ),

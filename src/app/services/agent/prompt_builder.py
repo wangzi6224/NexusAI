@@ -1,5 +1,6 @@
 from typing import Any
 
+from src.app.config import get_context_context_token_by_config
 from src.app.services.agent.state import AgentState
 from src.app.services.context_engineering.context_assembler import ContextAssembler
 from src.app.services.context_engineering.schemas import (
@@ -19,7 +20,7 @@ class AgentPromptBuilder:
         conversation_summary: str | None,
         conversation_state: dict[str, Any] | None,
         long_term_memory_items: list[Any],
-        max_context_tokens: int = 327680,
+        max_context_tokens: int | None = None,
     ) -> ContextPackage:
         tool_steps = [step.model_dump(mode="json") for step in state.steps]
         observations = [item.model_dump(mode="json") for item in state.observations]
@@ -37,7 +38,9 @@ class AgentPromptBuilder:
                 tool_observations=observations,
                 tool_steps=tool_steps,
                 output_requirement="请基于工具观察结果和可用上下文回答用户问题。回答要结构化，不能编造资料中不存在的信息。",
-                max_context_tokens=max_context_tokens,
+                max_context_tokens=(
+                    max_context_tokens or get_context_context_token_by_config()
+                ),
             )
         )
 

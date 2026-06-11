@@ -53,7 +53,7 @@ class ContextAssembler:
         selected, dropped_pairs = budget.select_with_budget(ranked)
 
         dropped_items = [
-            DroppedContextItem(item=item, reason="over_budget", detail=reason)
+            DroppedContextItem(item=item, reason=reason, detail=reason)
             for item, reason in dropped_pairs
         ]
 
