@@ -142,6 +142,11 @@ export interface ConversationStreamChunk {
 export type AssistantStreamEvent =
   | 'assistant_start'
   | 'route_decision'
+  | 'short_term_memory_loaded'
+  | 'long_term_memory_retrieval_start'
+  | 'long_term_memory_item'
+  | 'long_term_memory_write'
+  | 'working_memory_updated'
   | 'context_assembled'
   | 'tool_call_start'
   | 'tool_call_end'
@@ -149,7 +154,8 @@ export type AssistantStreamEvent =
   | 'assistant_end'
   | 'error'
   | 'done'
-  | 'message';
+  | 'message'
+  | (string & {});
 
 export interface AssistantToolCallEvent {
   tool_name?: string;

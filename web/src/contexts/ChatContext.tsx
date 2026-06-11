@@ -34,6 +34,22 @@ export interface TokenUsage {
   total_tokens: number;
 }
 
+export type AssistantTraceEventStatus =
+  | 'loading'
+  | 'success'
+  | 'error'
+  | 'abort';
+
+export interface AssistantTraceEventItem {
+  id: string;
+  event: string;
+  title: string;
+  description?: string;
+  status: AssistantTraceEventStatus;
+  payload?: Record<string, unknown>;
+  timestamp: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -53,6 +69,7 @@ export interface ChatMessage {
   toolCalls?: AssistantToolCallEvent[];
   sources?: AssistantSourceItem[];
   trace?: Record<string, unknown>;
+  traceEvents?: AssistantTraceEventItem[];
   statusText?: string;
 }
 
@@ -204,6 +221,100 @@ function getModeLabel(mode?: AssistantMode | 'chat' | 'agent' | 'mcp'): string {
   return '自动';
 }
 
+function getTraceEventTitle(event: string): string {
+  const labels: Record<string, string> = {
+    assistant_start: 'Assistant 启动',
+    route_decision: '路由决策',
+    short_term_memory_loaded: '短期记忆加载',
+    long_term_memory_retrieval_start: '长期记忆检索',
+    long_term_memory_item: '长期记忆命中',
+    long_term_memory_write: '长期记忆写入',
+    working_memory_updated: '工作记忆更新',
+    context_assembled: '上下文组装',
+    tool_call_start: '工具调用',
+    tool_call_end: '工具调用完成',
+    assistant_end: 'Assistant 完成',
+  };
+
+  return labels[event] || event;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return undefined;
+}
+
+function buildTraceEvent(
+  chunk: AssistantStreamChunk,
+  fallbackStatus: AssistantTraceEventStatus = 'success',
+): AssistantTraceEventItem {
+  const payload = toRecord(chunk);
+  const event = String(chunk.event || 'message');
+  const toolName = typeof chunk.tool_name === 'string' ? chunk.tool_name : '';
+  const step = typeof chunk.step === 'number' ? chunk.step : undefined;
+  const id =
+    event === 'tool_call_start' || event === 'tool_call_end'
+      ? `tool:${step ?? 'unknown'}:${toolName || 'unknown'}`
+      : `${event}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const description =
+    event === 'route_decision'
+      ? chunk.reason
+      : event === 'tool_call_start' || event === 'tool_call_end'
+      ? toolName || undefined
+      : undefined;
+
+  return {
+    id,
+    event,
+    title:
+      event === 'tool_call_start' || event === 'tool_call_end'
+        ? toolName || getTraceEventTitle(event)
+        : getTraceEventTitle(event),
+    description,
+    status:
+      event === 'tool_call_start'
+        ? 'loading'
+        : chunk.success === false
+        ? 'error'
+        : fallbackStatus,
+    payload,
+    timestamp: Date.now(),
+  };
+}
+
+function appendTraceEvent(
+  message: ChatMessage,
+  eventItem: AssistantTraceEventItem,
+): ChatMessage {
+  const traceEvents = message.traceEvents || [];
+  const existingIndex = traceEvents.findIndex(
+    (item) => item.id === eventItem.id,
+  );
+
+  if (existingIndex < 0) {
+    return {
+      ...message,
+      traceEvents: [...traceEvents, eventItem],
+    };
+  }
+
+  return {
+    ...message,
+    traceEvents: traceEvents.map((item, index) =>
+      index === existingIndex
+        ? {
+            ...item,
+            ...eventItem,
+            timestamp: item.timestamp,
+          }
+        : item,
+    ),
+  };
+}
+
 interface ChatProviderProps {
   children: React.ReactNode;
   routeConversationId?: string;
@@ -298,26 +409,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     }
   }, []);
 
-  const selectConversation = useCallback(async (conversationId: string) => {
-    setActiveConversationId(conversationId);
-    setMessages([]);
-    setMessagesLoading(true);
-    navigateToConversation(conversationId);
+  const selectConversation = useCallback(
+    async (conversationId: string) => {
+      setActiveConversationId(conversationId);
+      setMessages([]);
+      setMessagesLoading(true);
+      navigateToConversation(conversationId);
 
-    try {
-      const data = await getConversationMessages(conversationId);
-      setMessages(
-        data.items
-          .map(toChatMessage)
-          .filter((item): item is ChatMessage => Boolean(item)),
-      );
-      setConversationsError(null);
-    } catch (err: any) {
-      setConversationsError(getErrorMessage(err, '会话消息加载失败'));
-    } finally {
-      setMessagesLoading(false);
-    }
-  }, [navigateToConversation]);
+      try {
+        const data = await getConversationMessages(conversationId);
+        setMessages(
+          data.items
+            .map(toChatMessage)
+            .filter((item): item is ChatMessage => Boolean(item)),
+        );
+        setConversationsError(null);
+      } catch (err: any) {
+        setConversationsError(getErrorMessage(err, '会话消息加载失败'));
+      } finally {
+        setMessagesLoading(false);
+      }
+    },
+    [navigateToConversation],
+  );
 
   useEffect(() => {
     if (routeConversationId) {
@@ -400,11 +514,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
   );
 
   const handleSelectModel = useCallback(
-    async (
-      model: string,
-      provider?: string,
-      cloudProvider?: string | null,
-    ) => {
+    async (model: string, provider?: string, cloudProvider?: string | null) => {
       const nextProvider = provider || currentProvider;
       const nextCloudProvider =
         nextProvider === 'cloud'
@@ -413,7 +523,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
 
       try {
         setModelSwitching(true);
-        const res = await apiSelectModel(model, nextProvider, nextCloudProvider);
+        const res = await apiSelectModel(
+          model,
+          nextProvider,
+          nextCloudProvider,
+        );
         if (res.success) {
           const selectedProvider = res.selected_provider || nextProvider;
           const selectedCloudProvider =
@@ -573,15 +687,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? {
-                        ...m,
-                        assistantRunId: chunk.assistant_run_id || m.id,
-                        requestedMode: chunk.requested_mode || requestedMode,
-                        resolvedMode: chunk.mode,
-                        statusText: chunk.mode
-                          ? `${getModeLabel(chunk.mode)}模式处理中`
-                          : m.statusText,
-                      }
+                    ? appendTraceEvent(
+                        {
+                          ...m,
+                          assistantRunId: chunk.assistant_run_id || m.id,
+                          requestedMode: chunk.requested_mode || requestedMode,
+                          resolvedMode: chunk.mode,
+                          statusText: chunk.mode
+                            ? `${getModeLabel(chunk.mode)}模式处理中`
+                            : m.statusText,
+                        },
+                        buildTraceEvent(chunk),
+                      )
                     : m,
                 ),
               );
@@ -592,13 +709,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? {
-                        ...m,
-                        resolvedMode: chunk.mode,
-                        routeReason: chunk.reason,
-                        matchedKeywords: chunk.matched_keywords || [],
-                        statusText: `${getModeLabel(chunk.mode)}模式处理中`,
-                      }
+                    ? appendTraceEvent(
+                        {
+                          ...m,
+                          resolvedMode: chunk.mode,
+                          routeReason: chunk.reason,
+                          matchedKeywords: chunk.matched_keywords || [],
+                          statusText: `${getModeLabel(chunk.mode)}模式处理中`,
+                        },
+                        buildTraceEvent(chunk),
+                      )
                     : m,
                 ),
               );
@@ -616,13 +736,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? {
-                        ...m,
-                        toolCalls: [...(m.toolCalls || []), toolCall],
-                        statusText: chunk.tool_name
-                          ? `调用工具：${chunk.tool_name}`
-                          : '调用工具中',
-                      }
+                    ? appendTraceEvent(
+                        {
+                          ...m,
+                          toolCalls: [...(m.toolCalls || []), toolCall],
+                          statusText: chunk.tool_name
+                            ? `调用工具：${chunk.tool_name}`
+                            : '调用工具中',
+                        },
+                        buildTraceEvent(chunk),
+                      )
                     : m,
                 ),
               );
@@ -633,22 +756,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? {
-                        ...m,
-                        toolCalls: (m.toolCalls || []).map((item) =>
-                          item.tool_name === chunk.tool_name &&
-                          item.step === chunk.step
-                            ? {
-                                ...item,
-                                success: chunk.success,
-                                latency_ms: chunk.latency_ms,
-                                error_code: chunk.error_code,
-                                error_message: chunk.error_message,
-                              }
-                            : item,
-                        ),
-                        statusText: '整理回答中',
-                      }
+                    ? appendTraceEvent(
+                        {
+                          ...m,
+                          toolCalls: (m.toolCalls || []).map((item) =>
+                            item.tool_name === chunk.tool_name &&
+                            item.step === chunk.step
+                              ? {
+                                  ...item,
+                                  success: chunk.success,
+                                  latency_ms: chunk.latency_ms,
+                                  error_code: chunk.error_code,
+                                  error_message: chunk.error_message,
+                                }
+                              : item,
+                          ),
+                          statusText: '整理回答中',
+                        },
+                        buildTraceEvent(chunk),
+                      )
                     : m,
                 ),
               );
@@ -688,34 +814,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
-                    ? {
-                        ...m,
-                        id: chunk.assistant_message_id || m.id,
-                        loading: false,
-                        assistantRunId: chunk.assistant_run_id,
-                        agentRunId: chunk.agent_run_id,
-                        resolvedMode: chunk.mode || m.resolvedMode,
-                        latency_ms: chunk.latency_ms,
-                        toolCalls: chunk.tool_calls || m.toolCalls,
-                        sources: Array.isArray(chunk.sources)
-                          ? chunk.sources
-                          : m.sources,
-                        trace:
-                          chunk.trace !== null &&
-                          typeof chunk.trace === 'object' &&
-                          !Array.isArray(chunk.trace)
-                            ? chunk.trace
-                            : m.trace,
-                        provider:
-                          chunk.provider ||
-                          currentProvider ||
-                          activeConversation?.provider,
-                        model:
-                          chunk.model ||
-                          currentModel ||
-                          activeConversation?.model,
-                        statusText: undefined,
-                      }
+                    ? appendTraceEvent(
+                        {
+                          ...m,
+                          id: chunk.assistant_message_id || m.id,
+                          loading: false,
+                          assistantRunId: chunk.assistant_run_id,
+                          agentRunId: chunk.agent_run_id,
+                          resolvedMode: chunk.mode || m.resolvedMode,
+                          latency_ms: chunk.latency_ms,
+                          toolCalls: chunk.tool_calls || m.toolCalls,
+                          sources: Array.isArray(chunk.sources)
+                            ? chunk.sources
+                            : m.sources,
+                          trace:
+                            chunk.trace !== null &&
+                            typeof chunk.trace === 'object' &&
+                            !Array.isArray(chunk.trace)
+                              ? chunk.trace
+                              : m.trace,
+                          provider:
+                            chunk.provider ||
+                            currentProvider ||
+                            activeConversation?.provider,
+                          model:
+                            chunk.model ||
+                            currentModel ||
+                            activeConversation?.model,
+                          statusText: undefined,
+                        },
+                        buildTraceEvent(chunk),
+                      )
+                    : m,
+                ),
+              );
+              return;
+            }
+
+            if (
+              chunk.event !== 'delta' &&
+              chunk.event !== 'done' &&
+              chunk.event !== 'message'
+            ) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? appendTraceEvent(m, buildTraceEvent(chunk))
                     : m,
                 ),
               );

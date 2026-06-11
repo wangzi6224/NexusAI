@@ -1,3 +1,4 @@
+import AssistantThoughtChain from '@/components/AssistantThoughtChain';
 import ToolCallTimeline from '@/components/ToolCallTimeline';
 import TraceDrawer from '@/components/TraceDrawer';
 import { ChatMessage } from '@/contexts/ChatContext';
@@ -33,10 +34,30 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
   const items = useMemo(
     () =>
       messages.map((msg): BubbleItem => {
-        // loading=true 且无内容：等待第一个 token，显示 spinner
+        const toolCount = msg.toolCalls?.length || 0;
+        const traceEventCount = msg.traceEvents?.length || 0;
+        const thoughtEventCount =
+          msg.traceEvents?.filter(
+            (event) =>
+              event.event !== 'tool_call' &&
+              !event.event.startsWith('tool_call_'),
+          ).length || 0;
+        const hasThoughtChain =
+          thoughtEventCount > 0 ||
+          Boolean(msg.routeReason) ||
+          Boolean(msg.trace?.context) ||
+          Boolean(msg.trace?.memory);
+        const hasToolChain = toolCount > 0;
+
+        // loading=true 且无事件/内容：等待第一个 SSE 事件或 token，显示 spinner
+        // loading=true 且有事件：实时展示思维链/工具链
         // loading=true 且有内容：SSE 流式接收中，用 streaming prop 渲染
         // loading=false：流式完成
-        const isWaiting = Boolean(msg.loading) && !msg.content;
+        const isWaiting =
+          Boolean(msg.loading) &&
+          !msg.content &&
+          !hasThoughtChain &&
+          !hasToolChain;
         const isStreaming = Boolean(msg.loading) && Boolean(msg.content);
 
         const item: BubbleItem = {
@@ -61,7 +82,6 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
           )
             metaParts.push(`${msg.usage.total_tokens} tokens`);
 
-          const toolCount = msg.toolCalls?.length || 0;
           const hasTrace =
             Boolean(msg.assistantRunId) ||
             Boolean(msg.agentRunId) ||
@@ -71,6 +91,7 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
             msg.resolvedMode ||
             msg.statusText ||
             toolCount > 0 ||
+            traceEventCount > 0 ||
             metaParts.length > 0 ||
             hasTrace
           ) {
@@ -89,6 +110,11 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     工具 {toolCount}
                   </Tag>
                 ) : null}
+                {traceEventCount > 0 ? (
+                  <Tag color="geekblue" className={styles.metaTag}>
+                    事件 {traceEventCount}
+                  </Tag>
+                ) : null}
                 {msg.statusText ? (
                   <Text type="secondary" className={styles.metaText}>
                     {msg.statusText}
@@ -99,20 +125,22 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     {metaParts.join(' · ')}
                   </Text>
                 ) : null}
-                {!isStreaming && hasTrace ? (
-                  <TraceDrawer msg={msg} />
-                ) : null}
+                {!isStreaming && hasTrace ? <TraceDrawer msg={msg} /> : null}
               </Space>
             );
           }
 
-          // ToolCallTimeline 放在 footer 下方（通过 contentRender 追加）
-          if (toolCount > 0 && !isWaiting) {
+          if ((hasThoughtChain || hasToolChain) && !isWaiting) {
             const originalContentRender = item.contentRender || renderMarkdown;
             item.contentRender = (content: unknown) => (
               <>
                 {originalContentRender(content)}
-                <ToolCallTimeline toolCalls={msg.toolCalls} />
+                {hasThoughtChain ? (
+                  <AssistantThoughtChain message={msg} />
+                ) : null}
+                {hasToolChain ? (
+                  <ToolCallTimeline toolCalls={msg.toolCalls} />
+                ) : null}
               </>
             );
           }
