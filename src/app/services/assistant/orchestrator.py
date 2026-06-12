@@ -36,6 +36,7 @@ from src.app.services.assistant.mode_router import RouterContext
 from src.app.services.assistant.route_decision import RouteDecision
 from src.app.services.assistant.run_store import AssistantRunStore
 from src.app.services.llm.factory import get_llm_provider
+from src.app.services.observability.trace_schema import TraceSpanCreate
 from src.app.services.summarizer import Summarizer
 from src.app.services.memory.short_term_builder import ShortTermMemoryBuilder
 from src.app.services.memory.short_term_store import ShortTermMemoryStore
@@ -53,6 +54,8 @@ from src.app.services.memory.long_term_schemas import (
 from src.app.services.context_engineering.context_assembler import ContextAssembler
 from src.app.services.context_engineering.schemas import ContextBuildRequest
 from src.app.exceptions import ConversationError
+from src.app.services.observability.span import trace_span
+from src.app.services.observability.trace_store import TraceStore
 
 logger = get_logger()
 
@@ -149,6 +152,29 @@ class AssistantOrchestrator:
                 },
             )
             assistant_run_id = assistant_run["id"]
+            trace_id = f"trace_{assistant_run_id}"
+            trace_store = TraceStore()
+
+            root_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="assistant.run",
+                    name="assistant_stream",
+                    input={
+                        "message": clean_message,
+                        "requested_mode": request.mode,
+                        "options": request.options.model_dump(mode="json"),
+                    },
+                    metadata={
+                        "model": selected_model,
+                        "provider": request.provider or conversation.get("provider"),
+                    },
+                )
+            )
+
         except Exception as exc:
             latency_ms = int((perf_counter() - start) * 1000)
             logger.exception(

@@ -401,3 +401,56 @@ ON mcp_tools(server_id, enabled);
 CREATE INDEX IF NOT EXISTS idx_mcp_tools_full_name
 ON mcp_tools(full_name);
 
+-- =====================================================
+-- trace_spans：LLMOps 统一链路追踪 Span
+-- =====================================================
+CREATE TABLE IF NOT EXISTS trace_spans (
+    id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    parent_span_id TEXT,
+    run_id TEXT NOT NULL,
+    conversation_id TEXT,
+    assistant_run_id TEXT,
+    agent_run_id TEXT,
+
+    span_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running',
+
+    input JSONB,
+    output JSONB,
+    error_code TEXT,
+    error_message TEXT,
+
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    latency_ms INTEGER,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+
+    CONSTRAINT trace_spans_status_check CHECK (
+        status IN ('running', 'success', 'error', 'cancelled')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_trace_id_started_at
+ON trace_spans(trace_id, started_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_parent
+ON trace_spans(parent_span_id);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_run_id
+ON trace_spans(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_assistant_run
+ON trace_spans(assistant_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_agent_run
+ON trace_spans(agent_run_id);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_type
+ON trace_spans(span_type);
+
+CREATE INDEX IF NOT EXISTS idx_trace_spans_status
+ON trace_spans(status);
+
