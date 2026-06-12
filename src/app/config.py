@@ -165,6 +165,33 @@ class Settings(BaseSettings):
         alias="AGENT_MAX_TOOL_RESULT_CHARS",
     )
 
+    langfuse_enabled: bool = Field(default=False, alias="LANGFUSE_ENABLED")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
+
+    otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
+    otel_exporter_otlp_endpoint: str = Field(
+        default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT"
+    )
+
+    observability_enabled: bool = Field(default=True, alias="OBSERVABILITY_ENABLED")
+    trace_input_max_chars: int = Field(default=2000, alias="TRACE_INPUT_MAX_CHARS")
+    trace_output_max_chars: int = Field(default=3000, alias="TRACE_OUTPUT_MAX_CHARS")
+    trace_store_full_prompt: bool = Field(
+        default=False, alias="TRACE_STORE_FULL_PROMPT"
+    )
+
+    langfuse_enabled: bool = Field(default=False, alias="LANGFUSE_ENABLED")
+    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
+    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
+
+    otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
+    otel_exporter_otlp_endpoint: str = Field(
+        default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT"
+    )
+
     mcp_enabled: bool = Field(default=False, alias="MCP_ENABLED")
     mcp_allowed_tools: str = Field(default="", alias="MCP_ALLOWED_TOOLS")
     mcp_max_result_chars: int = Field(

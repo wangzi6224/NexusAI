@@ -12,6 +12,7 @@ from src.app.api.routers import (
     rag,
     memory,
     mcp,
+    traces,
 )
 
 ROUTERS = (
@@ -26,6 +27,7 @@ ROUTERS = (
     agent.router,
     memory.router,
     mcp.router,
+    traces.router,
 )
 
 __all__ = [
@@ -41,4 +43,5 @@ __all__ = [
     "rag",
     "memory",
     "mcp",
+    "traces",
 ]

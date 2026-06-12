@@ -1,19 +1,14 @@
 import { ChatMessage } from '@/contexts/ChatContext';
-import type {
-  AssistantRunItem,
-  AssistantToolCallEvent,
-  ContextTrace,
-  ContextTraceItem,
-} from '@/services/api';
-import { getAssistantRun } from '@/services/api';
+import type { TraceDetailResponse, TraceSpan, TraceSummary } from '@/services/api';
+import { getTrace } from '@/services/api';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import {
   Button,
+  Collapse,
   Descriptions,
   Drawer,
   Empty,
   List,
-  Space,
   Table,
   Tabs,
   Tag,
@@ -21,418 +16,404 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import styles from './index.module.less';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface TraceDrawerProps {
   msg: ChatMessage;
 }
 
-type DroppedContextTraceItem = ContextTrace['dropped_items'][number] & {
-  source?: string;
-};
+type JsonRecord = Record<string, unknown>;
 
-type McpTrace = {
-  enabled: boolean;
-  used: boolean;
-  server_list: string[];
-  allowed_tools: string[];
-  tool_calls: AssistantToolCallEvent[];
-  audit_ids: string[];
-  permission_denied_records: Array<Record<string, unknown>>;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
+function getString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
 }
 
-function getNestedString(
-  value: Record<string, unknown> | undefined,
-  path: string[],
-): string | undefined {
-  let current: unknown = value;
+function getNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
+function getBoolean(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+  }
+  return undefined;
+}
+
+function nested(value: unknown, path: string[]): unknown {
+  let current = value;
 
   for (const key of path) {
-    if (!current || typeof current !== 'object' || Array.isArray(current)) {
-      return undefined;
-    }
-
-    current = (current as Record<string, unknown>)[key];
+    if (!isRecord(current)) return undefined;
+    current = current[key];
   }
 
-  return typeof current === 'string' ? current : undefined;
+  return current;
 }
 
-function inferMcpServerName(toolName?: string): string | undefined {
-  if (!toolName?.startsWith('mcp__')) return undefined;
-
-  const [, serverName] = toolName.split('__');
-  return serverName || undefined;
+function formatCost(value?: number): string {
+  if (value === undefined) return '-';
+  if (value === 0) return '0';
+  return `$${value.toFixed(6)}`;
 }
 
-function getToolSource(tc: AssistantToolCallEvent): string {
+function formatLatency(value?: number | null): string {
+  return typeof value === 'number' ? `${Math.round(value)}ms` : '-';
+}
+
+function statusTag(status?: string) {
+  const normalized = status || 'unknown';
+  const color =
+    normalized === 'error'
+      ? 'error'
+      : normalized === 'success'
+      ? 'success'
+      : normalized === 'running'
+      ? 'processing'
+      : 'default';
+
+  return <Tag color={color}>{normalized}</Tag>;
+}
+
+function errorText(span: TraceSpan) {
+  if (span.status !== 'error' && !span.error_message && !span.error_code) {
+    return <Text type="secondary">-</Text>;
+  }
+
   return (
-    tc.source ||
-    getNestedString(tc.result, ['metadata', 'source']) ||
-    (tc.tool_name?.startsWith('mcp__') ? 'mcp' : 'internal')
+    <Text type="danger">
+      {span.error_code ? `[${span.error_code}] ` : ''}
+      {span.error_message || 'error'}
+    </Text>
   );
 }
 
-function getServerName(tc: AssistantToolCallEvent): string | undefined {
+function jsonBlock(value: unknown) {
+  if (value === null || value === undefined) {
+    return <Text type="secondary">-</Text>;
+  }
+
   return (
-    tc.server_name ||
-    getNestedString(tc.result, ['metadata', 'server_name']) ||
-    getNestedString(tc.result, ['data', 'server_name']) ||
-    inferMcpServerName(tc.tool_name)
+    <Text code className={styles.traceJson}>
+      {JSON.stringify(value, null, 2)}
+    </Text>
   );
 }
 
-function getRiskLevel(tc: AssistantToolCallEvent): string {
+function ioCollapse(span: TraceSpan) {
   return (
-    tc.risk_level ||
-    getNestedString(tc.result, ['metadata', 'risk_level']) ||
-    'low'
+    <Collapse
+      size="small"
+      ghost
+      items={[
+        {
+          key: 'input',
+          label: 'Input',
+          children: jsonBlock(span.input || {}),
+        },
+        {
+          key: 'output',
+          label: 'Output',
+          children: jsonBlock(span.output || {}),
+        },
+        {
+          key: 'metadata',
+          label: 'Metadata',
+          children: jsonBlock(span.metadata || {}),
+        },
+      ]}
+    />
   );
 }
 
-function getToolStatus(tc: AssistantToolCallEvent): string {
-  if (tc.error_code === 'MCP_PERMISSION_DENIED') return 'denied';
-  if (tc.success === undefined) return 'running';
-  return tc.success ? 'success' : 'failed';
+function getTraceSummary(msg: ChatMessage, detail: TraceDetailResponse | null) {
+  return detail?.summary || msg.traceSummary || {};
 }
 
-function getStatusColor(status: string): string {
-  if (status === 'success') return 'success';
-  if (status === 'denied') return 'warning';
-  if (status === 'failed') return 'error';
-  return 'processing';
+function getLlmTokens(span: TraceSpan): number | undefined {
+  return getNumber(
+    nested(span.metadata, ['usage', 'total_tokens']),
+    nested(span.output, ['usage', 'total_tokens']),
+    span.metadata?.total_tokens,
+  );
 }
 
-function getRiskColor(riskLevel: string): string {
-  if (riskLevel === 'high') return 'error';
-  if (riskLevel === 'medium') return 'warning';
-  return 'success';
+function getLlmCost(span: TraceSpan): number | undefined {
+  return getNumber(
+    nested(span.metadata, ['cost', 'total_cost']),
+    span.metadata?.estimated_cost,
+    span.output?.estimated_cost,
+  );
 }
 
-function asMcpTrace(
-  value: unknown,
-  fallbackToolCalls: AssistantToolCallEvent[],
-): McpTrace {
-  const trace = isRecord(value) ? value : {};
-  const traceToolCalls = Array.isArray(trace.tool_calls)
-    ? (trace.tool_calls as AssistantToolCallEvent[])
-    : [];
-  const toolCalls =
-    traceToolCalls.length > 0
-      ? traceToolCalls
-      : fallbackToolCalls.filter((item) => getToolSource(item) === 'mcp');
-  const permissionDeniedRecords = Array.isArray(
-    trace.permission_denied_records,
-  )
-    ? (trace.permission_denied_records as Array<Record<string, unknown>>)
-    : toolCalls
-        .filter((item) => getToolStatus(item) === 'denied')
-        .map((item) => item as Record<string, unknown>);
-
-  return {
-    enabled:
-      typeof trace.enabled === 'boolean' ? trace.enabled : toolCalls.length > 0,
-    used: typeof trace.used === 'boolean' ? trace.used : toolCalls.length > 0,
-    server_list:
-      stringArray(trace.server_list).length > 0
-        ? stringArray(trace.server_list)
-        : stringArray(trace.servers),
-    allowed_tools: stringArray(trace.allowed_tools),
-    tool_calls: toolCalls,
-    audit_ids: stringArray(trace.audit_ids),
-    permission_denied_records: permissionDeniedRecords,
-  };
+function getToolName(span: TraceSpan): string {
+  return (
+    getString(
+      span.metadata?.tool_name,
+      span.input?.tool_name,
+      nested(span.output, ['tool_name']),
+      span.name,
+    ) || '-'
+  );
 }
 
-function asContextTrace(value: unknown): ContextTrace | null {
-  if (!isRecord(value)) return null;
-
-  const selectedItems = Array.isArray(value.selected_items)
-    ? (value.selected_items as ContextTraceItem[])
-    : [];
-  const droppedItems = Array.isArray(value.dropped_items)
-    ? (value.dropped_items as ContextTrace['dropped_items'])
-    : [];
-
-  return {
-    candidate_count:
-      typeof value.candidate_count === 'number' ? value.candidate_count : 0,
-    selected_count:
-      typeof value.selected_count === 'number'
-        ? value.selected_count
-        : selectedItems.length,
-    dropped_count:
-      typeof value.dropped_count === 'number'
-        ? value.dropped_count
-        : droppedItems.length,
-    total_estimated_tokens:
-      typeof value.total_estimated_tokens === 'number'
-        ? value.total_estimated_tokens
-        : 0,
-    max_context_tokens:
-      typeof value.max_context_tokens === 'number'
-        ? value.max_context_tokens
-        : 0,
-    selected_items: selectedItems,
-    dropped_items: droppedItems,
-    risk_flags: isRecord(value.risk_flags)
-      ? {
-          injection_risk:
-            typeof value.risk_flags.injection_risk === 'boolean'
-              ? value.risk_flags.injection_risk
-              : undefined,
-          matched_patterns: Array.isArray(value.risk_flags.matched_patterns)
-            ? (value.risk_flags.matched_patterns as string[])
-            : undefined,
-        }
-      : undefined,
-  };
+function getToolLatency(span: TraceSpan): number | null | undefined {
+  return getNumber(span.latency_ms, span.metadata?.latency_ms, span.output?.latency_ms);
 }
 
-function getContextTrace(trace: Record<string, unknown>): ContextTrace | null {
-  const nestedTrace = asContextTrace(trace.context);
-  if (nestedTrace) return nestedTrace;
-
-  return asContextTrace(trace);
+function getMcpServerName(span: TraceSpan): string {
+  return (
+    getString(
+      span.metadata?.server_name,
+      span.input?.server_name,
+      span.output?.server_name,
+    ) || '-'
+  );
 }
 
-function getRiskFlags(contextTrace: ContextTrace | null): {
-  injection_risk: boolean;
-  matched_patterns: string[];
-} {
-  const explicitPatterns = contextTrace?.risk_flags?.matched_patterns || [];
-  const matchedPatterns = new Set<string>(explicitPatterns);
-  let injectionRisk = Boolean(contextTrace?.risk_flags?.injection_risk);
-
-  contextTrace?.selected_items.forEach((item) => {
-    if (item.metadata?.injection_risk === true) {
-      injectionRisk = true;
-    }
-
-    if (Array.isArray(item.metadata?.matched_patterns)) {
-      item.metadata.matched_patterns.forEach((pattern) => {
-        if (typeof pattern === 'string') {
-          matchedPatterns.add(pattern);
-        }
-      });
-    }
-  });
-
-  return {
-    injection_risk: injectionRisk,
-    matched_patterns: Array.from(matchedPatterns),
-  };
+function getMcpToolName(span: TraceSpan): string {
+  return (
+    getString(span.metadata?.tool_name, span.input?.tool_name, span.output?.tool_name) ||
+    span.name ||
+    '-'
+  );
 }
 
-const selectedColumns: ColumnsType<ContextTraceItem> = [
+const timelineColumns: ColumnsType<TraceSpan> = [
+  {
+    title: 'Time',
+    dataIndex: 'started_at',
+    key: 'started_at',
+    width: 190,
+    render: (value?: string) =>
+      value ? new Date(value).toLocaleTimeString() : '-',
+  },
   {
     title: 'Type',
-    dataIndex: 'type',
-    key: 'type',
-    width: 150,
-    render: (value: string) => <Tag color="blue">{value}</Tag>,
+    dataIndex: 'span_type',
+    key: 'span_type',
+    width: 190,
+    render: (value: string, record) => (
+      <Tag color={record.status === 'error' ? 'error' : 'blue'}>{value}</Tag>
+    ),
   },
   {
-    title: 'Source',
-    dataIndex: 'source',
-    key: 'source',
-    width: 140,
-  },
-  {
-    title: 'Placement',
-    dataIndex: 'placement',
-    key: 'placement',
-    width: 110,
-    render: (value: string) => <Tag>{value}</Tag>,
-  },
-  {
-    title: 'Priority',
-    dataIndex: 'priority',
-    key: 'priority',
-    width: 90,
-  },
-  {
-    title: 'Score',
-    dataIndex: 'score',
-    key: 'score',
-    width: 80,
-    render: (value: number) =>
-      typeof value === 'number' ? value.toFixed(3) : '-',
-  },
-  {
-    title: 'Tokens',
-    dataIndex: 'estimated_tokens',
-    key: 'estimated_tokens',
-    width: 90,
-  },
-  {
-    title: 'Source ID',
-    dataIndex: 'source_id',
-    key: 'source_id',
-    width: 180,
-    render: (value?: string) =>
-      value ? (
-        <Text copyable code className={styles.idText}>
-          {value}
-        </Text>
-      ) : (
-        '-'
-      ),
-  },
-];
-
-const droppedColumns: ColumnsType<DroppedContextTraceItem> = [
-  {
-    title: 'Type',
-    dataIndex: 'type',
-    key: 'type',
-    width: 160,
-    render: (value: string) => <Tag color="default">{value}</Tag>,
-  },
-  {
-    title: 'Source',
-    dataIndex: 'source',
-    key: 'source',
-    width: 140,
-    render: (value?: string) => value || '-',
-  },
-  {
-    title: 'Reason',
-    dataIndex: 'reason',
-    key: 'reason',
-    width: 140,
-    render: (value: string) => <Tag color="orange">{value}</Tag>,
-  },
-  {
-    title: 'Detail',
-    dataIndex: 'detail',
-    key: 'detail',
-    render: (value?: string) => value || '-',
-  },
-];
-
-const mcpToolColumns: ColumnsType<AssistantToolCallEvent> = [
-  {
-    title: 'Tool',
-    dataIndex: 'tool_name',
-    key: 'tool_name',
-    width: 240,
-    render: (value?: string) =>
-      value ? (
-        <Text code className={styles.idText}>
-          {value}
-        </Text>
-      ) : (
-        '-'
-      ),
-  },
-  {
-    title: 'Source',
-    key: 'source',
-    width: 100,
-    render: (_, record) => <Tag color="purple">{getToolSource(record)}</Tag>,
-  },
-  {
-    title: 'Server',
-    key: 'server_name',
-    width: 150,
-    render: (_, record) => getServerName(record) || '-',
-  },
-  {
-    title: 'Risk',
-    key: 'risk_level',
-    width: 100,
-    render: (_, record) => {
-      const riskLevel = getRiskLevel(record);
-      return <Tag color={getRiskColor(riskLevel)}>{riskLevel}</Tag>;
-    },
+    title: 'Name',
+    dataIndex: 'name',
+    key: 'name',
+    render: (value: string, record) => (
+      <Text type={record.status === 'error' ? 'danger' : undefined}>{value}</Text>
+    ),
   },
   {
     title: 'Status',
+    dataIndex: 'status',
     key: 'status',
-    width: 110,
-    render: (_, record) => {
-      const status = getToolStatus(record);
-      return <Tag color={getStatusColor(status)}>{status}</Tag>;
-    },
+    width: 120,
+    render: statusTag,
   },
   {
     title: 'Latency',
     dataIndex: 'latency_ms',
     key: 'latency_ms',
-    width: 100,
-    render: (value?: number) =>
-      typeof value === 'number' ? `${value}ms` : '-',
+    width: 110,
+    render: formatLatency,
   },
   {
     title: 'Error',
     key: 'error',
+    render: (_, record) => errorText(record),
+  },
+];
+
+const llmColumns: ColumnsType<TraceSpan> = [
+  {
+    title: 'Model',
+    key: 'model',
     render: (_, record) =>
-      record.error_message ? (
-        <Text type="danger">
-          {record.error_code ? `[${record.error_code}] ` : ''}
-          {record.error_message}
-        </Text>
-      ) : (
-        '-'
-      ),
+      getString(record.metadata?.model, record.output?.model) || '-',
+  },
+  {
+    title: 'Provider',
+    key: 'provider',
+    width: 140,
+    render: (_, record) =>
+      getString(record.metadata?.provider, record.output?.provider) || '-',
+  },
+  {
+    title: 'Prompt Version',
+    key: 'prompt_version',
+    width: 180,
+    render: (_, record) =>
+      getString(record.metadata?.prompt_version, record.metadata?.prompt_name) ||
+      '-',
+  },
+  {
+    title: 'Tokens',
+    key: 'tokens',
+    width: 110,
+    render: (_, record) => getLlmTokens(record) ?? '-',
+  },
+  {
+    title: 'Estimated Cost',
+    key: 'estimated_cost',
+    width: 150,
+    render: (_, record) => formatCost(getLlmCost(record)),
+  },
+  {
+    title: 'Status',
+    dataIndex: 'status',
+    key: 'status',
+    width: 110,
+    render: statusTag,
+  },
+  {
+    title: 'Error',
+    key: 'error',
+    render: (_, record) => errorText(record),
+  },
+];
+
+const toolColumns: ColumnsType<TraceSpan> = [
+  {
+    title: 'Tool Name',
+    key: 'tool_name',
+    render: (_, record) => <Text code>{getToolName(record)}</Text>,
+  },
+  {
+    title: 'Source',
+    key: 'source',
+    width: 120,
+    render: (_, record) =>
+      getString(record.metadata?.source, record.output?.source) || '-',
+  },
+  {
+    title: 'Risk',
+    key: 'risk_level',
+    width: 110,
+    render: (_, record) => {
+      const risk = getString(record.metadata?.risk_level, record.output?.risk_level) || '-';
+      const color =
+        risk === 'high' ? 'error' : risk === 'medium' ? 'warning' : 'success';
+      return risk === '-' ? '-' : <Tag color={color}>{risk}</Tag>;
+    },
+  },
+  {
+    title: 'Success',
+    key: 'success',
+    width: 110,
+    render: (_, record) => {
+      const success = getBoolean(record.output?.success, record.metadata?.success);
+      if (success === undefined) return statusTag(record.status);
+      return <Tag color={success ? 'success' : 'error'}>{String(success)}</Tag>;
+    },
+  },
+  {
+    title: 'Latency',
+    key: 'latency',
+    width: 110,
+    render: (_, record) => formatLatency(getToolLatency(record)),
+  },
+  {
+    title: 'Error',
+    key: 'error',
+    render: (_, record) => errorText(record),
+  },
+];
+
+const mcpColumns: ColumnsType<TraceSpan> = [
+  {
+    title: 'Server Name',
+    key: 'server_name',
+    render: (_, record) => getMcpServerName(record),
+  },
+  {
+    title: 'Tool Name',
+    key: 'tool_name',
+    render: (_, record) => <Text code>{getMcpToolName(record)}</Text>,
+  },
+  {
+    title: 'Result Chars',
+    key: 'result_chars',
+    width: 130,
+    render: (_, record) =>
+      getNumber(record.metadata?.result_chars, record.output?.result_chars) ?? '-',
+  },
+  {
+    title: 'Status',
+    dataIndex: 'status',
+    key: 'status',
+    width: 110,
+    render: statusTag,
+  },
+  {
+    title: 'Error',
+    key: 'error',
+    render: (_, record) => errorText(record),
   },
 ];
 
 const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
   const [open, setOpen] = useState(false);
-  const [runDetail, setRunDetail] = useState<AssistantRunItem | null>(null);
+  const [traceDetail, setTraceDetail] = useState<TraceDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const hasLocalTrace = Boolean(msg.trace && Object.keys(msg.trace).length > 0);
+
+  const traceId = msg.traceId || msg.traceSummary?.trace_id;
   const hasTraceTarget = Boolean(
-    msg.assistantRunId || msg.agentRunId || hasLocalTrace,
+    traceId || msg.traceSummary || (msg.trace && Object.keys(msg.trace).length > 0),
   );
 
   const handleOpen = useCallback(async () => {
     setOpen(true);
-    // 如果有 assistantRunId，尝试从后端拉取最新详情
-    if (msg.assistantRunId && !runDetail) {
-      setLoading(true);
-      try {
-        const data = await getAssistantRun(msg.assistantRunId);
-        setRunDetail(data);
-      } catch (err: any) {
-        message.error(
-          err?.response?.data?.detail ||
-            err?.message ||
-            '获取 AssistantRun 失败',
-        );
-      } finally {
-        setLoading(false);
-      }
+
+    if (!traceId || traceDetail) return;
+
+    setLoading(true);
+    try {
+      const data = await getTrace(traceId);
+      setTraceDetail(data);
+    } catch (err: any) {
+      message.error(
+        err?.response?.data?.detail || err?.message || '获取 Trace 失败',
+      );
+    } finally {
+      setLoading(false);
     }
-  }, [msg.assistantRunId, runDetail]);
+  }, [traceDetail, traceId]);
+
+  const spans = traceDetail?.spans || [];
+  const summary = getTraceSummary(msg, traceDetail) as TraceSummary;
+  const llmSpans = useMemo(
+    () => spans.filter((span) => span.span_type === 'llm.call'),
+    [spans],
+  );
+  const toolSpans = useMemo(
+    () => spans.filter((span) => span.span_type === 'tool.call'),
+    [spans],
+  );
+  const mcpSpans = useMemo(
+    () => spans.filter((span) => span.span_type === 'mcp.call'),
+    [spans],
+  );
+  const rawJson = traceDetail || {
+    trace_id: traceId,
+    summary,
+    trace: msg.trace || {},
+  };
 
   if (!hasTraceTarget) return null;
-
-  const resolvedMode = runDetail?.mode || msg.resolvedMode;
-  const toolCalls = msg.toolCalls || [];
-  const sources = msg.sources || [];
-  const trace = runDetail?.trace || msg.trace || {};
-  const contextTrace = getContextTrace(trace);
-  const riskFlags = getRiskFlags(contextTrace);
-  const selectedItems = contextTrace?.selected_items || [];
-  const droppedItems = (contextTrace?.dropped_items ||
-    []) as DroppedContextTraceItem[];
-  const mcpTrace = asMcpTrace(trace.mcp, toolCalls);
 
   return (
     <>
@@ -443,11 +424,11 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
         className={styles.traceBtn}
         onClick={handleOpen}
       >
-        {msg.assistantRunId ? '查看 Trace' : '查看工具 Trace'}
+        查看 Trace
       </Button>
 
       <Drawer
-        title={msg.assistantRunId ? 'Assistant Trace' : 'Tool Trace'}
+        title="Assistant Trace"
         className={styles.drawer}
         open={open}
         onClose={() => setOpen(false)}
@@ -460,391 +441,145 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
               key: 'overview',
               label: 'Overview',
               children: (
-                <>
-                  <Descriptions
-                    column={1}
+                <Descriptions
+                  column={2}
+                  size="small"
+                  bordered
+                  className={styles.descriptions}
+                >
+                  <Descriptions.Item label="Trace ID" span={2}>
+                    {traceId ? (
+                      <Text copyable code className={styles.idText}>
+                        {traceId}
+                      </Text>
+                    ) : (
+                      <Text type="secondary">-</Text>
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Spans">
+                    {summary.span_count ?? spans.length}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Errors">
+                    <Text type={summary.error_count ? 'danger' : undefined}>
+                      {summary.error_count ?? 0}
+                    </Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="LLM Calls">
+                    {summary.llm_call_count ?? llmSpans.length}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Tools">
+                    {summary.tool_call_count ?? toolSpans.length}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="MCP Calls">
+                    {summary.mcp_call_count ?? mcpSpans.length}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Latency">
+                    {formatLatency(
+                      getNumber(summary.total_latency_ms, msg.latency_ms),
+                    )}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Tokens">
+                    {summary.total_tokens ?? '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Estimated Cost">
+                    {formatCost(getNumber(summary.estimated_cost))}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Model">
+                    {msg.model || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Provider">
+                    {msg.provider || '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              ),
+            },
+            {
+              key: 'timeline',
+              label: 'Timeline',
+              children:
+                spans.length > 0 ? (
+                  <Table
                     size="small"
-                    bordered
-                    className={styles.descriptions}
-                  >
-                    {msg.assistantRunId && (
-                      <Descriptions.Item label="Assistant Run ID">
-                        <Text copyable code className={styles.idText}>
-                          {msg.assistantRunId}
-                        </Text>
-                      </Descriptions.Item>
-                    )}
-                    {(runDetail?.agent_run_id || msg.agentRunId) && (
-                      <Descriptions.Item label="Agent Run ID">
-                        <Text copyable code className={styles.idText}>
-                          {runDetail?.agent_run_id || msg.agentRunId}
-                        </Text>
-                      </Descriptions.Item>
-                    )}
-                    {resolvedMode && (
-                      <Descriptions.Item label="Mode">
-                        <Tag
-                          color={
-                            resolvedMode === 'agent'
-                              ? 'processing'
-                              : resolvedMode === 'mcp'
-                              ? 'purple'
-                              : 'cyan'
-                          }
-                        >
-                          {resolvedMode === 'agent'
-                            ? 'Agent'
-                            : resolvedMode === 'mcp'
-                            ? 'MCP 外部工具'
-                            : '普通'}
-                        </Tag>
-                      </Descriptions.Item>
-                    )}
-                    {msg.routeReason && (
-                      <Descriptions.Item label="路由原因">
-                        <Text>{msg.routeReason}</Text>
-                      </Descriptions.Item>
-                    )}
-                    {msg.matchedKeywords && msg.matchedKeywords.length > 0 && (
-                      <Descriptions.Item label="匹配关键词">
-                        {msg.matchedKeywords.map((kw) => (
-                          <Tag key={kw} color="orange">
-                            {kw}
-                          </Tag>
-                        ))}
-                      </Descriptions.Item>
-                    )}
-                    {(runDetail?.latency_ms || msg.latency_ms) && (
-                      <Descriptions.Item label="耗时">
-                        <Text>
-                          {runDetail?.latency_ms || msg.latency_ms} ms
-                        </Text>
-                      </Descriptions.Item>
-                    )}
-                    {(runDetail?.model || msg.model) && (
-                      <Descriptions.Item label="模型">
-                        <Text>{runDetail?.model || msg.model}</Text>
-                      </Descriptions.Item>
-                    )}
-                    {(runDetail?.provider || msg.provider) && (
-                      <Descriptions.Item label="Provider">
-                        <Text>{runDetail?.provider || msg.provider}</Text>
-                      </Descriptions.Item>
-                    )}
-                  </Descriptions>
-
-                  {toolCalls.length > 0 && (
-                    <div className={styles.section}>
-                      <Text strong className={styles.sectionTitle}>
-                        工具调用 ({toolCalls.length})
-                      </Text>
-                      <List
-                        size="small"
-                        dataSource={toolCalls}
-                        renderItem={(tc, idx) => (
-                          <List.Item key={idx} className={styles.listItem}>
-                            <div>
-                              <Text strong>{tc.tool_name || '未知工具'}</Text>
-                              {tc.step !== undefined && (
-                                <Tag color="default" style={{ marginLeft: 6 }}>
-                                  Step {tc.step}
-                                </Tag>
-                              )}
-                              {tc.success !== undefined && (
-                                <Tag
-                                  color={tc.success ? 'success' : 'error'}
-                                  style={{ marginLeft: 4 }}
-                                >
-                                  {tc.success ? '成功' : '失败'}
-                                </Tag>
-                              )}
-                              {tc.latency_ms !== undefined && (
-                                <Text
-                                  type="secondary"
-                                  style={{ marginLeft: 6, fontSize: 11 }}
-                                >
-                                  {tc.latency_ms} ms
-                                </Text>
-                              )}
-                              {tc.reason && (
-                                <Paragraph
-                                  type="secondary"
-                                  style={{ margin: 0, fontSize: 12 }}
-                                >
-                                  {tc.reason}
-                                </Paragraph>
-                              )}
-                              {tc.error_message && (
-                                <Paragraph
-                                  type="danger"
-                                  style={{ margin: 0, fontSize: 12 }}
-                                >
-                                  {tc.error_message}
-                                </Paragraph>
-                              )}
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </div>
-                  )}
-
-                  {sources.length > 0 && (
-                    <div className={styles.section}>
-                      <Text strong className={styles.sectionTitle}>
-                        引用来源 ({sources.length})
-                      </Text>
-                      <List
-                        size="small"
-                        dataSource={sources}
-                        renderItem={(src, idx) => (
-                          <List.Item
-                            key={src.chunk_id || idx}
-                            className={styles.listItem}
-                          >
-                            <div>
-                              <Text strong>{src.filename || '未知文件'}</Text>
-                              {src.chunk_index !== undefined && (
-                                <Tag color="default" style={{ marginLeft: 6 }}>
-                                  Chunk #{src.chunk_index}
-                                </Tag>
-                              )}
-                              {src.score !== undefined && (
-                                <Tag color="blue" style={{ marginLeft: 4 }}>
-                                  {src.score.toFixed(3)}
-                                </Tag>
-                              )}
-                              {src.heading && (
-                                <Paragraph
-                                  type="secondary"
-                                  style={{ margin: 0, fontSize: 12 }}
-                                >
-                                  {src.heading}
-                                </Paragraph>
-                              )}
-                              {src.content_preview && (
-                                <Paragraph
-                                  type="secondary"
-                                  style={{ margin: 0, fontSize: 12 }}
-                                  ellipsis={{
-                                    rows: 2,
-                                    expandable: true,
-                                    symbol: '展开',
-                                  }}
-                                >
-                                  {src.content_preview}
-                                </Paragraph>
-                              )}
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </div>
-                  )}
-                </>
-              ),
+                    rowKey="id"
+                    columns={timelineColumns}
+                    dataSource={spans}
+                    pagination={false}
+                    expandable={{ expandedRowRender: ioCollapse }}
+                    scroll={{ x: 960 }}
+                  />
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={traceId ? '暂无 Trace spans' : '缺少 trace_id'}
+                  />
+                ),
             },
             {
-              key: 'context',
-              label: 'Context',
-              children: contextTrace ? (
-                <>
-                  <div className={styles.section}>
-                    <Text strong className={styles.sectionTitle}>
-                      Summary
-                    </Text>
-                    <Descriptions column={2} size="small" bordered>
-                      <Descriptions.Item label="total_estimated_tokens">
-                        {contextTrace.total_estimated_tokens}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="max_context_tokens">
-                        {contextTrace.max_context_tokens}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="selected_count">
-                        {contextTrace.selected_count}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="dropped_count">
-                        {contextTrace.dropped_count}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-
-                  <div className={styles.section}>
-                    <Text strong className={styles.sectionTitle}>
-                      Selected Items ({selectedItems.length})
-                    </Text>
-                    <Table
-                      size="small"
-                      rowKey="id"
-                      columns={selectedColumns}
-                      dataSource={selectedItems}
-                      pagination={false}
-                      scroll={{ x: 880 }}
-                    />
-                  </div>
-
-                  <div className={styles.section}>
-                    <Text strong className={styles.sectionTitle}>
-                      Dropped Items ({droppedItems.length})
-                    </Text>
-                    <Table
-                      size="small"
-                      rowKey="id"
-                      columns={droppedColumns}
-                      dataSource={droppedItems}
-                      pagination={false}
-                      scroll={{ x: 620 }}
-                    />
-                  </div>
-
-                  <div className={styles.section}>
-                    <Text strong className={styles.sectionTitle}>
-                      Risk Flags
-                    </Text>
-                    <Descriptions column={1} size="small" bordered>
-                      <Descriptions.Item label="injection_risk">
-                        <Tag
-                          color={riskFlags.injection_risk ? 'error' : 'green'}
-                        >
-                          {riskFlags.injection_risk ? 'true' : 'false'}
-                        </Tag>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="matched_patterns">
-                        {riskFlags.matched_patterns.length > 0 ? (
-                          <Space size={[4, 4]} wrap>
-                            {riskFlags.matched_patterns.map((pattern) => (
-                              <Tag key={pattern} color="red">
-                                {pattern}
-                              </Tag>
-                            ))}
-                          </Space>
-                        ) : (
-                          <Text type="secondary">-</Text>
-                        )}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-                </>
-              ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="暂无 Context Trace"
-                />
-              ),
+              key: 'llm',
+              label: `LLM Calls (${llmSpans.length})`,
+              children:
+                llmSpans.length > 0 ? (
+                  <Table
+                    size="small"
+                    rowKey="id"
+                    columns={llmColumns}
+                    dataSource={llmSpans}
+                    pagination={false}
+                    expandable={{ expandedRowRender: ioCollapse }}
+                    scroll={{ x: 900 }}
+                  />
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="暂无 LLM Calls"
+                  />
+                ),
             },
             {
-              key: 'mcp',
-              label: 'MCP',
+              key: 'tools',
+              label: `Tools (${toolSpans.length + mcpSpans.length})`,
               children: (
                 <>
                   <div className={styles.section}>
                     <Text strong className={styles.sectionTitle}>
-                      Summary
+                      Tool Calls ({toolSpans.length})
                     </Text>
-                    <Descriptions column={2} size="small" bordered>
-                      <Descriptions.Item label="enabled">
-                        <Tag color={mcpTrace.enabled ? 'success' : 'default'}>
-                          {String(mcpTrace.enabled)}
-                        </Tag>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="used">
-                        <Tag color={mcpTrace.used ? 'processing' : 'default'}>
-                          {String(mcpTrace.used)}
-                        </Tag>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="server list">
-                        {mcpTrace.server_list.length > 0 ? (
-                          <Space size={[4, 4]} wrap>
-                            {mcpTrace.server_list.map((server) => (
-                              <Tag key={server} color="geekblue">
-                                {server}
-                              </Tag>
-                            ))}
-                          </Space>
-                        ) : (
-                          <Text type="secondary">-</Text>
-                        )}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="allowed tools">
-                        {mcpTrace.allowed_tools.length > 0 ? (
-                          <Space size={[4, 4]} wrap>
-                            {mcpTrace.allowed_tools.map((tool) => (
-                              <Tag key={tool} color="blue">
-                                {tool}
-                              </Tag>
-                            ))}
-                          </Space>
-                        ) : (
-                          <Text type="secondary">-</Text>
-                        )}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="audit ids">
-                        {mcpTrace.audit_ids.length > 0 ? (
-                          <Space direction="vertical" size={2}>
-                            {mcpTrace.audit_ids.map((auditId) => (
-                              <Text
-                                key={auditId}
-                                copyable
-                                code
-                                className={styles.idText}
-                              >
-                                {auditId}
-                              </Text>
-                            ))}
-                          </Space>
-                        ) : (
-                          <Text type="secondary">-</Text>
-                        )}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </div>
-
-                  <div className={styles.section}>
-                    <Text strong className={styles.sectionTitle}>
-                      Tool Calls ({mcpTrace.tool_calls.length})
-                    </Text>
-                    {mcpTrace.tool_calls.length > 0 ? (
+                    {toolSpans.length > 0 ? (
                       <Table
                         size="small"
-                        rowKey={(record, index) =>
-                          `${record.tool_name || 'mcp-tool'}-${
-                            record.step ?? index
-                          }`
-                        }
-                        columns={mcpToolColumns}
-                        dataSource={mcpTrace.tool_calls}
+                        rowKey="id"
+                        columns={toolColumns}
+                        dataSource={toolSpans}
                         pagination={false}
-                        scroll={{ x: 920 }}
+                        expandable={{ expandedRowRender: ioCollapse }}
+                        scroll={{ x: 860 }}
                       />
                     ) : (
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="暂无 MCP 工具调用"
+                        description="暂无 Tool Calls"
                       />
                     )}
                   </div>
 
                   <div className={styles.section}>
                     <Text strong className={styles.sectionTitle}>
-                      Permission Denied Records (
-                      {mcpTrace.permission_denied_records.length})
+                      MCP Calls ({mcpSpans.length})
                     </Text>
-                    {mcpTrace.permission_denied_records.length > 0 ? (
-                      <List
+                    {mcpSpans.length > 0 ? (
+                      <Table
                         size="small"
-                        dataSource={mcpTrace.permission_denied_records}
-                        renderItem={(record, idx) => (
-                          <List.Item key={idx} className={styles.listItem}>
-                            <Text code className={styles.traceJsonInline}>
-                              {JSON.stringify(record, null, 2)}
-                            </Text>
-                          </List.Item>
-                        )}
+                        rowKey="id"
+                        columns={mcpColumns}
+                        dataSource={mcpSpans}
+                        pagination={false}
+                        expandable={{ expandedRowRender: ioCollapse }}
+                        scroll={{ x: 760 }}
                       />
                     ) : (
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="暂无权限拒绝记录"
+                        description="暂无 MCP Calls"
                       />
                     )}
                   </div>
@@ -852,22 +587,36 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
               ),
             },
             {
-              key: 'json',
-              label: 'Trace JSON',
-              children:
-                Object.keys(trace).length > 0 ? (
-                  <Text code className={styles.traceJson}>
-                    {JSON.stringify(trace, null, 2)}
-                  </Text>
-                ) : (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="暂无 Trace JSON"
-                  />
-                ),
+              key: 'raw',
+              label: 'Raw JSON',
+              children: (
+                <Collapse
+                  size="small"
+                  items={[
+                    {
+                      key: 'raw',
+                      label: 'Raw JSON',
+                      children: jsonBlock(rawJson),
+                    },
+                  ]}
+                />
+              ),
             },
           ]}
         />
+
+        {!traceId ? (
+          <List
+            className={styles.section}
+            size="small"
+            dataSource={['当前消息没有 trace_id，无法请求 /traces/{trace_id}。']}
+            renderItem={(item) => (
+              <List.Item className={styles.listItem}>
+                <Text type="secondary">{item}</Text>
+              </List.Item>
+            )}
+          />
+        ) : null}
       </Drawer>
     </>
   );

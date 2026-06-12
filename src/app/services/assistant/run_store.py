@@ -97,6 +97,7 @@ class AssistantRunStore:
         run_id: str,
         *,
         status: str,
+        mode: str | None = None,
         user_message_id: str | None = None,
         assistant_message_id: str | None = None,
         final_answer: str | None = None,
@@ -113,6 +114,7 @@ class AssistantRunStore:
                     UPDATE assistant_runs
                     SET
                         status = %(status)s,
+                        mode = COALESCE(%(mode)s, mode),
                         user_message_id = COALESCE(%(user_message_id)s, user_message_id),
                         assistant_message_id = COALESCE(%(assistant_message_id)s, assistant_message_id),
                         final_answer = COALESCE(%(final_answer)s, final_answer),
@@ -128,6 +130,7 @@ class AssistantRunStore:
                     {
                         "run_id": run_id,
                         "status": status,
+                        "mode": mode,
                         "user_message_id": user_message_id,
                         "assistant_message_id": assistant_message_id,
                         "final_answer": final_answer,

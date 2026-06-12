@@ -9,6 +9,23 @@ from src.app.services.agent.loop import AgentLoop
 from src.app.services.agent.state import AgentState
 
 
+class FakeSpan:
+    id = "span-1"
+
+
+class FakeTraceStore:
+    created: list[dict[str, Any]] = []
+    finished: list[dict[str, Any]] = []
+
+    def create_span(self, payload: Any) -> FakeSpan:
+        self.created.append(payload.model_dump(mode="json"))
+        return FakeSpan()
+
+    def finish_span(self, span_id: str, **kwargs: Any) -> FakeSpan:
+        self.finished.append({"span_id": span_id, **kwargs})
+        return FakeSpan()
+
+
 class FakeTool:
     name = ""
     description = ""
@@ -105,6 +122,12 @@ def patch_trace_store(monkeypatch: pytest.MonkeyPatch) -> None:
         "src.app.services.agent.loop.create_agent_event",
         lambda **kwargs: {"id": "event-id", **kwargs},
     )
+    FakeTraceStore.created = []
+    FakeTraceStore.finished = []
+    monkeypatch.setattr(
+        "src.app.services.agent.loop.TraceStore",
+        FakeTraceStore,
+    )
 
 
 def build_state(question: str, max_steps: int = 3) -> AgentState:
@@ -199,3 +222,47 @@ def test_agent_loop_blocks_duplicate_tool_call() -> None:
     assert result.steps[1].error_code == "DUPLICATE_TOOL_CALL_BLOCKED"
     assert result.finish_reason == "duplicate_tool_call_blocked"
     assert result.planner_decision_count == 2
+
+
+def test_agent_loop_records_tool_call_span() -> None:
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
+    state = build_state("根据知识库查询 Button", max_steps=1).model_copy(
+        update={
+            "trace_id": "trace-1",
+            "assistant_run_id": "assistant-run-1",
+            "agent_span_id": "agent-span-1",
+        }
+    )
+
+    loop.run(state)
+
+    assert FakeTraceStore.created[0]["span_type"] == "tool.call"
+    assert FakeTraceStore.created[0]["parent_span_id"] == "agent-span-1"
+    assert FakeTraceStore.finished[0]["status"] == "success"
+
+
+def test_agent_loop_records_tool_error_span() -> None:
+    class BadPlanner:
+        def plan(self, state: AgentState) -> dict[str, Any]:
+            return {
+                "type": "tool_call",
+                "tool_name": "search_docs",
+                "arguments": {"api_key": "secret-value"},
+                "reason": "故意缺少 query",
+            }
+
+    loop = AgentLoop(tool_registry=FakeRegistry(), planner_type="rule")  # type: ignore[arg-type]
+    loop.planner = BadPlanner()  # type: ignore[assignment]
+    state = build_state("根据知识库查询 Button", max_steps=1).model_copy(
+        update={
+            "trace_id": "trace-1",
+            "assistant_run_id": "assistant-run-1",
+            "agent_span_id": "agent-span-1",
+        }
+    )
+
+    loop.run(state)
+
+    assert FakeTraceStore.created[0]["input"]["arguments"]["api_key"] == "[REDACTED]"
+    assert FakeTraceStore.finished[0]["status"] == "error"
+    assert FakeTraceStore.finished[0]["error_code"] == "TOOL_ARGUMENT_SCHEMA_ERROR"

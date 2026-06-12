@@ -83,6 +83,8 @@ const ChatMessageList: React.FC<ChatMessageListProps> = ({
             metaParts.push(`${msg.usage.total_tokens} tokens`);
 
           const hasTrace =
+            Boolean(msg.traceId) ||
+            Boolean(msg.traceSummary) ||
             Boolean(msg.assistantRunId) ||
             Boolean(msg.agentRunId) ||
             Boolean(msg.trace && Object.keys(msg.trace).length > 0);

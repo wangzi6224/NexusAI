@@ -28,6 +28,10 @@ from src.app.services.agent.prompt_builder import AgentPromptBuilder
 from src.app.services.agent.state import AgentState
 from src.app.services.assistant.event import EVENT_AGENT_RUN_END, EVENT_AGENT_RUN_START
 from src.app.services.llm.factory import get_llm_provider
+from src.app.services.observability.llm_observer import build_llm_span_metadata
+from src.app.services.observability.prompt_registry import get_prompt_version
+from src.app.services.observability.trace_schema import TraceSpanCreate
+from src.app.services.observability.trace_store import TraceStore
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.list_docs import ListDocsTool
 from src.app.services.tools.search_docs import SearchDocsTool
@@ -66,6 +70,8 @@ class AgentService:
         enable_mcp_tools: bool = False,
         memory_context: list[RetrievedLongTermMemory] | None = None,
         conversation_state: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        parent_span_id: str | None = None,
         assistant_run_id: str | None = None,
         max_context_tokens: int | None = None,
     ) -> dict[str, Any]:
@@ -122,6 +128,32 @@ class AgentService:
 
         run_id = agent_run["id"]
 
+        trace_store = TraceStore()
+
+        agent_span = None
+        if trace_id and assistant_run_id:
+            agent_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=parent_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    agent_run_id=run_id,
+                    span_type="agent.run",
+                    name="agent_loop",
+                    input={
+                        "question": clean_question,
+                        "max_steps": max_steps,
+                        "enable_mcp_tools": enable_mcp_tools,
+                    },
+                    metadata={
+                        "planner_type": self.planner_type,
+                        "model": selected_model,
+                    },
+                )
+            )
+
         create_agent_event(
             run_id=run_id,
             event_type=EVENT_AGENT_RUN_START,
@@ -176,6 +208,10 @@ class AgentService:
                 else self.planner_type
             ),
             working_memory=working_memory,
+            trace_id=trace_id,
+            agent_span_id=agent_span.id if agent_span else None,
+            parent_span_id=parent_span_id,
+            assistant_run_id=assistant_run_id,
         )
 
         agent_loop = AgentLoop(
@@ -183,25 +219,142 @@ class AgentService:
             planner_type=self.planner_type,
         )
 
-        state: AgentState = agent_loop.run(state)
+        try:
+            state: AgentState = agent_loop.run(state)
+        except Exception as exc:
+            if agent_span:
+                trace_store.finish_span(
+                    agent_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            raise
 
-        context_package = self.prompt_builder.build_final_context_package(
-            state=state,
-            conversation_summary=conversation.get("summary"),
-            conversation_state=conversation_state,
-            long_term_memory_items=memory_context or [],
-            max_context_tokens=resolved_max_context_tokens,
-        )
+        context_span = None
+        if trace_id and assistant_run_id:
+            context_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=agent_span.id if agent_span else parent_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    agent_run_id=run_id,
+                    span_type="context.final_assemble",
+                    name="agent_final_context",
+                    input={
+                        "observation_count": len(state.observations),
+                        "max_context_tokens": resolved_max_context_tokens,
+                    },
+                )
+            )
+
+        try:
+            context_package = self.prompt_builder.build_final_context_package(
+                state=state,
+                conversation_summary=conversation.get("summary"),
+                conversation_state=conversation_state,
+                long_term_memory_items=memory_context or [],
+                max_context_tokens=resolved_max_context_tokens,
+            )
+
+            if context_span:
+                trace_store.finish_span(
+                    context_span.id,
+                    output={
+                        "selected_count": len(context_package.items),
+                        "dropped_count": len(context_package.dropped_items),
+                        "total_estimated_tokens": context_package.total_estimated_tokens,
+                        "trace": context_package.trace,
+                    },
+                )
+        except Exception as exc:
+            if context_span:
+                trace_store.finish_span(
+                    context_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            if agent_span:
+                trace_store.finish_span(
+                    agent_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            raise
 
         final_messages = context_package.messages
 
         final_answer_start = perf_counter()
 
-        response = self.llm_provider.chat(
-            messages=final_messages,
-            model=selected_model,
-            thinking_enabled=False,
-        )
+        llm_span = None
+        if trace_id and assistant_run_id:
+            llm_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=agent_span.id if agent_span else parent_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    agent_run_id=run_id,
+                    span_type="llm.call",
+                    name="agent_final_answer",
+                    input={
+                        "message_count": len(final_messages),
+                    },
+                    metadata={
+                        "operation": "final_answer",
+                        "prompt_name": "agent.final_answer",
+                        "prompt_version": get_prompt_version("agent.final_answer"),
+                        "model": selected_model,
+                        "provider": get_llm_provider_name(),
+                    },
+                )
+            )
+
+        try:
+            response = self.llm_provider.chat(
+                messages=final_messages,
+                model=selected_model,
+                thinking_enabled=False,
+            )
+
+            llm_metadata = build_llm_span_metadata(
+                operation="final_answer",
+                prompt_name="agent.final_answer",
+                model=response.model,
+                provider=response.provider,
+                messages=final_messages,
+                completion_text=response.content,
+            )
+
+            if llm_span:
+                trace_store.finish_span(
+                    llm_span.id,
+                    output={
+                        "answer_chars": len(response.content),
+                    },
+                    metadata=llm_metadata,
+                )
+        except Exception as exc:
+            if llm_span:
+                trace_store.finish_span(
+                    llm_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            if agent_span:
+                trace_store.finish_span(
+                    agent_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            raise
 
         final_answer_latency_ms = int((perf_counter() - final_answer_start) * 1000)
 
@@ -241,6 +394,19 @@ class AgentService:
         tool_calls = [
             step.model_dump() for step in state.steps if step.type == "tool_call"
         ]
+
+        if agent_span:
+            trace_store.finish_span(
+                agent_span.id,
+                output={
+                    "finish_reason": state.finish_reason,
+                    "step_count": len(state.steps),
+                    "tool_call_count": len(tool_calls),
+                    "used_tools": [
+                        step.tool_name for step in state.steps if step.tool_name
+                    ],
+                },
+            )
 
         trace = {
             "run_id": run_id,

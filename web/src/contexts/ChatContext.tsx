@@ -6,6 +6,7 @@ import {
   ConversationItem,
   MessageItem,
   ModelsResponse,
+  TraceSummary,
   createConversation as apiCreateConversation,
   deleteConversation as apiDeleteConversation,
   selectModel as apiSelectModel,
@@ -69,6 +70,8 @@ export interface ChatMessage {
   toolCalls?: AssistantToolCallEvent[];
   sources?: AssistantSourceItem[];
   trace?: Record<string, unknown>;
+  traceId?: string;
+  traceSummary?: TraceSummary;
   traceEvents?: AssistantTraceEventItem[];
   statusText?: string;
 }
@@ -162,6 +165,19 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
     !Array.isArray(rawTrace)
       ? (rawTrace as Record<string, unknown>)
       : undefined;
+  const rawTraceSummary = metadata.trace_summary;
+  const traceSummary: TraceSummary | undefined =
+    rawTraceSummary !== null &&
+    typeof rawTraceSummary === 'object' &&
+    !Array.isArray(rawTraceSummary)
+      ? (rawTraceSummary as TraceSummary)
+      : undefined;
+  const traceId =
+    typeof metadata.trace_id === 'string'
+      ? metadata.trace_id
+      : typeof traceSummary?.trace_id === 'string'
+      ? traceSummary.trace_id
+      : undefined;
 
   // 从 trace.route_decision 恢复路由原因
   let routeReason: string | undefined;
@@ -211,6 +227,8 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
     toolCalls,
     sources,
     trace,
+    traceId,
+    traceSummary,
   };
 }
 
@@ -833,6 +851,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
                             !Array.isArray(chunk.trace)
                               ? chunk.trace
                               : m.trace,
+                          traceId: chunk.trace_id || m.traceId,
+                          traceSummary:
+                            chunk.trace_summary &&
+                            typeof chunk.trace_summary === 'object'
+                              ? chunk.trace_summary
+                              : m.traceSummary,
                           provider:
                             chunk.provider ||
                             currentProvider ||

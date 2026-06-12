@@ -36,7 +36,8 @@ from src.app.services.assistant.mode_router import RouterContext
 from src.app.services.assistant.route_decision import RouteDecision
 from src.app.services.assistant.run_store import AssistantRunStore
 from src.app.services.llm.factory import get_llm_provider
-from src.app.services.observability.trace_schema import TraceSpanCreate
+from src.app.services.observability.llm_observer import build_llm_span_metadata
+from src.app.services.observability.prompt_registry import get_prompt_version
 from src.app.services.summarizer import Summarizer
 from src.app.services.memory.short_term_builder import ShortTermMemoryBuilder
 from src.app.services.memory.short_term_store import ShortTermMemoryStore
@@ -54,7 +55,7 @@ from src.app.services.memory.long_term_schemas import (
 from src.app.services.context_engineering.context_assembler import ContextAssembler
 from src.app.services.context_engineering.schemas import ContextBuildRequest
 from src.app.exceptions import ConversationError
-from src.app.services.observability.span import trace_span
+from src.app.services.observability.trace_schema import TraceSpanCreate
 from src.app.services.observability.trace_store import TraceStore
 
 logger = get_logger()
@@ -128,32 +129,25 @@ class AssistantOrchestrator:
             provider=request.provider,
         )
 
-        try:
-            route_start = perf_counter()
-            # 第四步：路由决策，决定后续使用 Chat 还是 Agent 处理请求，并记录路由耗时供后续分析。
-            route_decision = self._route(
-                conversation_id=conversation_id,
-                request=request,
-                selected_model=selected_model,
-            )
-            route_ms = int((perf_counter() - route_start) * 1000)
+        root_span = None
 
-            # 第五步：创建 Assistant 运行记录，记录路由决策和相关元信息，供后续分析和追踪。
+        try:
+            trace_store = TraceStore()
+
+            # 第四步：先创建 Assistant 运行记录，后续 span 统一使用 assistant_run_id 作为关联键。
             assistant_run = self.run_store.create_run(
                 conversation_id=conversation_id,
-                mode=route_decision.mode,
+                mode=request.mode,
                 input_text=clean_message,
                 model=selected_model,
                 provider=request.provider or conversation.get("provider"),
                 metadata={
                     "requested_mode": request.mode,
                     "options": request.options.model_dump(),
-                    "route_decision": route_decision.model_dump(),
                 },
             )
             assistant_run_id = assistant_run["id"]
             trace_id = f"trace_{assistant_run_id}"
-            trace_store = TraceStore()
 
             root_span = trace_store.create_span(
                 TraceSpanCreate(
@@ -175,6 +169,58 @@ class AssistantOrchestrator:
                 )
             )
 
+            # 第五步：在 root span 下执行路由决策，记录路由耗时供后续分析。
+            route_start = perf_counter()
+            route_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    parent_span_id=root_span.id,
+                    run_id=assistant_run_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="router.decision",
+                    name="mode_router",
+                    input={
+                        "message": clean_message,
+                        "requested_mode": request.mode,
+                    },
+                    metadata={
+                        "selected_model": selected_model,
+                    },
+                )
+            )
+            try:
+                route_decision = self._route(
+                    conversation_id=conversation_id,
+                    request=request,
+                    selected_model=selected_model,
+                )
+                route_ms = int((perf_counter() - route_start) * 1000)
+                trace_store.finish_span(
+                    route_span.id,
+                    status="success",
+                    output=route_decision.model_dump(mode="json"),
+                    metadata={"latency_ms": route_ms},
+                )
+            except Exception as exc:
+                trace_store.finish_span(
+                    route_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+                raise
+            self.run_store.update_run(
+                assistant_run_id,
+                status="running",
+                mode=route_decision.mode,
+                metadata={
+                    "requested_mode": request.mode,
+                    "options": request.options.model_dump(mode="json"),
+                    "route_decision": route_decision.model_dump(mode="json"),
+                },
+            )
+
         except Exception as exc:
             latency_ms = int((perf_counter() - start) * 1000)
             logger.exception(
@@ -182,6 +228,16 @@ class AssistantOrchestrator:
                 conversation_id,
                 exc,
             )
+            if root_span is not None:
+                try:
+                    trace_store.finish_span(
+                        root_span.id,
+                        status="error",
+                        error_code=exc.__class__.__name__,
+                        error_message=str(exc),
+                    )
+                except Exception:
+                    logger.exception("Failed to finish assistant root span")
             yield sse_event(
                 EVENT_ERROR,
                 {
@@ -218,33 +274,94 @@ class AssistantOrchestrator:
         long_term_memory_items: list[RetrievedLongTermMemory] = []
 
         if request.options.enable_short_term_memory:
-            # 构建短期记忆，供后续 Agent 使用。目前仅包含最近的对话消息，后续可以增加更多类型的记忆。
-            short_term_memory = self.short_term_builder.build(
-                conversation_id=conversation_id,
-                recent_limit=10,
+            short_term_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=root_span.id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="memory.short_term.load",
+                    name="short_term_memory_load",
+                    input={
+                        "recent_limit": 10,
+                    },
+                )
             )
+            # 构建短期记忆，供后续 Agent 使用。目前仅包含最近的对话消息，后续可以增加更多类型的记忆。
+            try:
+                short_term_memory = self.short_term_builder.build(
+                    conversation_id=conversation_id,
+                    recent_limit=10,
+                )
+                trace_store.finish_span(
+                    short_term_span.id,
+                    output=short_term_memory.get("trace") or {},
+                )
+            except Exception as exc:
+                trace_store.finish_span(
+                    short_term_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+                raise
 
         if (
             request.options.enable_long_term_memory
             and request.options.long_term_memory_top_k > 0
         ):
-            # 构建长期记忆检索请求，供后续 Agent 使用。目前支持多种记忆类型的检索，后续可以增加更多选项。
-            long_term_memory = self.long_term_retriever.retrieve(
-                LongTermMemorySearchRequest(
-                    query=clean_message,
-                    user_id="default_user",
-                    top_k=request.options.long_term_memory_top_k,
-                    min_score=request.options.long_term_memory_min_score,
-                    memory_types=[
-                        "user_profile",  # 用户画像
-                        "semantic",  # 语义记忆，基于向量检索的通用记忆类型
-                        "episodic",  # 事件记忆，记录用户的具体事件和经历
-                        "tool_preference",  # 工具偏好记忆，记录用户对工具使用的偏好和习惯
-                        "project",  # 项目记忆，记录用户参与的项目相关信息
-                    ],
+            memory_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=root_span.id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="memory.long_term.retrieve",
+                    name="long_term_memory_retrieve",
+                    input={
+                        "query": clean_message,
+                        "top_k": request.options.long_term_memory_top_k,
+                        "min_score": request.options.long_term_memory_min_score,
+                    },
                 )
             )
-            long_term_memory_items = long_term_memory.items
+            # 构建长期记忆检索请求，供后续 Agent 使用。目前支持多种记忆类型的检索，后续可以增加更多选项。
+            try:
+                long_term_memory = self.long_term_retriever.retrieve(
+                    LongTermMemorySearchRequest(
+                        query=clean_message,
+                        user_id="default_user",
+                        top_k=request.options.long_term_memory_top_k,
+                        min_score=request.options.long_term_memory_min_score,
+                        memory_types=[
+                            "user_profile",  # 用户画像
+                            "semantic",  # 语义记忆，基于向量检索的通用记忆类型
+                            "episodic",  # 事件记忆，记录用户的具体事件和经历
+                            "tool_preference",  # 工具偏好记忆，记录用户对工具使用的偏好和习惯
+                            "project",  # 项目记忆，记录用户参与的项目相关信息
+                        ],
+                    )
+                )
+
+                long_term_memory_items = long_term_memory.items
+                trace_store.finish_span(
+                    memory_span.id,
+                    output={
+                        "count": len(long_term_memory_items),
+                        "latency_ms": long_term_memory.latency_ms,
+                        "memory_ids": [item.item.id for item in long_term_memory_items],
+                    },
+                )
+            except Exception as exc:
+                trace_store.finish_span(
+                    memory_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+                raise
 
         if short_term_memory:
             # 第六步：加载短期记忆
@@ -301,13 +418,33 @@ class AssistantOrchestrator:
             if route_decision.mode == "chat":
                 yield from self._stream_chat(
                     **params,
-                    provider=request.provider,
+                    trace_id=trace_id,
+                    root_span_id=root_span.id,
+                    provider=request.provider or conversation.get("provider"),
                 )
+                try:
+                    trace_store.finish_span(
+                        root_span.id,
+                        status="success",
+                        output={"mode": "chat"},
+                    )
+                except Exception:
+                    logger.exception("Failed to finish assistant root span")
                 return
             if route_decision.mode == "agent":
                 yield from self._stream_agent(
                     **params,
+                    trace_id=trace_id,
+                    root_span_id=root_span.id,
                 )
+                try:
+                    trace_store.finish_span(
+                        root_span.id,
+                        status="success",
+                        output={"mode": "agent"},
+                    )
+                except Exception:
+                    logger.exception("Failed to finish assistant root span")
                 return
 
             raise RuntimeError(f"不支持的 Assistant 模式: {route_decision.mode}")
@@ -338,6 +475,15 @@ class AssistantOrchestrator:
                     },
                 },
             )
+            try:
+                trace_store.finish_span(
+                    root_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+            except Exception:
+                logger.exception("Failed to finish assistant root span")
 
             yield sse_event(
                 EVENT_ERROR,
@@ -431,10 +577,14 @@ class AssistantOrchestrator:
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        trace_id: str,
+        root_span_id: str,
         short_term_memory: dict[str, Any] | None,
         long_term_memory: LongTermMemoryRetrievalResult | None,
         long_term_memory_items: list[RetrievedLongTermMemory],
     ) -> Iterable[str]:
+        trace_store = TraceStore()
+
         user_message = create_message(
             conversation_id=conversation_id,
             role="user",
@@ -446,25 +596,59 @@ class AssistantOrchestrator:
             },
         )
 
-        context_package = self.context_assembler.build(
-            ContextBuildRequest(
-                conversation_id=conversation_id,
-                user_message=clean_message,
-                mode="chat",
-                conversation_summary=(
-                    short_term_memory.get("summary") if short_term_memory else None
-                ),
-                conversation_state=(
-                    short_term_memory.get("state") if short_term_memory else None
-                ),
-                recent_messages=list_recent_messages(conversation_id, limit=10),
-                long_term_memory_items=long_term_memory_items,
-                max_context_tokens=resolve_max_context_tokens(
-                    selected_model,
-                    request.options.max_context_tokens,
-                ),
+        try:
+            context_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=root_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="context.assemble",
+                    name="chat_context_assemble",
+                    input={
+                        "mode": "chat",
+                        "max_context_tokens": request.options.max_context_tokens,
+                    },
+                )
             )
-        )
+            context_package = self.context_assembler.build(
+                ContextBuildRequest(
+                    conversation_id=conversation_id,
+                    user_message=clean_message,
+                    mode="chat",
+                    conversation_summary=(
+                        short_term_memory.get("summary") if short_term_memory else None
+                    ),
+                    conversation_state=(
+                        short_term_memory.get("state") if short_term_memory else None
+                    ),
+                    recent_messages=list_recent_messages(conversation_id, limit=10),
+                    long_term_memory_items=long_term_memory_items,
+                    max_context_tokens=resolve_max_context_tokens(
+                        selected_model,
+                        request.options.max_context_tokens,
+                    ),
+                )
+            )
+
+            trace_store.finish_span(
+                context_span.id,
+                output={
+                    "selected_count": len(context_package.items),
+                    "dropped_count": len(context_package.dropped_items),
+                    "total_estimated_tokens": context_package.total_estimated_tokens,
+                    "trace": context_package.trace,
+                },
+            )
+        except Exception as exc:
+            trace_store.finish_span(
+                context_span.id,
+                status="error",
+                error_code=exc.__class__.__name__,
+                error_message=str(exc),
+            )
+            raise
 
         llm_messages = context_package.messages
 
@@ -478,22 +662,71 @@ class AssistantOrchestrator:
             },
         )
 
+        llm_span = trace_store.create_span(
+            TraceSpanCreate(
+                trace_id=trace_id,
+                run_id=assistant_run_id,
+                parent_span_id=root_span_id,
+                conversation_id=conversation_id,
+                assistant_run_id=assistant_run_id,
+                span_type="llm.call",
+                name="chat_stream",
+                input={
+                    "message_count": len(llm_messages),
+                },
+                metadata={
+                    "operation": "chat",
+                    "prompt_name": "assistant.chat",
+                    "prompt_version": get_prompt_version("assistant.chat"),
+                    "model": selected_model,
+                    "provider": provider,
+                },
+            )
+        )
+
         llm_provider = get_llm_provider(provider)
         full_answer_parts: list[str] = []
+        try:
+            for chunk in llm_provider.stream_chat(
+                message=llm_messages,
+                model=selected_model,
+                thinking_enabled=True,
+            ):
+                if chunk.done:
+                    break
 
-        for chunk in llm_provider.stream_chat(
-            message=llm_messages,
-            model=selected_model,
-            thinking_enabled=True,
-        ):
-            if chunk.done:
-                break
+                full_answer_parts.append(chunk.delta)
+                yield sse_event(EVENT_DELTA, {"delta": chunk.delta})
 
-            full_answer_parts.append(chunk.delta)
-            yield sse_event(EVENT_DELTA, {"delta": chunk.delta})
+            full_answer = "".join(full_answer_parts)
 
-        full_answer = "".join(full_answer_parts)
-        latency_ms = int((perf_counter() - start) * 1000)
+            llm_metadata = build_llm_span_metadata(
+                operation="chat",
+                prompt_name="assistant.chat",
+                model=selected_model,
+                provider=provider or "unknown",
+                messages=llm_messages,
+                completion_text=full_answer,
+            )
+
+            trace_store.finish_span(
+                llm_span.id,
+                output={
+                    "answer_chars": len(full_answer),
+                },
+                metadata=llm_metadata,
+            )
+
+            latency_ms = int((perf_counter() - start) * 1000)
+
+        except Exception as exc:
+            trace_store.finish_span(
+                llm_span.id,
+                status="error",
+                error_code="LLM_STREAM_FAILED",
+                error_message=str(exc),
+            )
+            raise
 
         conversation_state_write = None
         long_term_memory_write = None
@@ -514,14 +747,41 @@ class AssistantOrchestrator:
             request.options.enable_long_term_memory
             and request.options.enable_long_term_memory_write
         ):
-            long_term_memory_write = self.long_term_writer.write_from_turn(
-                user_message=clean_message,
-                assistant_answer=full_answer,
-                conversation_id=conversation_id,
-                source_message_id=user_message["id"],
-                source_run_id=assistant_run_id,
-                model=selected_model,
+            memory_write_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=root_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    span_type="memory.long_term.write",
+                    name="chat_long_term_memory_write",
+                    input={
+                        "source_message_id": user_message["id"],
+                    },
+                )
             )
+            try:
+                long_term_memory_write = self.long_term_writer.write_from_turn(
+                    user_message=clean_message,
+                    assistant_answer=full_answer,
+                    conversation_id=conversation_id,
+                    source_message_id=user_message["id"],
+                    source_run_id=assistant_run_id,
+                    model=selected_model,
+                )
+                trace_store.finish_span(
+                    memory_write_span.id,
+                    output=long_term_memory_write.trace,
+                )
+            except Exception as exc:
+                trace_store.finish_span(
+                    memory_write_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+                raise
             yield sse_event(
                 EVENT_LONG_TERM_MEMORY_WRITE,
                 long_term_memory_write.trace,
@@ -614,6 +874,16 @@ class AssistantOrchestrator:
                 "provider": llm_provider.name,
                 "tool_calls": [],
                 "trace": trace,
+                "trace_id": trace_id,
+                "trace_summary": {
+                    "span_count": 12,
+                    "llm_call_count": 2,
+                    "tool_call_count": 1,
+                    "mcp_call_count": 0,
+                    "total_tokens": 5820,
+                    "estimated_cost": 0.0021,
+                    "error_count": 0,
+                },
             },
         )
         yield sse_event(EVENT_DONE, "[DONE]")
@@ -668,6 +938,8 @@ class AssistantOrchestrator:
         route_decision: RouteDecision,
         route_ms: int,
         start: float,
+        trace_id: str,
+        root_span_id: str,
         short_term_memory: dict[str, Any] | None,
         long_term_memory: LongTermMemoryRetrievalResult | None,
         long_term_memory_items: list[RetrievedLongTermMemory],
@@ -683,6 +955,8 @@ class AssistantOrchestrator:
             model=selected_model,
             enable_working_memory=request.options.enable_working_memory,
             enable_mcp_tools=request.options.enable_mcp_tools,
+            trace_id=trace_id,
+            parent_span_id=root_span_id,
             assistant_run_id=assistant_run_id,
             max_context_tokens=resolve_max_context_tokens(
                 selected_model,
@@ -705,6 +979,7 @@ class AssistantOrchestrator:
         agent_run_id: str | None = result.get("run_id")
         user_message_id: str | None = result.get("user_message_id")
         assistant_message_id: str | None = result.get("assistant_message_id")
+        trace_store = TraceStore()
 
         conversation_state_write = None
         long_term_memory_write = None
@@ -724,14 +999,42 @@ class AssistantOrchestrator:
             request.options.enable_long_term_memory
             and request.options.enable_long_term_memory_write
         ):
-            long_term_memory_write = self.long_term_writer.write_from_turn(
-                user_message=clean_message,
-                assistant_answer=answer,
-                conversation_id=conversation_id,
-                source_message_id=user_message_id,
-                source_run_id=assistant_run_id,
-                model=selected_model,
+            memory_write_span = trace_store.create_span(
+                TraceSpanCreate(
+                    trace_id=trace_id,
+                    run_id=assistant_run_id,
+                    parent_span_id=root_span_id,
+                    conversation_id=conversation_id,
+                    assistant_run_id=assistant_run_id,
+                    agent_run_id=agent_run_id,
+                    span_type="memory.long_term.write",
+                    name="agent_long_term_memory_write",
+                    input={
+                        "source_message_id": user_message_id,
+                    },
+                )
             )
+            try:
+                long_term_memory_write = self.long_term_writer.write_from_turn(
+                    user_message=clean_message,
+                    assistant_answer=answer,
+                    conversation_id=conversation_id,
+                    source_message_id=user_message_id,
+                    source_run_id=assistant_run_id,
+                    model=selected_model,
+                )
+                trace_store.finish_span(
+                    memory_write_span.id,
+                    output=long_term_memory_write.trace,
+                )
+            except Exception as exc:
+                trace_store.finish_span(
+                    memory_write_span.id,
+                    status="error",
+                    error_code=exc.__class__.__name__,
+                    error_message=str(exc),
+                )
+                raise
             yield sse_event(
                 EVENT_LONG_TERM_MEMORY_WRITE,
                 long_term_memory_write.trace,
@@ -841,6 +1144,16 @@ class AssistantOrchestrator:
                 "tool_calls": tool_calls,
                 "sources": sources,
                 "trace": assistant_trace,
+                "trace_id": trace_id,
+                "trace_summary": {
+                    "span_count": 12,
+                    "llm_call_count": 2,
+                    "tool_call_count": 1,
+                    "mcp_call_count": 0,
+                    "total_tokens": 5820,
+                    "estimated_cost": 0.0021,
+                    "error_count": 0,
+                },
             },
         )
         yield sse_event(EVENT_DONE, "[DONE]")

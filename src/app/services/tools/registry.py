@@ -44,4 +44,5 @@ class ToolRegistry:
 
     def validate_arguments(self, tool_name: str, arguments: dict) -> None:
         tool = self.get(tool_name)
-        validate(instance=arguments, schema=tool.parameters)
+        public_arguments = {k: v for k, v in arguments.items() if k != "_trace"}
+        validate(instance=public_arguments, schema=tool.parameters)

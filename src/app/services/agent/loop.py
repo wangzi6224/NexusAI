@@ -19,6 +19,9 @@ from src.app.services.assistant.event import (
     EVENT_TOOL_ERROR,
     EVENT_TOOL_RESULT,
 )
+from src.app.services.observability.redaction import redact_dict
+from src.app.services.observability.trace_schema import TraceSpanCreate
+from src.app.services.observability.trace_store import TraceStore
 from src.app.services.tools.registry import ToolRegistry
 from src.app.services.tools.safety import limit_tool_result
 
@@ -65,6 +68,7 @@ def _build_observation(step: AgentStep) -> AgentObservation:
 class AgentLoop:
     def __init__(self, tool_registry: ToolRegistry, planner_type: str = "llm") -> None:
         self.tool_registry = tool_registry
+        self.trace_store = TraceStore()
         if planner_type == "llm":
             self.planner = LLMPlanner(tool_registry=tool_registry)
         else:
@@ -107,6 +111,12 @@ class AgentLoop:
 
             tool_name = str(decision["tool_name"])
             arguments = dict(decision.get("arguments", {}))
+            tool_span = self._create_tool_span(
+                state=state,
+                tool_name=tool_name,
+                arguments=arguments,
+                reason=decision.get("reason"),
+            )
 
             # 检测到重复工具调用，阻断并记录错误，避免 Agent 陷入循环。
             if _has_duplicate_tool_call(state, tool_name, arguments):
@@ -160,6 +170,7 @@ class AgentLoop:
                         "arguments": arguments,
                     },
                 )
+                self._finish_tool_span(tool_span, step)
 
                 return state
 
@@ -185,12 +196,15 @@ class AgentLoop:
                 tool_name=tool_name,
                 arguments=arguments,
                 reason=decision.get("reason"),
+                tool_span_id=getattr(tool_span, "id", None),
             )
 
             # 将步骤结果转换为observation，添加到状态中，为下一轮 planner 提供输入。
             observation = _build_observation(step)
             state.steps.append(step)
             state.observations.append(observation)
+
+            self._finish_tool_span(tool_span, step)
 
             # 将工具调用结果保存在 WorkMemory 中，供后续决策和回应的上下文补充。
             state.working_memory.add_tool_observation(
@@ -223,6 +237,76 @@ class AgentLoop:
         )
         return state
 
+    def _create_tool_span(
+        self,
+        *,
+        state: AgentState,
+        tool_name: str,
+        arguments: dict[str, Any],
+        reason: str | None,
+    ):
+        if not state.trace_id or not state.assistant_run_id:
+            return None
+
+        source = "internal"
+        risk_level = "low"
+        try:
+            tool = self.tool_registry.get(tool_name)
+            source = getattr(tool, "source", source)
+            risk_level = getattr(tool, "risk_level", risk_level)
+        except Exception:
+            pass
+
+        return self.trace_store.create_span(
+            TraceSpanCreate(
+                trace_id=state.trace_id,
+                run_id=state.assistant_run_id,
+                parent_span_id=state.agent_span_id or state.parent_span_id,
+                conversation_id=state.conversation_id,
+                assistant_run_id=state.assistant_run_id,
+                agent_run_id=state.run_id,
+                span_type="tool.call",
+                name=tool_name,
+                input=redact_dict(
+                    {
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                        "reason": reason,
+                    },
+                    max_text_chars=1200,
+                ),
+                metadata={
+                    "source": source,
+                    "risk_level": risk_level,
+                    "step": len(state.steps) + 1,
+                },
+            )
+        )
+
+    def _finish_tool_span(self, span: Any, step: AgentStep) -> None:
+        if span is None:
+            return
+
+        result = step.result or {}
+        self.trace_store.finish_span(
+            span.id,
+            status="success" if step.success else "error",
+            output=redact_dict(
+                {
+                    "success": step.success,
+                    "result": result,
+                    "error_code": step.error_code,
+                    "error_message": step.error_message,
+                },
+                max_text_chars=2000,
+            ),
+            error_code=None if step.success else step.error_code,
+            error_message=None if step.success else step.error_message,
+            metadata={
+                "latency_ms": step.latency_ms,
+            },
+        )
+
     def _execute_tool_step(
         self,
         *,
@@ -231,6 +315,7 @@ class AgentLoop:
         tool_name: str,
         arguments: dict[str, Any],
         reason: str | None,
+        tool_span_id: str | None = None,
     ) -> AgentStep:
         """解析工具调用步骤，执行工具，并记录步骤结果和事件
 
@@ -248,9 +333,15 @@ class AgentLoop:
 
         try:
             tool = self.tool_registry.get(tool_name)
+            execution_arguments = self._build_execution_arguments(
+                state=state,
+                tool=tool,
+                arguments=arguments,
+                tool_span_id=tool_span_id,
+            )
             # 验证工具参数是否合法，合法则执行工具，否则记录参数错误
-            self.tool_registry.validate_arguments(tool_name, arguments)
-            result = tool.run(arguments)
+            self.tool_registry.validate_arguments(tool_name, execution_arguments)
+            result = tool.run(execution_arguments)
             result = limit_tool_result(
                 result
             )  # 对工具结果进行长度限制，避免过大结果导致后续处理问题
@@ -338,6 +429,34 @@ class AgentLoop:
                 code="TOOL_EXECUTION_ERROR",
                 message=str(exc),
             )
+
+    def _build_execution_arguments(
+        self,
+        *,
+        state: AgentState,
+        tool: Any,
+        arguments: dict[str, Any],
+        tool_span_id: str | None,
+    ) -> dict[str, Any]:
+        if getattr(tool, "source", "internal") != "mcp":
+            return arguments
+
+        if not state.trace_id or not state.assistant_run_id:
+            return arguments
+
+        return {
+            **arguments,
+            "_trace": {
+                "trace_id": state.trace_id,
+                "parent_span_id": tool_span_id
+                or state.agent_span_id
+                or state.parent_span_id,
+                "run_id": state.assistant_run_id,
+                "conversation_id": state.conversation_id,
+                "assistant_run_id": state.assistant_run_id,
+                "agent_run_id": state.run_id,
+            },
+        }
 
     def _record_tool_error_step(
         self,

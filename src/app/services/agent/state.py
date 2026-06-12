@@ -78,3 +78,11 @@ class AgentState(BaseModel):
     planner_fallback_count: int = 0
     # 工作记忆
     working_memory: WorkingMemory = Field(default_factory=WorkingMemory)
+    # LLMOps trace id，由 AssistantOrchestrator 传入；为空时跳过 span 写入
+    trace_id: str | None = None
+    # AgentService 创建的 agent.run span id，工具 span 挂在它下面
+    agent_span_id: str | None = None
+    # 上游父 span id，通常是 assistant.run root span
+    parent_span_id: str | None = None
+    # Assistant run id，用于关联 assistant_runs 和 trace_spans
+    assistant_run_id: str | None = None

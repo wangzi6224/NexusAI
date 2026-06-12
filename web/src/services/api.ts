@@ -155,7 +155,7 @@ export type AssistantStreamEvent =
   | 'error'
   | 'done'
   | 'message'
-  | (string & {});
+  | (string & Record<never, never>);
 
 export interface AssistantToolCallEvent {
   tool_name?: string;
@@ -236,6 +236,46 @@ export interface AssistantRunItem {
   updated_at: string;
 }
 
+export interface TraceSummary {
+  trace_id?: string;
+  span_count?: number;
+  error_count?: number;
+  llm_call_count?: number;
+  tool_call_count?: number;
+  mcp_call_count?: number;
+  total_latency_ms?: number;
+  total_tokens?: number;
+  estimated_cost?: number;
+  [key: string]: unknown;
+}
+
+export interface TraceSpan {
+  id: string;
+  trace_id: string;
+  parent_span_id?: string | null;
+  run_id: string;
+  conversation_id?: string | null;
+  assistant_run_id?: string | null;
+  agent_run_id?: string | null;
+  span_type: string;
+  name: string;
+  status: string;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  metadata: Record<string, unknown>;
+  latency_ms?: number | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+}
+
+export interface TraceDetailResponse {
+  trace_id: string;
+  summary: TraceSummary;
+  spans: TraceSpan[];
+}
+
 export interface AssistantStreamChunk {
   event: AssistantStreamEvent;
   delta?: string;
@@ -253,6 +293,8 @@ export interface AssistantStreamChunk {
   tool_calls?: AssistantToolCallEvent[];
   sources?: AssistantSourceItem[];
   trace?: Record<string, unknown>;
+  trace_id?: string;
+  trace_summary?: TraceSummary;
   context?: ContextTrace;
   tool_name?: string;
   arguments?: Record<string, unknown>;
@@ -732,6 +774,11 @@ export async function getAssistantRun(
   runId: string,
 ): Promise<AssistantRunItem> {
   const { data } = await http.get<AssistantRunItem>(`/assistant/runs/${runId}`);
+  return data;
+}
+
+export async function getTrace(traceId: string): Promise<TraceDetailResponse> {
+  const { data } = await http.get<TraceDetailResponse>(`/traces/${traceId}`);
   return data;
 }
 
