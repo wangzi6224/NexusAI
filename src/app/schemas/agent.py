@@ -1,5 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, Field
+from src.app.config import get_agent_max_steps
 
 
 class AgentChatRequest(BaseModel):
@@ -8,7 +9,7 @@ class AgentChatRequest(BaseModel):
     model: str = Field(..., description="可选，指定使用的模型名称，例如：gemma4:e2b")
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.3, ge=0, le=1)
-    max_steps: int = Field(default=15, ge=1, le=20)
+    max_steps: int = Field(default_factory=get_agent_max_steps, ge=1, le=20)
 
 
 class AgentChatResponse(BaseModel):

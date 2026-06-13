@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from src.app.db import get_connection
+from src.app.config import get_agent_max_steps
 from src.app.services.assistant.event import AgentTraceEvent
 
 
@@ -42,7 +43,7 @@ def create_agent_run(
     input_text: str,
     model: str,
     provider: str = "ollama",
-    max_steps: int = 3,
+    max_steps: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """创建新的 agent_runs 记录，并返回完整信息。
@@ -53,7 +54,7 @@ def create_agent_run(
         input_text: 用户输入的文本内容。
         model: Agent 执行使用的模型名称。
         provider: Agent 执行使用的模型提供商，默认为 "ollama"。
-        max_steps: 该 Agent 运行允许的最大步骤数，默认为 3。
+        max_steps: 该 Agent 运行允许的最大步骤数；为空时使用 AGENT_MAX_STEPS。
         metadata: 可选附加信息，将存储在 metadata 字段中。
 
     Returns:
@@ -61,6 +62,7 @@ def create_agent_run(
     """
 
     run_id = str(uuid4())
+    resolved_max_steps = max_steps or get_agent_max_steps()
 
     with get_connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
@@ -97,7 +99,7 @@ def create_agent_run(
                     "input": input_text,
                     "model": model,
                     "provider": provider,
-                    "max_steps": max_steps,
+                    "max_steps": resolved_max_steps,
                     "metadata": Jsonb(metadata or {}),
                 },
             )

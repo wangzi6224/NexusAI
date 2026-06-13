@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from pydantic import BaseModel, Field
+from src.app.config import get_agent_max_steps
 from src.app.services.assistant.mode import AssistantMode, ResolvedAssistantMode
 
 
@@ -14,7 +15,7 @@ class AssistantOptions(BaseModel):
 
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.3, ge=0, le=1)
-    max_steps: int = Field(default=3, ge=1, le=8)
+    max_steps: int = Field(default_factory=get_agent_max_steps, ge=1, le=20)
     max_context_tokens: int | None = Field(
         default=None,
         ge=1024,

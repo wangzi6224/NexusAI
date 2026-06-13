@@ -6,7 +6,6 @@ SENSITIVE_KEYS = {
     "authorization",
     "api_key",
     "apikey",
-    "token",
     "access_token",
     "refresh_token",
     "password",
@@ -14,8 +13,6 @@ SENSITIVE_KEYS = {
     "cookie",
     "set-cookie",
     "x-api-key",
-    "nexusai_mcp_token",
-    "github_personal_access_token",
 }
 
 

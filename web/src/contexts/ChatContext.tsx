@@ -165,6 +165,10 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
     !Array.isArray(rawTrace)
       ? (rawTrace as Record<string, unknown>)
       : undefined;
+  const assistantRunId =
+    typeof metadata.assistant_run_id === 'string'
+      ? metadata.assistant_run_id
+      : undefined;
   const rawTraceSummary = metadata.trace_summary;
   const traceSummary: TraceSummary | undefined =
     rawTraceSummary !== null &&
@@ -177,6 +181,10 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
       ? metadata.trace_id
       : typeof traceSummary?.trace_id === 'string'
       ? traceSummary.trace_id
+      : typeof trace?.trace_id === 'string'
+      ? trace.trace_id
+      : assistantRunId
+      ? `trace_${assistantRunId}`
       : undefined;
 
   // 从 trace.route_decision 恢复路由原因
@@ -217,10 +225,7 @@ function toChatMessage(item: MessageItem): ChatMessage | null {
       metadata.mode === 'mcp'
         ? metadata.mode
         : undefined,
-    assistantRunId:
-      typeof metadata.assistant_run_id === 'string'
-        ? metadata.assistant_run_id
-        : undefined,
+    assistantRunId,
     agentRunId,
     routeReason,
     matchedKeywords,
@@ -696,7 +701,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
                     enable_tools: true,
                     enable_working_memory: true,
                     enable_long_term_memory: true,
-                    max_steps: 6,
                   }
                 : undefined,
           },
@@ -851,7 +855,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
                             !Array.isArray(chunk.trace)
                               ? chunk.trace
                               : m.trace,
-                          traceId: chunk.trace_id || m.traceId,
+                          traceId:
+                            chunk.trace_id ||
+                            m.traceId ||
+                            (chunk.assistant_run_id
+                              ? `trace_${chunk.assistant_run_id}`
+                              : undefined),
                           traceSummary:
                             chunk.trace_summary &&
                             typeof chunk.trace_summary === 'object'

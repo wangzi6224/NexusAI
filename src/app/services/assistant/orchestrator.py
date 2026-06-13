@@ -822,6 +822,7 @@ class AssistantOrchestrator:
                 ),
             },
         }
+        trace_summary = trace_store.summarize_trace(trace_id)
 
         assistant_message = create_message(
             conversation_id=conversation_id,
@@ -838,6 +839,8 @@ class AssistantOrchestrator:
                 "is_stream": True,
                 "tool_calls": [],
                 "trace": trace,
+                "trace_id": trace_id,
+                "trace_summary": trace_summary,
             },
         )
 
@@ -875,15 +878,7 @@ class AssistantOrchestrator:
                 "tool_calls": [],
                 "trace": trace,
                 "trace_id": trace_id,
-                "trace_summary": {
-                    "span_count": 12,
-                    "llm_call_count": 2,
-                    "tool_call_count": 1,
-                    "mcp_call_count": 0,
-                    "total_tokens": 5820,
-                    "estimated_cost": 0.0021,
-                    "error_count": 0,
-                },
+                "trace_summary": trace_summary,
             },
         )
         yield sse_event(EVENT_DONE, "[DONE]")
@@ -1114,6 +1109,7 @@ class AssistantOrchestrator:
                 ),
             },
         }
+        trace_summary = trace_store.summarize_trace(trace_id)
 
         self.run_store.update_run(
             assistant_run_id,
@@ -1128,6 +1124,8 @@ class AssistantOrchestrator:
             metadata={
                 "agent_run_id": agent_run_id,
                 "tool_call_count": len(tool_calls),
+                "trace_id": trace_id,
+                "trace_summary": trace_summary,
             },
         )
 
@@ -1145,15 +1143,7 @@ class AssistantOrchestrator:
                 "sources": sources,
                 "trace": assistant_trace,
                 "trace_id": trace_id,
-                "trace_summary": {
-                    "span_count": 12,
-                    "llm_call_count": 2,
-                    "tool_call_count": 1,
-                    "mcp_call_count": 0,
-                    "total_tokens": 5820,
-                    "estimated_cost": 0.0021,
-                    "error_count": 0,
-                },
+                "trace_summary": trace_summary,
             },
         )
         yield sse_event(EVENT_DONE, "[DONE]")

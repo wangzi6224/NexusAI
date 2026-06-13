@@ -1,5 +1,6 @@
 from typing import Any, Literal
 from pydantic import BaseModel, Field
+from src.app.config import get_agent_max_steps
 from src.app.services.memory.working_memory import WorkingMemory
 
 
@@ -59,7 +60,7 @@ class AgentState(BaseModel):
     # 观察列表
     observations: list[AgentObservation] = Field(default_factory=list)
     # 最大步骤数
-    max_steps: int = 3
+    max_steps: int = Field(default_factory=get_agent_max_steps)
     # 模型名称
     model: str
     # top_k 参数

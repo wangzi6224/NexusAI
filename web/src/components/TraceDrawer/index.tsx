@@ -370,7 +370,10 @@ const TraceDrawer: React.FC<TraceDrawerProps> = ({ msg }) => {
   const [traceDetail, setTraceDetail] = useState<TraceDetailResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const traceId = msg.traceId || msg.traceSummary?.trace_id;
+  const traceId =
+    msg.traceId ||
+    msg.traceSummary?.trace_id ||
+    (msg.assistantRunId ? `trace_${msg.assistantRunId}` : undefined);
   const hasTraceTarget = Boolean(
     traceId || msg.traceSummary || (msg.trace && Object.keys(msg.trace).length > 0),
   );

@@ -14,6 +14,7 @@ from src.app.config import (
     resolve_llm_model,
     get_agent_planner_type,
     resolve_max_context_tokens,
+    get_agent_max_steps,
 )
 from src.app.conversation_store import (
     create_message,
@@ -64,7 +65,7 @@ class AgentService:
         question: str,
         top_k: int = 5,
         score_threshold: float = 0.3,
-        max_steps: int = 3,
+        max_steps: int | None = None,
         model: str | None = None,
         enable_working_memory: bool = True,
         enable_mcp_tools: bool = False,
@@ -91,6 +92,8 @@ class AgentService:
                 message="问题不能为空",
                 status_code=400,
             )
+
+        resolved_max_steps = max_steps or get_agent_max_steps()
 
         selected_model = resolve_llm_model(
             model=model,
@@ -119,7 +122,7 @@ class AgentService:
             input_text=clean_question,
             model=selected_model,
             provider=get_llm_provider_name(),
-            max_steps=max_steps,
+            max_steps=resolved_max_steps,
             metadata={
                 "top_k": top_k,
                 "score_threshold": score_threshold,
@@ -144,7 +147,7 @@ class AgentService:
                     name="agent_loop",
                     input={
                         "question": clean_question,
-                        "max_steps": max_steps,
+                        "max_steps": resolved_max_steps,
                         "enable_mcp_tools": enable_mcp_tools,
                     },
                     metadata={
@@ -197,7 +200,7 @@ class AgentService:
             user_message_id=user_message["id"],
             question=clean_question,
             messages=recent_messages,
-            max_steps=max_steps,
+            max_steps=resolved_max_steps,
             model=selected_model,
             top_k=top_k,
             score_threshold=score_threshold,
@@ -410,7 +413,7 @@ class AgentService:
 
         trace = {
             "run_id": run_id,
-            "max_steps": max_steps,
+            "max_steps": resolved_max_steps,
             "loop_step_count": len(state.steps),
             "tool_call_count": len(tool_calls),
             "used_tools": [step.tool_name for step in state.steps if step.tool_name],
@@ -444,6 +447,7 @@ class AgentService:
             "model": response.model,
             "provider": response.provider,
         }
+        trace_summary = trace_store.summarize_trace(trace_id) if trace_id else {}
 
         assistant_message = create_message(
             conversation_id=conversation_id,
@@ -456,6 +460,8 @@ class AgentService:
                 "run_id": run_id,
                 "tool_calls": tool_calls,
                 "trace": trace,
+                "trace_id": trace_id,
+                "trace_summary": trace_summary,
                 "model": response.model,
                 "provider": response.provider,
             },

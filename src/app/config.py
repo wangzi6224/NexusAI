@@ -125,6 +125,10 @@ class Settings(BaseSettings):
     rag_rrf_k: int = Field(default=60, alias="RAG_RRF_K")
     rag_mmr_enabled: bool = Field(default=True, alias="RAG_MMR_ENABLED")
     rag_mmr_lambda: float = Field(default=0.7, alias="RAG_MMR_LAMBDA")
+
+    # Assistant / Agent 步骤上限
+    agent_max_steps: int = Field(default=15, ge=1, le=20, alias="AGENT_MAX_STEPS")
+
     agent_planner_type: str = Field(default="llm", alias="AGENT_PLANNER_TYPE")
     agent_planner_temperature: float = Field(
         default=0.0, alias="AGENT_PLANNER_TEMPERATURE"
@@ -180,16 +184,6 @@ class Settings(BaseSettings):
     trace_output_max_chars: int = Field(default=3000, alias="TRACE_OUTPUT_MAX_CHARS")
     trace_store_full_prompt: bool = Field(
         default=False, alias="TRACE_STORE_FULL_PROMPT"
-    )
-
-    langfuse_enabled: bool = Field(default=False, alias="LANGFUSE_ENABLED")
-    langfuse_public_key: str = Field(default="", alias="LANGFUSE_PUBLIC_KEY")
-    langfuse_secret_key: str = Field(default="", alias="LANGFUSE_SECRET_KEY")
-    langfuse_host: str = Field(default="", alias="LANGFUSE_HOST")
-
-    otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
-    otel_exporter_otlp_endpoint: str = Field(
-        default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT"
     )
 
     mcp_enabled: bool = Field(default=False, alias="MCP_ENABLED")
@@ -524,6 +518,12 @@ def get_rag_mmr_lambda() -> float:
 
 
 # Agent 相关配置函数
+
+
+def get_agent_max_steps() -> int:
+    return get_settings().agent_max_steps
+
+
 def get_agent_allowed_tools() -> list[str]:
     raw = get_settings().agent_allowed_tools
     return [item.strip() for item in raw.split(",") if item.strip()]
