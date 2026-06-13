@@ -42,10 +42,12 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     embedding_error TEXT,
     embedding_updated_at TIMESTAMPTZ,
     -- 加权全文搜索向量：标题权重高于正文
-    search_vector tsvector setweight(
-        to_tsvector('simple', coalesce(heading, '')),
-        'A'
-    ) || setweight(to_tsvector('simple', content), 'B'),
+    search_vector tsvector GENERATED ALWAYS AS (
+        setweight(
+            to_tsvector('simple', coalesce(heading, '')),
+            'A'
+        ) || setweight(to_tsvector('simple', content), 'B')
+    ) STORED,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (document_id, chunk_index)
@@ -453,4 +455,3 @@ ON trace_spans(span_type);
 
 CREATE INDEX IF NOT EXISTS idx_trace_spans_status
 ON trace_spans(status);
-
